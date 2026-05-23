@@ -18,6 +18,15 @@ export default defineConfig({
       },
     },
   },
+  vite: {
+    environments: {
+      client: {
+        build: {
+          outDir: "dist",
+        },
+      },
+    },
+  },
   routeFileIgnorePattern: ["src/routes/admin/payments.tsx", "src/routes/checkout/verify-payment.tsx"],
 
 });
