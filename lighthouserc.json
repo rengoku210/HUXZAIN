@@ -1,0 +1,22 @@
+{
+  "ci": {
+    "collect": {
+      "url": ["http://localhost:5173"],
+      "startServerCommand": "npm run dev",
+      "numberOfRuns": 1,
+      "settings": {
+        "chromeFlags": "--headless"
+      }
+    },
+    "assert": {
+      "preset": "lighthouse:recommended",
+      "assertions": {
+        "performance": ["error", {"minScore": 0.9}],
+        "accessibility": ["error", {"minScore": 0.95}]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
