@@ -20,7 +20,11 @@ export const sendVerificationEmail = createServerFn({ method: "POST" })
     const fromEmail = process.env.RESEND_FROM_EMAIL || (import.meta as any).env?.VITE_RESEND_FROM_EMAIL || "noreply@huxzain.shop";
     
     // Use VITE_SITE_URL for absolute redirects to ensure consistency across local and production.
-    const appUrl = process.env.VITE_SITE_URL || (import.meta as any).env?.VITE_SITE_URL || (process.env.VITE_VERCEL_URL ? `https://${process.env.VITE_VERCEL_URL}` : "http://localhost:8080");
+    const appUrl = process.env.VITE_SITE_URL || 
+                   (import.meta as any).env?.VITE_SITE_URL || 
+                   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
+                   (process.env.VITE_VERCEL_URL ? `https://${process.env.VITE_VERCEL_URL}` : 
+                   "http://localhost:8080"));
     
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || (import.meta as any).env?.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL;

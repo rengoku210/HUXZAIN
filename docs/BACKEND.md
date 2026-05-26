@@ -12,9 +12,9 @@ no UI redesign needed.
    - `VITE_SUPABASE_ANON_KEY`
 2. Open your Supabase SQL editor and run `docs/SCHEMA.sql` once.
 3. In **Supabase → Authentication → URL Configuration**, add redirect URLs:
-   - `http://localhost:5173/auth/callback`
+   - `http://localhost:8080/auth/callback`
    - `https://yourdomain.com/auth/callback`
-   - `http://localhost:5173/reset-password`
+   - `http://localhost:8080/reset-password`
 4. Enable the providers you want (Email, Google, Apple). Email confirmations
    are on by default.
 

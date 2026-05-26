@@ -26,7 +26,7 @@ export const env = {
     cloudName: v.VITE_CLOUDINARY_CLOUD_NAME ?? "",
     uploadPreset: v.VITE_CLOUDINARY_UPLOAD_PRESET ?? "",
   },
-  siteUrl: v.VITE_SITE_URL ?? (v.VITE_VERCEL_URL ? `https://${v.VITE_VERCEL_URL}` : "http://localhost:8080"),
+  siteUrl: (typeof window !== "undefined" && window.location.origin) ? window.location.origin : (v.VITE_SITE_URL || (v.VITE_VERCEL_URL ? `https://${v.VITE_VERCEL_URL}` : "http://localhost:8080")),
   // Resend SMTP configuration
   resend: {
     apiKey: process.env.RESEND_API_KEY ?? "",

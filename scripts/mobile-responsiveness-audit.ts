@@ -18,7 +18,7 @@ pages.forEach(({ name, path }) => {
   test.describe(`${name} – mobile audit`, () => {
     test(`${name} layout`, async ({ page }) => {
       await page.setViewportSize(viewport);
-      await page.goto(`http://localhost:5173${path}`);
+      await page.goto(`http://localhost:8080${path}`);
 
       // Capture screenshot.
       const screenshotPath = `artifacts/qa-manual-payment-flow/mobile/${name.replace(/\s+/g, "_").toLowerCase()}.png`;

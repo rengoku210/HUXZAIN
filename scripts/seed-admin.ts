@@ -10,7 +10,7 @@ const ADMIN_EMAIL = process.env.ADMIN_SEED_EMAIL ?? "admin@huxzain.com";
 const ADMIN_PASSWORD = process.env.ADMIN_SEED_PASSWORD ?? "admin";
 const REDIRECT_URL =
   process.env.ADMIN_SEED_REDIRECT ??
-  `${process.env.VITE_BASE_URL || "http://localhost:5173"}/auth/verified`;
+  `${process.env.VITE_SITE_URL || "http://localhost:8080"}/auth/verified`;
 
 const supabase = createClient(env.supabase.url, env.supabase.anonKey);
 

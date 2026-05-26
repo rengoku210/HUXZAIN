@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:full": "start /B npm run dev && npx wait-on http://localhost:5173 && npx playwright test e2e/full-validation.test.ts",
+    "test:e2e:full": "start /B npm run dev && npx wait-on http://localhost:8080 && npx playwright test e2e/full-validation.test.ts",
     "audit:routes": "ts-node scripts/route-audit.ts"
   },
   "dependencies": {
