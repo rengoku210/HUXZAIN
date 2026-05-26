@@ -4,7 +4,10 @@
  * live in process.env and are read inside server functions.
  */
 
-const v = (typeof import.meta !== "undefined" ? import.meta.env : {}) as Record<string, string | undefined>;
+const v = (typeof import.meta !== "undefined" ? import.meta.env : {}) as Record<
+  string,
+  string | undefined
+>;
 
 export const env = {
   supabase: {
@@ -23,16 +26,16 @@ export const env = {
     cloudName: v.VITE_CLOUDINARY_CLOUD_NAME ?? "",
     uploadPreset: v.VITE_CLOUDINARY_UPLOAD_PRESET ?? "",
   },
+  siteUrl: v.VITE_SITE_URL ?? (v.VITE_VERCEL_URL ? `https://${v.VITE_VERCEL_URL}` : "http://localhost:8080"),
   // Resend SMTP configuration
   resend: {
-    apiKey: process.env.RESEND_API_KEY ?? '',
-    fromEmail: process.env.RESEND_FROM_EMAIL ?? '',
-    testRecipient: process.env.RESEND_TO_EMAIL ?? '',
+    apiKey: process.env.RESEND_API_KEY ?? "",
+    fromEmail: process.env.RESEND_FROM_EMAIL ?? "",
+    testRecipient: process.env.RESEND_TO_EMAIL ?? "",
   },
 } as const;
 
-export const isSupabaseConfigured = () =>
-  Boolean(env.supabase.url && env.supabase.anonKey);
+export const isSupabaseConfigured = () => Boolean(env.supabase.url && env.supabase.anonKey);
 
 export const isWordPressConfigured = () => Boolean(env.wordpress.apiBase);
 export const isRazorpayConfigured = () => Boolean(env.razorpay.keyId);

@@ -1,32 +1,35 @@
-import { useEffect, useState } from 'react';
-import { getSupabase } from '@/lib/supabase-client';
+﻿import { useCallback, useEffect, useState } from "react";
+import { getSupabase } from "@/lib/supabase-client";
 
 export function useFetchData<T>(table: string) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refetch = useCallback(async () => {
     const supabase = getSupabase();
     if (!supabase) {
-      setError('Supabase not configured');
+      setError("Supabase not configured");
+      setData(null);
       setLoading(false);
       return;
     }
-    const fetch = async () => {
-      setLoading(true);
-      const { data, error } = await supabase.from<T>(table).select('*');
-      if (error) {
-        setError(error.message);
-        setData(null);
-      } else {
-        setData(data as T[]);
-        setError(null);
-      }
-      setLoading(false);
-    };
-    fetch();
+
+    setLoading(true);
+    const { data, error } = await supabase.from(table).select("*");
+    if (error) {
+      setError(error.message);
+      setData(null);
+    } else {
+      setData((data ?? []) as T[]);
+      setError(null);
+    }
+    setLoading(false);
   }, [table]);
 
-  return { data, loading, error };
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
 }

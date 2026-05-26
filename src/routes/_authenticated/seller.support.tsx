@@ -18,14 +18,19 @@ function Page() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold">Support</h1>
-          <p className="text-sm text-muted-foreground mt-1">Open a ticket — we respond within 6 hours on average.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Open a ticket — we respond within 6 hours on average.
+          </p>
         </div>
         <button className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-gold text-black font-semibold text-sm hover:bg-gold/90">
           <Plus size={14} /> New ticket
         </button>
       </div>
 
-      <PanelCard title="Your tickets" action={<LifeBuoy size={14} className="text-muted-foreground" />}>
+      <PanelCard
+        title="Your tickets"
+        action={<LifeBuoy size={14} className="text-muted-foreground" />}
+      >
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs text-muted-foreground border-b border-border">
@@ -40,7 +45,9 @@ function Page() {
               <tr key={t.id} className="border-b border-border/50">
                 <td className="py-3 font-mono text-xs text-muted-foreground">{t.id}</td>
                 <td className="py-3">{t.subject}</td>
-                <td className="py-3 pl-4"><StatusPill status={t.status} /></td>
+                <td className="py-3 pl-4">
+                  <StatusPill status={t.status} />
+                </td>
                 <td className="py-3 text-right text-xs text-muted-foreground">{t.updated}</td>
               </tr>
             ))}

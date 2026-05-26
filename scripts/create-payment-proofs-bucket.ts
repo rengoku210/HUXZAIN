@@ -20,7 +20,8 @@ async function createBucket() {
     allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
     fileSizeLimit: 10 * 1024 * 1024, // 10 MB
   });
-  if (error && error.status !== 409) { // 409 means bucket already exists
+  if (error && error.status !== 409) {
+    // 409 means bucket already exists
     console.error("Error creating bucket:", error.message);
     process.exit(1);
   }

@@ -14,7 +14,9 @@ async function main() {
   const to = env.resend?.testRecipient;
 
   if (!apiKey || !from || !to) {
-    console.error("Missing RESEND configuration. Ensure RESEND_API_KEY, RESEND_FROM_EMAIL, and RESEND_TO_EMAIL are set.");
+    console.error(
+      "Missing RESEND configuration. Ensure RESEND_API_KEY, RESEND_FROM_EMAIL, and RESEND_TO_EMAIL are set.",
+    );
     process.exit(1);
   }
 
@@ -34,7 +36,9 @@ async function main() {
 
   if (!response.ok) {
     const errText = await response.text();
-    console.error(`Resend test email failed: ${response.status} ${response.statusText}\n${errText}`);
+    console.error(
+      `Resend test email failed: ${response.status} ${response.statusText}\n${errText}`,
+    );
     process.exit(1);
   }
 

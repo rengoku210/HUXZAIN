@@ -9,9 +9,10 @@ function collectRouteFiles(dir: string, files: string[] = []): string[] {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // skip node_modules and build output
-      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "build") continue;
+      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "build")
+        continue;
       collectRouteFiles(fullPath, files);
-    } else if (entry.isFile() && entry.name.endsWith('.tsx')) {
+    } else if (entry.isFile() && entry.name.endsWith(".tsx")) {
       files.push(fullPath);
     }
   }
@@ -33,7 +34,7 @@ function auditRoutes(projectRoot: string) {
 
   for (const file of files) {
     // ignore placeholder files (prefixed with '-')
-    if (path.basename(file).startsWith('-')) {
+    if (path.basename(file).startsWith("-")) {
       ignored.push(file);
       continue;
     }
@@ -57,7 +58,7 @@ function auditRoutes(projectRoot: string) {
     console.log("Duplicate route definitions detected:");
     for (const [route, files] of Object.entries(duplicates)) {
       console.log(`  ${route}:`);
-      files.forEach(f => console.log(`    - ${f}`));
+      files.forEach((f) => console.log(`    - ${f}`));
     }
   } else {
     console.log("No duplicate routes found.");
@@ -65,12 +66,12 @@ function auditRoutes(projectRoot: string) {
 
   if (ignored.length) {
     console.log("Ignored placeholder files:");
-    ignored.forEach(f => console.log(`  - ${f}`));
+    ignored.forEach((f) => console.log(`  - ${f}`));
   }
 
   if (orphan.length) {
     console.log("Files without a Route export (orphan):");
-    orphan.forEach(f => console.log(`  - ${f}`));
+    orphan.forEach((f) => console.log(`  - ${f}`));
   }
 
   // Generate markdown report
@@ -84,7 +85,7 @@ function auditRoutes(projectRoot: string) {
     reportLines.push("## Duplicate Routes");
     for (const [route, files] of Object.entries(duplicates)) {
       reportLines.push(`- **${route}**`);
-      files.forEach(f => reportLines.push(`  - ${f}`));
+      files.forEach((f) => reportLines.push(`  - ${f}`));
     }
     reportLines.push("");
   } else {
@@ -93,13 +94,13 @@ function auditRoutes(projectRoot: string) {
 
   if (ignored.length) {
     reportLines.push("## Ignored Placeholder Files");
-    ignored.forEach(f => reportLines.push(`- ${f}`));
+    ignored.forEach((f) => reportLines.push(`- ${f}`));
     reportLines.push("");
   }
 
   if (orphan.length) {
     reportLines.push("## Orphan Files (no Route export)");
-    orphan.forEach(f => reportLines.push(`- ${f}`));
+    orphan.forEach((f) => reportLines.push(`- ${f}`));
     reportLines.push("");
   }
 

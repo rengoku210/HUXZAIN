@@ -1,0 +1,340 @@
+const fs = require('fs');
+let code = fs.readFileSync('src/routes/_authenticated/seller.listings.tsx', 'utf8');
+
+const regex = /function ListingModal\(\{[\s\S]*?(?=\/\/\s*─\s*Main page)/;
+const match = code.match(regex);
+if (!match) {
+  console.log("Could not find ListingModal function.");
+  process.exit(1);
+}
+
+const newModal = `function ListingModal({
+  listing,
+  userId,
+  onClose,
+  onSaved,
+  categories,
+}: {
+  listing: Partial<Listing> | null;
+  userId: string;
+  onClose: () => void;
+  onSaved: () => void;
+  categories: Category[];
+}) {
+  const isNew = !listing?.id;
+  const [title, setTitle] = useState(listing?.title ?? "");
+  const [description, setDescription] = useState(listing?.description ?? "");
+  const [price, setPrice] = useState(String(listing?.price ?? ""));
+  const [status, setStatus] = useState(listing?.status ?? "active");
+  const [categoryId, setCategoryId] = useState(listing?.category_id ?? "");
+  const [deliveryDetails, setDeliveryDetails] = useState(listing?.delivery_details ?? "");
+  
+  const [gallery, setGallery] = useState<{ id: string; file?: File; url: string }[]>(() => {
+    const urls = listing?.gallery_urls && listing.gallery_urls.length > 0 
+      ? listing.gallery_urls 
+      : (listing?.cover_image_url ? [listing.cover_image_url] : []);
+    return urls.map(url => ({ id: Math.random().toString(), url }));
+  });
+  
+  const [tags, setTags] = useState<string[]>(listing?.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const newItems = files.map(f => {
+      if (f.size > 5 * 1024 * 1024) {
+        toast.error(\`\${f.name} is too large (max 5MB).\`);
+        return null;
+      }
+      return { id: Math.random().toString(), file: f, url: URL.createObjectURL(f) };
+    }).filter(Boolean) as { id: string; file: File; url: string }[];
+    setGallery(prev => [...prev, ...newItems]);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const removeImage = (id: string) => {
+    setGallery(prev => prev.filter(item => item.id !== id));
+  };
+
+  const moveImage = (index: number, direction: -1 | 1) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= gallery.length) return;
+    const newGallery = [...gallery];
+    const temp = newGallery[index];
+    newGallery[index] = newGallery[newIndex];
+    newGallery[newIndex] = temp;
+    setGallery(newGallery);
+  };
+
+  const addTag = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = tagInput.trim();
+      if (val && !tags.includes(val)) {
+        setTags([...tags, val]);
+      }
+      setTagInput("");
+    }
+  };
+
+  const removeTag = (t: string) => {
+    setTags(tags.filter(tag => tag !== t));
+  };
+
+  async function handleSave() {
+    if (!title.trim()) {
+      toast.error("Title is required.");
+      return;
+    }
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      toast.error("Enter a valid price.");
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      toast.error("Not configured.");
+      return;
+    }
+    setSaving(true);
+
+    try {
+      const uploadedUrls: string[] = [];
+      for (const item of gallery) {
+        if (item.file) {
+          const ext = item.file.name.split(".").pop() ?? "jpg";
+          const path = \`\${userId}/listings/\${Date.now()}-\${Math.random().toString(36).substring(7)}.\${ext}\`;
+          const { error: upErr } = await supabase.storage
+            .from("listing-images")
+            .upload(path, item.file, { upsert: true, contentType: item.file.type });
+          if (upErr) throw upErr;
+          const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
+          uploadedUrls.push(urlData.publicUrl);
+        } else {
+          uploadedUrls.push(item.url);
+        }
+      }
+
+      const coverUrl = uploadedUrls.length > 0 ? uploadedUrls[0] : null;
+
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        slug: slugify(title.trim()),
+        price: priceNum,
+        category_id: categoryId || null,
+        delivery_details: deliveryDetails.trim() || null,
+        status,
+        cover_image_url: coverUrl,
+        gallery_urls: uploadedUrls,
+        tags,
+        seller_id: userId,
+      };
+
+      if (isNew) {
+        const { error } = await supabase.from("listings").insert(payload);
+        if (error) throw error;
+        toast.success("Listing created!");
+      } else {
+        const { error } = await supabase.from("listings").update(payload).eq("id", listing!.id!);
+        if (error) throw error;
+        toast.success("Listing updated!");
+      }
+
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(\`Failed: \${e.message}\`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
+
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display text-lg font-bold">
+              {isNew ? "Create New Listing" : "Edit Listing"}
+            </h2>
+            <button
+              onClick={onClose}
+              className="size-8 rounded-full border border-border flex items-center justify-center hover:border-gold/40"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">Gallery Images (First is Cover)</label>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {gallery.map((item, i) => (
+                <div key={item.id} className="relative w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden border border-border group">
+                  <img src={item.url} alt="Gallery item" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    {i > 0 && (
+                      <button onClick={() => moveImage(i, -1)} className="p-1 bg-white/20 rounded hover:bg-white/40 text-white text-xs">&lt;</button>
+                    )}
+                    <button onClick={() => removeImage(item.id)} className="p-1 bg-red-500/80 rounded hover:bg-red-500 text-white text-xs">Del</button>
+                    {i < gallery.length - 1 && (
+                      <button onClick={() => moveImage(i, 1)} className="p-1 bg-white/20 rounded hover:bg-white/40 text-white text-xs">&gt;</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div
+                className="w-32 h-32 flex-shrink-0 border-2 border-dashed border-border hover:border-gold/50 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gold/5 transition-all"
+                onClick={() => fileRef.current?.click()}
+              >
+                <Upload className="size-6 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Add Image</span>
+              </div>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Title <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Premium WordPress Theme"
+                className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Describe your listing..."
+                className="w-full px-4 py-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 resize-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Category</label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                >
+                  <option value="">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Delivery Details</label>
+                <input
+                  value={deliveryDetails}
+                  onChange={(e) => setDeliveryDetails(e.target.value)}
+                  placeholder="e.g. Delivered within 24 hours"
+                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Tags (Press Enter to add)</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {tags.map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 bg-surface border border-border px-2 py-1 rounded text-xs">
+                    {tag}
+                    <button type="button" onClick={() => removeTag(tag)} className="text-muted-foreground hover:text-foreground">
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={addTag}
+                placeholder="Add tag..."
+                className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  Price ($) <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                >
+                  <option value="active">Active</option>
+                  <option value="hidden">Hidden</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={onClose}
+              className="flex-1 h-11 rounded-xl border border-border text-sm hover:border-gold/40 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 h-11 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="size-4" />
+              )}
+              {saving ? "Saving..." : isNew ? "Create Listing" : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+code = code.replace(regex, newModal + '\n');
+fs.writeFileSync('src/routes/_authenticated/seller.listings.tsx', code);
+console.log('Replaced ListingModal successfully.');

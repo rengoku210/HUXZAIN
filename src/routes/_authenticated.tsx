@@ -18,7 +18,7 @@ function AuthenticatedLayout() {
 
   useEffect(() => {
     if (auth.ready && !auth.isAuthenticated) {
-      navigate({ to: "/login", search: { redirect: window.location.pathname } });
+      navigate({ to: "/login", search: { redirect: window.location.pathname + window.location.search } });
     }
   }, [auth.ready, auth.isAuthenticated, navigate]);
 

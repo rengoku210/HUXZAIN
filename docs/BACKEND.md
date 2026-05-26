@@ -27,14 +27,14 @@ Defined in `src/lib/roles.ts`. Roles are **never** stored on the profile
 table — they live in `public.user_roles` and are checked via the
 `SECURITY DEFINER` SQL function `has_role(uid, role)` (see SCHEMA.sql).
 
-| Role          | Purpose                                       |
-| ------------- | --------------------------------------------- |
-| `buyer`       | Default for every new signup                  |
-| `seller`      | Can list, fulfill orders, withdraw            |
-| `moderator`   | Approve listings, mediate disputes            |
-| `staff`       | Customer support / triage                     |
-| `admin`       | Full marketplace operations                   |
-| `super_admin` | Every permission, manages other admins        |
+| Role          | Purpose                                |
+| ------------- | -------------------------------------- |
+| `buyer`       | Default for every new signup           |
+| `seller`      | Can list, fulfill orders, withdraw     |
+| `moderator`   | Approve listings, mediate disputes     |
+| `staff`       | Customer support / triage              |
+| `admin`       | Full marketplace operations            |
+| `super_admin` | Every permission, manages other admins |
 
 Use it in components:
 
@@ -63,14 +63,14 @@ support tickets, coupons, boosts). Each function returns
 
 ## 5. Where to add new logic
 
-| Concern                | File                                    |
-| ---------------------- | --------------------------------------- |
-| New env var            | `.env.example` + `src/lib/env.ts`       |
-| New role/permission    | `src/lib/roles.ts`                      |
-| New entity/table       | `docs/SCHEMA.sql` + `marketplace/types.ts` + `services.ts` |
-| New seller page        | `src/routes/_authenticated/seller.<slug>.tsx` |
-| New admin page         | `src/routes/_authenticated/admin.<slug>.tsx`  |
-| Server-only secrets    | Read `process.env.*` inside `createServerFn` handlers only |
+| Concern             | File                                                       |
+| ------------------- | ---------------------------------------------------------- |
+| New env var         | `.env.example` + `src/lib/env.ts`                          |
+| New role/permission | `src/lib/roles.ts`                                         |
+| New entity/table    | `docs/SCHEMA.sql` + `marketplace/types.ts` + `services.ts` |
+| New seller page     | `src/routes/_authenticated/seller.<slug>.tsx`              |
+| New admin page      | `src/routes/_authenticated/admin.<slug>.tsx`               |
+| Server-only secrets | Read `process.env.*` inside `createServerFn` handlers only |
 
 ## 6. Razorpay / Resend / WordPress
 

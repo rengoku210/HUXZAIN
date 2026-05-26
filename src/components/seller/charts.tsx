@@ -1,4 +1,19 @@
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const goldStroke = "oklch(0.82 0.13 82)";
 const goldFill = "oklch(0.82 0.13 82 / 0.18)";
@@ -25,7 +40,13 @@ export function RevenueArea({ data }: { data: { d: string; v: number }[] }) {
         <XAxis dataKey="d" tickLine={false} axisLine={false} tick={axis} />
         <YAxis tickLine={false} axisLine={false} tick={axis} />
         <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: goldStroke, strokeOpacity: 0.3 }} />
-        <Area type="monotone" dataKey="v" stroke={goldStroke} strokeWidth={2} fill="url(#gold-area)" />
+        <Area
+          type="monotone"
+          dataKey="v"
+          stroke={goldStroke}
+          strokeWidth={2}
+          fill="url(#gold-area)"
+        />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -71,7 +92,15 @@ export function CategoryPie({ data }: { data: { name: string; v: number }[] }) {
     <ResponsiveContainer width="100%" height={200}>
       <PieChart>
         <Tooltip contentStyle={tooltipStyle} />
-        <Pie data={data} dataKey="v" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3} stroke="none">
+        <Pie
+          data={data}
+          dataKey="v"
+          nameKey="name"
+          innerRadius={50}
+          outerRadius={80}
+          paddingAngle={3}
+          stroke="none"
+        >
           {data.map((_, i) => (
             <Cell key={i} fill={pieColors[i % pieColors.length]} />
           ))}

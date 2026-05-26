@@ -47,18 +47,8 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 const rolePerms: Record<Role, Permission[]> = {
   buyer: ["order:view_own"],
-  seller: [
-    "listing:create",
-    "listing:update_own",
-    "order:view_own",
-    "wallet:withdraw",
-  ],
-  moderator: [
-    "listing:approve",
-    "dispute:resolve",
-    "report:view",
-    "order:view_any",
-  ],
+  seller: ["listing:create", "listing:update_own", "order:view_own", "wallet:withdraw"],
+  moderator: ["listing:approve", "dispute:resolve", "report:view", "order:view_any"],
   staff: ["report:view", "order:view_any", "dispute:resolve", "payment:verify"],
   admin: [
     "listing:approve",
@@ -76,8 +66,6 @@ const rolePerms: Record<Role, Permission[]> = {
   super_admin: [],
   owner: [...PERMISSIONS],
 };
-
-
 
 // super_admin gets every permission
 rolePerms.super_admin = [...PERMISSIONS];

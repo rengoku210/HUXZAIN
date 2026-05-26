@@ -1,6 +1,5 @@
-// src/lib/payments/fraudScoringService.ts
+﻿// src/lib/payments/fraudScoringService.ts
 import { getSupabase } from "../supabase-client";
-import { PaymentVerification } from "../types"; // placeholder type, adjust as needed
 
 export interface FraudScoreResult {
   score: number;
@@ -20,13 +19,14 @@ export async function calculateFraudScore(params: {
   transactionId?: string;
   amount?: number;
   timestamp?: string; // ISO
-  ocrConfidence?: number; // 0‑1
+  ocrConfidence?: number; // 0â€‘1
   screenshotHash?: string;
 }): Promise<FraudScoreResult> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase client not configured");
 
-  const { userId, orderId, transactionId, amount, timestamp, ocrConfidence, screenshotHash } = params;
+  const { userId, orderId, transactionId, amount, timestamp, ocrConfidence, screenshotHash } =
+    params;
   let score = 0;
   const tags: string[] = [];
 
@@ -60,17 +60,25 @@ export async function calculateFraudScore(params: {
 
   // Amount mismatch with order total (assumes orders table exists)
   if (amount !== undefined) {
-    const { data: order } = await supabase.from("orders").select("amount_total").eq("id", orderId).maybeSingle();
+    const { data: order } = await supabase
+      .from("orders")
+      .select("amount_total")
+      .eq("id", orderId)
+      .maybeSingle();
     if (order && Math.abs(order.amount_total - amount) > 0.01) {
       score += 20;
       tags.push("amount-mismatch");
     }
   }
 
-  // Timestamp drift – allow ±10 minutes
+  // Timestamp drift â€“ allow Â±10 minutes
   if (timestamp) {
     const ocrDate = new Date(timestamp);
-    const { data: orderInfo } = await supabase.from("orders").select("created_at").eq("id", orderId).maybeSingle();
+    const { data: orderInfo } = await supabase
+      .from("orders")
+      .select("created_at")
+      .eq("id", orderId)
+      .maybeSingle();
     if (orderInfo) {
       const orderDate = new Date(orderInfo.created_at);
       const diffMs = Math.abs(ocrDate.getTime() - orderDate.getTime());
@@ -87,7 +95,7 @@ export async function calculateFraudScore(params: {
     tags.push("low-ocr-confidence");
   }
 
-  // Rapid submissions – more than 2 verifications by same user in last 5 minutes
+  // Rapid submissions â€“ more than 2 verifications by same user in last 5 minutes
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { count: recentCount } = await supabase
     .from("payment_verifications")
@@ -99,7 +107,7 @@ export async function calculateFraudScore(params: {
     tags.push("rapid-submission");
   }
 
-  // Metadata/edit indicators – placeholder (real implementation could inspect EXIF via Sharp)
+  // Metadata/edit indicators â€“ placeholder (real implementation could inspect EXIF via Sharp)
   // For now, if amount field was parsed but raw OCR text contains the word "Edited" add tag.
   // This will be handled by caller via an extra param if needed.
 

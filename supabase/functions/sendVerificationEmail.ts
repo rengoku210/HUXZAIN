@@ -30,11 +30,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const subject = status === "approved" ? "Payment Verification Approved" : "Payment Verification Rejected";
-  const headline = status === "approved" ? "Your payment has been approved!" : "Your payment verification was rejected";
-  const message = status === "approved"
-    ? `We have successfully verified your payment for order <strong>${orderId}</strong>. You can now proceed with the transaction.`
-    : `Unfortunately, we could not verify your payment for order <strong>${orderId}</strong>. ${details ? `<br/>Reason: ${details}` : ""}`;
+  const subject =
+    status === "approved" ? "Payment Verification Approved" : "Payment Verification Rejected";
+  const headline =
+    status === "approved"
+      ? "Your payment has been approved!"
+      : "Your payment verification was rejected";
+  const message =
+    status === "approved"
+      ? `We have successfully verified your payment for order <strong>${orderId}</strong>. You can now proceed with the transaction.`
+      : `Unfortunately, we could not verify your payment for order <strong>${orderId}</strong>. ${details ? `<br/>Reason: ${details}` : ""}`;
 
   const html = `
     <html>

@@ -11,8 +11,8 @@
     "assert": {
       "preset": "lighthouse:recommended",
       "assertions": {
-        "performance": ["error", {"minScore": 0.9}],
-        "accessibility": ["error", {"minScore": 0.95}]
+        "performance": ["error", { "minScore": 0.9 }],
+        "accessibility": ["error", { "minScore": 0.95 }]
       }
     },
     "upload": {

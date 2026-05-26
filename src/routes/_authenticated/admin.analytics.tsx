@@ -13,7 +13,10 @@ function Page() {
       <p className="text-sm text-muted-foreground mt-1">GMV, take rate, retention, and growth.</p>
       <div className="mt-6">
         <PanelCard title="Analytics">
-          <EmptyState title="No data yet" desc="Populated once Supabase tables (see docs/SCHEMA.sql) contain data." />
+          <EmptyState
+            title="No data yet"
+            desc="Populated once Supabase tables (see docs/SCHEMA.sql) contain data."
+          />
         </PanelCard>
       </div>
     </>

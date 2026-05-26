@@ -8,7 +8,11 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "About Us — HUXZAIN" },
-      { name: "description", content: "Learn about HUXZAIN — our mission to build the world's most trusted digital marketplace, our values, and the team behind the platform." },
+      {
+        name: "description",
+        content:
+          "Learn about HUXZAIN — our mission to build the world's most trusted digital marketplace, our values, and the team behind the platform.",
+      },
       { property: "og:title", content: "About HUXZAIN — Secure Digital Marketplace" },
     ],
   }),
@@ -42,7 +46,10 @@ const milestones = [
   { year: "2022", event: "HUXZAIN founded with a vision for the most secure digital marketplace" },
   { year: "2023", event: "Launched buyer escrow protection and verified seller programme" },
   { year: "2024", event: "Crossed 10,000 active sellers and 50,000 completed orders" },
-  { year: "2025", event: "Expanded to 40+ countries with multilingual support and local payment methods" },
+  {
+    year: "2025",
+    event: "Expanded to 40+ countries with multilingual support and local payment methods",
+  },
   { year: "2026", event: "Surpassed 150K listed products and 120K satisfied customers worldwide" },
 ];
 
@@ -57,11 +64,13 @@ function AboutPage() {
             <Target className="size-7 text-gold" />
           </div>
           <h1 className="font-display text-4xl md:text-5xl font-bold mb-5">
-            Built to Be the World's Most{" "}
-            <span className="text-gold">Trusted</span> Digital Marketplace
+            Built to Be the World's Most <span className="text-gold">Trusted</span> Digital
+            Marketplace
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-base leading-relaxed">
-            HUXZAIN was born from a simple conviction: the digital economy deserves a marketplace where every transaction is safe, every seller is accountable, and every buyer is protected. We built the platform we always wished existed.
+            HUXZAIN was born from a simple conviction: the digital economy deserves a marketplace
+            where every transaction is safe, every seller is accountable, and every buyer is
+            protected. We built the platform we always wished existed.
           </p>
         </section>
 
@@ -85,16 +94,24 @@ function AboutPage() {
             </h2>
             <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
               <p>
-                HUXZAIN started in 2022 when our founders — frustrated by the rampant fraud and zero buyer protection on existing digital marketplaces — decided to build something better. Something that put trust at the absolute centre.
+                HUXZAIN started in 2022 when our founders — frustrated by the rampant fraud and zero
+                buyer protection on existing digital marketplaces — decided to build something
+                better. Something that put trust at the absolute centre.
               </p>
               <p>
-                We pioneered a full-escrow payment model where funds are never released until the buyer confirms satisfaction. We built a Verified Seller Programme with real identity checks. We created a transparent dispute resolution system with independent review teams.
+                We pioneered a full-escrow payment model where funds are never released until the
+                buyer confirms satisfaction. We built a Verified Seller Programme with real identity
+                checks. We created a transparent dispute resolution system with independent review
+                teams.
               </p>
               <p>
-                Today, HUXZAIN hosts over 150,000 digital products and services across categories spanning programming, design, SEO, marketing, gaming, and more — all protected by our industry-leading buyer guarantee.
+                Today, HUXZAIN hosts over 150,000 digital products and services across categories
+                spanning programming, design, SEO, marketing, gaming, and more — all protected by
+                our industry-leading buyer guarantee.
               </p>
               <p>
-                We're not just a marketplace. We're a community commitment: to keep digital commerce honest, secure, and empowering for everyone involved.
+                We're not just a marketplace. We're a community commitment: to keep digital commerce
+                honest, secure, and empowering for everyone involved.
               </p>
             </div>
             <div className="mt-7 flex gap-3">
@@ -115,7 +132,9 @@ function AboutPage() {
 
           {/* Timeline */}
           <div className="rounded-2xl border border-border bg-surface/40 p-7">
-            <h3 className="font-semibold text-sm text-gold uppercase tracking-widest mb-6">Our Journey</h3>
+            <h3 className="font-semibold text-sm text-gold uppercase tracking-widest mb-6">
+              Our Journey
+            </h3>
             <div className="space-y-0">
               {milestones.map((m, i) => (
                 <div key={m.year} className="flex gap-4">
@@ -144,7 +163,10 @@ function AboutPage() {
             {values.map((value) => {
               const Icon = value.icon;
               return (
-                <div key={value.title} className="rounded-2xl border border-border bg-surface/40 p-6 flex flex-col gap-4">
+                <div
+                  key={value.title}
+                  className="rounded-2xl border border-border bg-surface/40 p-6 flex flex-col gap-4"
+                >
                   <div className="size-12 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center">
                     <Icon className="size-5 text-gold" />
                   </div>
@@ -164,7 +186,8 @@ function AboutPage() {
             The <span className="text-gold">Team</span>
           </h2>
           <p className="text-center text-muted-foreground text-sm max-w-lg mx-auto mb-10">
-            We're a remote-first team of designers, engineers, and marketplace veterans — united by the mission to make digital commerce safer for everyone.
+            We're a remote-first team of designers, engineers, and marketplace veterans — united by
+            the mission to make digital commerce safer for everyone.
           </p>
           <div className="rounded-2xl border border-border bg-surface/40 p-10 text-center">
             <div className="flex items-center justify-center gap-3 mb-4">
@@ -197,7 +220,10 @@ function AboutPage() {
         <div className="relative overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-surface-elevated via-surface to-background p-8 md:p-10 text-center">
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ backgroundImage: "radial-gradient(600px 300px at 50% 120%, oklch(0.82 0.13 82 / 0.1), transparent 60%)" }}
+            style={{
+              backgroundImage:
+                "radial-gradient(600px 300px at 50% 120%, oklch(0.82 0.13 82 / 0.1), transparent 60%)",
+            }}
           />
           <div className="relative">
             <ShieldCheck className="size-10 text-gold mx-auto mb-4" />
@@ -205,7 +231,8 @@ function AboutPage() {
               Ready to Experience <span className="text-gold">HUXZAIN?</span>
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-              Join over 50,000 buyers and sellers who trust HUXZAIN for safe, reliable digital commerce.
+              Join over 50,000 buyers and sellers who trust HUXZAIN for safe, reliable digital
+              commerce.
             </p>
             <div className="flex justify-center gap-3">
               <Link

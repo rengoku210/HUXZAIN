@@ -19,7 +19,8 @@ function Page() {
       <div>
         <h1 className="font-display text-2xl font-bold">Subscription</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          You're on the <span className="text-gold font-semibold">{TIERS[tier].label}</span> plan. Upgrade any time to unlock more.
+          You're on the <span className="text-gold font-semibold">{TIERS[tier].label}</span> plan.
+          Upgrade any time to unlock more.
         </p>
       </div>
 
@@ -36,14 +37,25 @@ function Page() {
               }`}
               style={{ background: m.surfaceGradient, boxShadow: current ? m.glow : undefined }}
             >
-              <div className="absolute -right-16 -top-16 size-40 rounded-full opacity-15"
-                   style={{ background: `radial-gradient(closest-side, oklch(0.82 0.13 82), transparent)` }} />
+              <div
+                className="absolute -right-16 -top-16 size-40 rounded-full opacity-15"
+                style={{
+                  background: `radial-gradient(closest-side, oklch(0.82 0.13 82), transparent)`,
+                }}
+              />
               <div className="relative">
                 <div className="flex items-center justify-between">
                   <TierBadge tier={t} size="sm" />
-                  {current && <span className="text-[10px] text-gold uppercase tracking-wider font-bold">Current</span>}
+                  {current && (
+                    <span className="text-[10px] text-gold uppercase tracking-wider font-bold">
+                      Current
+                    </span>
+                  )}
                 </div>
-                <div className="mt-4 font-display text-3xl font-bold">${m.monthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
+                <div className="mt-4 font-display text-3xl font-bold">
+                  {m.monthly === 0 ? 'Free' : `₹${m.monthly * 80}`}
+                  <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                </div>
                 <div className="text-xs text-muted-foreground mt-1">{m.tagline}</div>
 
                 <ul className="mt-5 space-y-2 text-sm flex-1">
@@ -56,7 +68,10 @@ function Page() {
 
                 <div className="mt-6">
                   {current ? (
-                    <button disabled className="w-full h-10 rounded-lg border border-border text-sm text-muted-foreground cursor-not-allowed">
+                    <button
+                      disabled
+                      className="w-full h-10 rounded-lg border border-border text-sm text-muted-foreground cursor-not-allowed"
+                    >
                       Active plan
                     </button>
                   ) : upgradable ? (
@@ -84,9 +99,20 @@ function Page() {
 
       <PanelCard title="Billing">
         <div className="grid sm:grid-cols-3 gap-4 text-sm">
-          <div><div className="text-xs text-muted-foreground">Payment method</div><div className="mt-1">Razorpay · UPI</div></div>
-          <div><div className="text-xs text-muted-foreground">Next renewal</div><div className="mt-1">Jun 18, 2026</div></div>
-          <div><div className="text-xs text-muted-foreground">Invoices</div><a className="mt-1 text-gold hover:underline inline-block" href="#">Download all</a></div>
+          <div>
+            <div className="text-xs text-muted-foreground">Payment method</div>
+            <div className="mt-1">Razorpay · UPI</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Next renewal</div>
+            <div className="mt-1">Jun 18, 2026</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Invoices</div>
+            <a className="mt-1 text-gold hover:underline inline-block" href="#">
+              Download all
+            </a>
+          </div>
         </div>
       </PanelCard>
     </div>

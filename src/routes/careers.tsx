@@ -7,7 +7,11 @@ export const Route = createFileRoute("/careers")({
   head: () => ({
     meta: [
       { title: "Careers — HUXZAIN" },
-      { name: "description", content: "Join the HUXZAIN team. Explore open positions at the leading secure digital marketplace and help build the future of digital commerce." },
+      {
+        name: "description",
+        content:
+          "Join the HUXZAIN team. Explore open positions at the leading secure digital marketplace and help build the future of digital commerce.",
+      },
       { property: "og:title", content: "Careers at HUXZAIN" },
     ],
   }),
@@ -15,10 +19,26 @@ export const Route = createFileRoute("/careers")({
 });
 
 const perks = [
-  { icon: Zap, title: "Remote-First", desc: "Work from anywhere in the world. We're a fully distributed team that trusts you to deliver." },
-  { icon: TrendingUp, title: "Equity & Growth", desc: "Competitive salaries plus equity packages. Grow with us as HUXZAIN scales globally." },
-  { icon: Heart, title: "Wellness Budget", desc: "$150/month wellness allowance for gym, mental health, or whatever keeps you at your best." },
-  { icon: Users, title: "Tight-Knit Team", desc: "Work alongside a passionate, talented team that genuinely cares about what they build." },
+  {
+    icon: Zap,
+    title: "Remote-First",
+    desc: "Work from anywhere in the world. We're a fully distributed team that trusts you to deliver.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Equity & Growth",
+    desc: "Competitive salaries plus equity packages. Grow with us as HUXZAIN scales globally.",
+  },
+  {
+    icon: Heart,
+    title: "Wellness Budget",
+    desc: "$150/month wellness allowance for gym, mental health, or whatever keeps you at your best.",
+  },
+  {
+    icon: Users,
+    title: "Tight-Knit Team",
+    desc: "Work alongside a passionate, talented team that genuinely cares about what they build.",
+  },
 ];
 
 const jobs = [
@@ -92,7 +112,9 @@ function CareersPage() {
             Join the <span className="text-gold">HUXZAIN</span> Team
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm leading-relaxed">
-            We're building the world's most trusted digital marketplace — and we need exceptional people to do it. If you're passionate about product, design, engineering, or operations, we want to hear from you.
+            We're building the world's most trusted digital marketplace — and we need exceptional
+            people to do it. If you're passionate about product, design, engineering, or operations,
+            we want to hear from you.
           </p>
         </div>
 
@@ -105,7 +127,10 @@ function CareersPage() {
             {perks.map((perk) => {
               const Icon = perk.icon;
               return (
-                <div key={perk.title} className="rounded-2xl border border-border bg-surface/40 p-6 flex flex-col gap-4">
+                <div
+                  key={perk.title}
+                  className="rounded-2xl border border-border bg-surface/40 p-6 flex flex-col gap-4"
+                >
                   <div className="size-10 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center">
                     <Icon className="size-5 text-gold" />
                   </div>
@@ -150,7 +175,10 @@ function CareersPage() {
                           {job.level}
                         </span>
                       </div>
-                      <h3 className="font-display text-xl font-bold mb-1" dangerouslySetInnerHTML={{ __html: job.title }} />
+                      <h3
+                        className="font-display text-xl font-bold mb-1"
+                        dangerouslySetInnerHTML={{ __html: job.title }}
+                      />
                       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
                           <MapPin className="size-3.5" /> {job.location}
@@ -168,13 +196,21 @@ function CareersPage() {
                     </a>
                   </div>
 
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-5" dangerouslySetInnerHTML={{ __html: job.description }} />
+                  <p
+                    className="text-sm text-muted-foreground leading-relaxed mb-5"
+                    dangerouslySetInnerHTML={{ __html: job.description }}
+                  />
 
                   <div>
-                    <p className="text-xs font-semibold text-foreground mb-2.5 uppercase tracking-wide">Requirements</p>
+                    <p className="text-xs font-semibold text-foreground mb-2.5 uppercase tracking-wide">
+                      Requirements
+                    </p>
                     <ul className="space-y-1.5">
                       {job.requirements.map((req, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 text-xs text-muted-foreground"
+                        >
                           <span className="size-1.5 rounded-full bg-gold mt-1.5 shrink-0" />
                           {req}
                         </li>
@@ -191,14 +227,18 @@ function CareersPage() {
         <div className="mt-12 relative overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-surface-elevated via-surface to-background p-8 text-center">
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ backgroundImage: "radial-gradient(500px 250px at 50% 100%, oklch(0.82 0.13 82 / 0.08), transparent 60%)" }}
+            style={{
+              backgroundImage:
+                "radial-gradient(500px 250px at 50% 100%, oklch(0.82 0.13 82 / 0.08), transparent 60%)",
+            }}
           />
           <div className="relative">
             <h3 className="font-display text-2xl font-bold mb-2">
               Don't See Your <span className="text-gold">Role?</span>
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-              We're always on the lookout for exceptional talent. Send us your CV and a brief note about how you'd contribute to HUXZAIN.
+              We're always on the lookout for exceptional talent. Send us your CV and a brief note
+              about how you'd contribute to HUXZAIN.
             </p>
             <a
               href="mailto:careers@huxzain.com?subject=General Application"

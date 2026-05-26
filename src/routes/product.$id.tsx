@@ -1,110 +1,210 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
-  ChevronRight, Star, BadgeCheck, Check, ShieldCheck, ShoppingCart,
-  Heart, Share2, Loader2, AlertCircle,
+  ChevronRight,
+  Star,
+  BadgeCheck,
+  Check,
+  ShieldCheck,
+  ShoppingCart,
+  Heart,
+  Share2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
-import { featuredListings } from "@/lib/marketplace-data";
 import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
+import { cartStore } from "@/lib/cart/cart-store";
+import { wishlistStore } from "@/lib/wishlist/wishlist-store";
+import {
+  listingImage,
+  listingPrice,
+  formatPrice,
+  listingRating,
+  listingReviewCount,
+  listingSellerName,
+  type ListingLike,
+} from "@/lib/marketplace/listing-adapter";
 
 export const Route = createFileRoute("/product/$id")({
-  head: ({ params }) => {
-    const item = featuredListings.find((l) => l.id === params.id);
-    return {
-      meta: [
-        { title: `${item?.title ?? "Listing"} — HUXZAIN` },
-        { name: "description", content: `Buy ${item?.title ?? "this listing"} safely on HUXZAIN.` },
-      ],
-    };
-  },
+  head: () => ({ meta: [{ title: "Listing - HUXZAIN" }] }),
   component: ProductPage,
 });
 
-type DbListing = {
-  id: string;
-  title: string;
-  description?: string;
-  price: number;
-  cover_image_url?: string;
-  delivery_time?: string;
-  category_id?: string;
-  seller_id?: string;
-  status?: string;
+type DbListing = ListingLike & {
+  seller_id?: string | null;
+  category_id?: string | null;
+  currency?: string | null;
+  categories?: { name?: string | null; slug?: string | null } | null;
 };
 
 const FEATURES = [
-  "Responsive & Modern Design", "Easy to Customize",
-  "SEO Optimized", "Regular Updates", "24/7 Support",
+  "Secure HUXZAIN order protection",
+  "Seller delivery tracked in dashboard",
+  "Payment verification tied to this order",
+  "Dispute support available after purchase",
 ];
 const TABS = ["Description", "Reviews", "FAQs", "Support"];
-const coverGradients: Record<string, string> = {
-  wordpress: "from-indigo-900 via-purple-900 to-indigo-950",
-  shopify: "from-emerald-900 via-teal-900 to-slate-900",
-  seo: "from-sky-900 via-blue-900 to-slate-950",
-  logo: "from-slate-800 via-zinc-900 to-black",
-  app: "from-violet-900 via-fuchsia-900 to-slate-950",
-  icons: "from-amber-900/70 via-orange-900/60 to-slate-950",
-  instagram: "from-pink-800 via-rose-900 to-purple-950",
-  ai: "from-emerald-800 via-teal-900 to-slate-950",
-};
 
 function ProductPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
-
-  const staticItem = featuredListings.find((l) => l.id === id);
-  const [dbListing, setDbListing] = useState<DbListing | null>(null);
-  const [loading, setLoading] = useState(!staticItem);
+  const { isAuthenticated, user } = useAuth();
+  const [listing, setListing] = useState<DbListing | null>(null);
+  const [sellerProfile, setSellerProfile] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [ordering, setOrdering] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(wishlistStore.isWishlisted(id));
 
   useEffect(() => {
-    if (staticItem) return;
-    const supabase = getSupabase();
-    if (!supabase) { setLoading(false); return; }
-    supabase
-      .from("listings")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data, error: err }) => {
-        if (err) setError(err.message);
-        else if (!data) setError("Listing not found.");
-        else setDbListing(data as DbListing);
+    const handleWishlistUpdate = () => {
+      setIsWishlisted(wishlistStore.isWishlisted(id));
+    };
+    window.addEventListener("wishlist-updated", handleWishlistUpdate);
+    return () => window.removeEventListener("wishlist-updated", handleWishlistUpdate);
+  }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const supabase = getSupabase();
+      if (!supabase) {
+        setError("Marketplace backend is not configured.");
         setLoading(false);
-      });
-  }, [id, staticItem]);
+        return;
+      }
+
+      const { data, error: err } = await supabase
+        .from("listings")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!active) return;
+      if (err) setError(err.message);
+      else if (!data) setError("Listing not found.");
+      else {
+        setListing(data as DbListing);
+        
+        // Fetch seller profile separately
+        if (data.seller_id) {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("display_name, username")
+            .eq("id", data.seller_id)
+            .maybeSingle();
+          if (active) setSellerProfile(prof);
+        }
+      }
+      setLoading(false);
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   async function handleBuyNow() {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       toast.error("Please sign in to purchase.");
       navigate({ to: "/login", search: { redirect: `/product/${id}` } });
       return;
     }
+    if (!listing?.seller_id) {
+      toast.error("This listing is missing seller information.");
+      return;
+    }
+    if (listing.seller_id === user.id) {
+      toast.error("You cannot buy your own listing.");
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      toast.error("Marketplace backend is not configured.");
+      return;
+    }
+
     setOrdering(true);
+    try {
+      const price = listingPrice(listing);
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          buyer_id: user.id,
+          seller_id: listing.seller_id,
+          listing_id: listing.id,
+          qty: 1,
+          amount_total: price,
+          currency: listing.currency ?? "INR",
+          payment_method: "manual",
+          status: "pending_payment",
+        })
+        .select("id")
+        .single();
+      if (orderError) throw orderError;
 
-    // Generate a client-side checkout session reference.
-    // The order is recorded when payment proof is submitted.
-    const checkoutRef = typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-    toast.success("Redirecting to payment verification…");
-
-    // Small delay so the toast is visible before navigation
-    setTimeout(() => {
-      navigate({
-        to: "/checkout/verify-payment" as any,
-        search: { orderId: checkoutRef, listingId: id, price: String(price) },
+      const amountCents = Math.round(price * 100);
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        order_id: order.id,
+        type: "charge",
+        amount_cents: amountCents,
+        currency: listing.currency ?? "INR",
+        ref: `manual:${order.id}`,
+        status: "pending",
       });
+
+      await supabase.from("notifications").insert({
+        user_id: listing.seller_id,
+        kind: "order.created",
+        title: "New order received",
+        body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
+      });
+
+      navigate({
+        to: "/checkout/verify-payment",
+        search: { orderId: order.id, listingId: listing.id, price: String(price) },
+      });
+    } catch (e: any) {
+      toast.error(`Checkout failed: ${e.message}`);
+    } finally {
       setOrdering(false);
-    }, 400);
+    }
+  }
+
+  async function handleAddToCart() {
+    if (!listing) return;
+    const res = cartStore.addItem(listing);
+    if (res === "added") {
+      toast.success("Added to cart");
+    } else {
+      toast.info("Already in cart");
+    }
+  }
+
+  async function handleToggleWishlist() {
+    const res = wishlistStore.toggle(id);
+    if (res === "added") {
+      toast.success("Added to wishlist");
+    } else {
+      toast.success("Removed from wishlist");
+    }
+  }
+
+  async function handleShare() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied");
+    } catch (err) {
+      toast.error("Failed to copy link");
+    }
   }
 
   if (loading) {
@@ -119,14 +219,17 @@ function ProductPage() {
     );
   }
 
-  if (error || (!staticItem && !dbListing)) {
+  if (error || !listing) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1 container-page py-16 flex flex-col items-center justify-center gap-4">
           <AlertCircle className="size-12 text-muted-foreground" />
           <p className="text-muted-foreground">{error ?? "Listing not found."}</p>
-          <Link to="/" className="h-10 px-5 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 inline-flex items-center">
+          <Link
+            to="/"
+            className="h-10 px-5 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 inline-flex items-center"
+          >
             Browse Listings
           </Link>
         </main>
@@ -135,48 +238,48 @@ function ProductPage() {
     );
   }
 
-  const title = staticItem?.title ?? dbListing?.title ?? "Listing";
-  const price = staticItem?.price ?? dbListing?.price ?? 0;
-  const seller = staticItem?.seller ?? "Seller";
-  const level = staticItem?.level ?? "Verified Seller";
-  const rating = staticItem?.rating ?? 5.0;
-  const reviews = staticItem?.reviews ?? 0;
-  const cover = staticItem?.cover ?? "app";
-  const gradientClass = coverGradients[cover] ?? "from-slate-800 to-slate-950";
+  const title = listing.title;
+  const price = listingPrice(listing);
+  const seller = sellerProfile?.display_name ?? sellerProfile?.username ?? "Verified Seller";
+  const rating = listingRating(listing);
+  const reviews = listingReviewCount(listing);
+  const image = listingImage(listing);
+  const categorySlug = listing.categories?.slug ?? "digital-products";
+  const categoryName = listing.categories?.name ?? "Digital Products";
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 container-page py-8">
-        {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6">
-          <Link to="/" className="hover:text-foreground">Home</Link>
+          <Link to="/" className="hover:text-foreground">
+            Home
+          </Link>
           <ChevronRight className="size-3" />
-          <Link to="/category/$slug" params={{ slug: "digital-products" }} className="hover:text-foreground">
-            Digital Products
+          <Link
+            to="/category/$slug"
+            params={{ slug: categorySlug }}
+            className="hover:text-foreground"
+          >
+            {categoryName}
           </Link>
           <ChevronRight className="size-3" />
           <span className="text-foreground">{title}</span>
         </nav>
 
         <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8">
-          {/* Gallery */}
           <div>
-            <div className={`aspect-[16/10] rounded-2xl border border-border bg-gradient-to-br ${gradientClass} flex items-center justify-center`}>
-              <div className="font-display text-3xl font-bold text-white tracking-wider text-center whitespace-pre-line drop-shadow-lg">
-                {title.split(" ").slice(0, 3).join("\n")}
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-5 gap-3">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <button key={i} className={`aspect-square rounded-lg border ${i === 0 ? "border-gold/50" : "border-border"} bg-surface/60 hover:border-gold/40`}>
-                  <div className={`size-full rounded-lg bg-gradient-to-br ${gradientClass} opacity-60`} />
-                </button>
-              ))}
+            <div className="aspect-[16/10] rounded-2xl border border-border bg-gradient-to-br from-slate-800 to-slate-950 flex items-center justify-center overflow-hidden">
+              {image ? (
+                <img src={image} alt={title} className="size-full object-cover" />
+              ) : (
+                <div className="font-display text-3xl font-bold text-white tracking-wider text-center whitespace-pre-line drop-shadow-lg">
+                  {title.split(" ").slice(0, 3).join("\n")}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Details */}
           <div>
             <h1 className="font-display text-3xl font-bold leading-tight">{title}</h1>
 
@@ -187,17 +290,19 @@ function ProductPage() {
               <div>
                 <div className="text-sm font-medium">{seller}</div>
                 <div className="text-[11px] text-gold inline-flex items-center gap-1">
-                  <BadgeCheck className="size-3" /> {level}
+                  <BadgeCheck className="size-3" /> Verified Seller
                 </div>
               </div>
               <div className="ml-auto inline-flex items-center gap-1 text-sm">
                 <Star className="size-4 fill-gold text-gold" />
-                <span className="font-semibold">{rating}</span>
+                <span className="font-semibold">{rating ? rating.toFixed(1) : "New"}</span>
                 <span className="text-muted-foreground">({reviews})</span>
               </div>
             </div>
 
-            <div className="mt-6 font-display text-4xl font-bold text-gold">${price.toFixed(2)}</div>
+            <div className="mt-6 font-display text-4xl font-bold text-gold">
+              {formatPrice(price)}
+            </div>
 
             <ul className="mt-6 space-y-2">
               {FEATURES.map((f) => (
@@ -207,33 +312,32 @@ function ProductPage() {
               ))}
             </ul>
 
-            {/* Purchase actions */}
             <div className="mt-7 flex gap-3">
               <button
-                className="flex-1 h-12 rounded-lg border border-gold/40 text-gold text-sm font-semibold hover:bg-gold/10 transition-colors inline-flex items-center justify-center gap-2"
-                onClick={() => toast.info("Cart coming soon!")}
+                onClick={handleAddToCart}
+                className="flex-1 h-12 rounded-lg border border-gold/40 text-gold text-sm font-semibold hover:bg-gold/10 inline-flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="size-4" /> Add to Cart
               </button>
               <button
                 onClick={handleBuyNow}
                 disabled={ordering}
-                className="flex-1 h-12 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                className="flex-1 h-12 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2"
               >
                 {ordering && <Loader2 className="size-4 animate-spin" />}
-                {ordering ? "Processing…" : "Buy Now"}
+                {ordering ? "Creating order..." : "Buy Now"}
               </button>
               <button
-                className="size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center text-muted-foreground hover:text-gold transition-colors"
+                className={`size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center transition-colors ${isWishlisted ? 'text-gold border-gold/40 bg-gold/5' : 'text-muted-foreground hover:text-gold'}`}
                 aria-label="Save"
-                onClick={() => toast.info("Saved!")}
+                onClick={handleToggleWishlist}
               >
-                <Heart className="size-4" />
+                <Heart className={`size-4 ${isWishlisted ? 'fill-gold' : ''}`} />
               </button>
               <button
-                className="size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center text-muted-foreground hover:text-gold transition-colors"
+                className="size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center text-muted-foreground hover:text-gold"
                 aria-label="Share"
-                onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.success("Link copied!"); }}
+                onClick={handleShare}
               >
                 <Share2 className="size-4" />
               </button>
@@ -241,46 +345,34 @@ function ProductPage() {
 
             <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 text-gold" />
-              30-Day Money Back Guarantee · Secured by HUXZAIN Escrow
+              Payment verification and order history are connected to this listing.
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-14 border-b border-border flex gap-6">
+        <div className="mt-14 border-b border-border flex gap-6 overflow-x-auto">
           {TABS.map((t, i) => (
             <button
               key={t}
               onClick={() => setActiveTab(i)}
-              className={`pb-3 text-sm font-medium transition-colors ${activeTab === i ? "text-gold border-b-2 border-gold" : "text-muted-foreground hover:text-foreground"}`}
+              className={`pb-3 text-sm font-medium whitespace-nowrap ${activeTab === i ? "text-gold border-b-2 border-gold" : "text-muted-foreground hover:text-foreground"}`}
             >
               {t}
             </button>
           ))}
         </div>
         <div className="py-8 max-w-3xl text-sm text-muted-foreground leading-relaxed">
-          {activeTab === 0 && (dbListing?.description ?? "A premium digital product built to the highest standards. Performance-optimized, fully responsive, and ready to deliver value to your customers.")}
-          {activeTab === 1 && <div className="flex items-center gap-2"><Star className="size-4 fill-gold text-gold" /> {rating} average · {reviews} reviews</div>}
-          {activeTab === 2 && <p>Contact the seller directly before purchasing if you have questions.</p>}
-          {activeTab === 3 && <p>Post-purchase support is available via your order page in the dashboard.</p>}
-        </div>
-
-        {/* Trust */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          {[
-            { t: "Automatic Invoices", d: "Generated on order completion" },
-            { t: "Escrow Protection", d: "Funds held until you approve" },
-            { t: "24/7 Support", d: "We're here to help anytime" },
-            { t: "Buyer Guarantee", d: "Full protection on every order" },
-          ].map((p) => (
-            <div key={p.t} className="rounded-xl border border-border bg-surface/40 p-5 text-center">
-              <div className="size-10 rounded-lg mx-auto mb-3 border border-gold/25 bg-gold/10 flex items-center justify-center">
-                <ShieldCheck className="size-5 text-gold" />
-              </div>
-              <div className="text-sm font-semibold">{p.t}</div>
-              <div className="text-xs text-muted-foreground mt-1">{p.d}</div>
+          {activeTab === 0 && (listing.description ?? "No description has been added yet.")}
+          {activeTab === 1 && (
+            <div className="flex items-center gap-2">
+              <Star className="size-4 fill-gold text-gold" /> {rating ? rating.toFixed(1) : "New"}{" "}
+              average - {reviews} reviews
             </div>
-          ))}
+          )}
+          {activeTab === 2 && (
+            <p>Contact support before buying if you have questions about this listing.</p>
+          )}
+          {activeTab === 3 && <p>Post-purchase support is available from your order page.</p>}
         </div>
       </main>
       <Footer />

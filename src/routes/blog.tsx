@@ -7,7 +7,11 @@ export const Route = createFileRoute("/blog")({
   head: () => ({
     meta: [
       { title: "Blog — HUXZAIN" },
-      { name: "description", content: "Insights, tips, and news from the HUXZAIN digital marketplace. Stay informed about digital commerce, security, and growth strategies." },
+      {
+        name: "description",
+        content:
+          "Insights, tips, and news from the HUXZAIN digital marketplace. Stay informed about digital commerce, security, and growth strategies.",
+      },
       { property: "og:title", content: "Blog — HUXZAIN" },
     ],
   }),
@@ -53,7 +57,14 @@ const posts = [
   },
 ];
 
-const categories = ["All Posts", "Buyer Guide", "Seller Tips", "Platform News", "Security", "Growth"];
+const categories = [
+  "All Posts",
+  "Buyer Guide",
+  "Seller Tips",
+  "Platform News",
+  "Security",
+  "Growth",
+];
 
 function BlogPage() {
   return (
@@ -69,7 +80,8 @@ function BlogPage() {
             HUXZAIN <span className="text-gold">Blog</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto text-sm leading-relaxed">
-            Insights, guides, and platform updates to help you buy, sell, and grow confidently in the digital marketplace.
+            Insights, guides, and platform updates to help you buy, sell, and grow confidently in
+            the digital marketplace.
           </p>
         </div>
 
@@ -97,7 +109,9 @@ function BlogPage() {
               className="group rounded-2xl border border-border bg-surface/40 hover:border-gold/30 hover:bg-surface/60 transition-all overflow-hidden flex flex-col"
             >
               {/* Cover gradient */}
-              <div className={`h-44 bg-gradient-to-br ${post.gradient} border-b border-border relative overflow-hidden`}>
+              <div
+                className={`h-44 bg-gradient-to-br ${post.gradient} border-b border-border relative overflow-hidden`}
+              >
                 <div className="absolute inset-0 flex items-center justify-center">
                   <BookOpen className="size-12 text-gold/20" />
                 </div>
@@ -120,7 +134,9 @@ function BlogPage() {
                 <h2 className="font-display text-base font-bold leading-snug mb-3 group-hover:text-gold transition-colors line-clamp-2">
                   {post.title}
                 </h2>
-                <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-3">{post.excerpt}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-3">
+                  {post.excerpt}
+                </p>
 
                 <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -150,14 +166,18 @@ function BlogPage() {
         <div className="relative overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-surface-elevated via-surface to-background p-8 text-center">
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ backgroundImage: "radial-gradient(500px 250px at 50% 100%, oklch(0.82 0.13 82 / 0.1), transparent 60%)" }}
+            style={{
+              backgroundImage:
+                "radial-gradient(500px 250px at 50% 100%, oklch(0.82 0.13 82 / 0.1), transparent 60%)",
+            }}
           />
           <div className="relative">
             <h3 className="font-display text-2xl font-bold mb-2">
               Never Miss an <span className="text-gold">Update</span>
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-              Subscribe to the HUXZAIN newsletter for exclusive insights, seller tips, and platform announcements delivered to your inbox.
+              Subscribe to the HUXZAIN newsletter for exclusive insights, seller tips, and platform
+              announcements delivered to your inbox.
             </p>
             <form className="flex gap-2 max-w-md mx-auto">
               <input

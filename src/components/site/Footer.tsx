@@ -1,29 +1,47 @@
 import { Link } from "@tanstack/react-router";
-import { Facebook, Twitter, Instagram, Youtube, MessageCircle, Mail, Lock, Heart } from "lucide-react";
+import {
+  Facebook,
+  Twitter,
+  Instagram,
+  Youtube,
+  MessageCircle,
+  Mail,
+  Lock,
+  Heart,
+} from "lucide-react";
 import logo from "@/assets/huxzain-logo.png";
 
 const groups = [
-  { title: "Marketplace", links: [
-    { l: "Digital Products", to: "/category/$slug", p: { slug: "digital-products" } },
-    { l: "Services", to: "/category/$slug", p: { slug: "services" } },
-    { l: "All Categories", to: "/categories" },
-    { l: "How It Works", to: "/how-it-works" },
-    { l: "Become a Seller", to: "/seller-panel" },
-  ]},
-  { title: "Support", links: [
-    { l: "Contact Us", to: "/contact" },
-    { l: "How It Works", to: "/how-it-works" },
-    { l: "Terms of Service", to: "/terms" },
-    { l: "Refund Policy", to: "/refund-policy" },
-    { l: "Privacy Policy", to: "/privacy" },
-  ]},
-  { title: "Company", links: [
-    { l: "About Us", to: "/about" },
-    { l: "Blog", to: "/blog" },
-    { l: "Careers", to: "/careers" },
-    { l: "Contact", to: "/contact" },
-    { l: "Privacy Policy", to: "/privacy" },
-  ]},
+  {
+    title: "Marketplace",
+    links: [
+      { l: "Digital Products", to: "/category/$slug", p: { slug: "digital-products" } },
+      { l: "Services", to: "/category/$slug", p: { slug: "services" } },
+      { l: "All Categories", to: "/categories" },
+      { l: "How It Works", to: "/how-it-works" },
+      { l: "Become a Seller", to: "/seller-panel" },
+    ],
+  },
+  {
+    title: "Support",
+    links: [
+      { l: "Contact Us", to: "/contact" },
+      { l: "How It Works", to: "/how-it-works" },
+      { l: "Terms of Service", to: "/terms" },
+      { l: "Refund Policy", to: "/refund-policy" },
+      { l: "Privacy Policy", to: "/privacy" },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      { l: "About Us", to: "/about" },
+      { l: "Blog", to: "/blog" },
+      { l: "Careers", to: "/careers" },
+      { l: "Contact", to: "/contact" },
+      { l: "Privacy Policy", to: "/privacy" },
+    ],
+  },
 ];
 
 export function Footer() {
@@ -37,8 +55,12 @@ export function Footer() {
               <Mail className="size-5 text-gold" />
             </div>
             <div>
-              <div className="font-display text-2xl font-semibold">Stay Updated with <span className="text-gold">HUXZAIN</span></div>
-              <p className="text-sm text-muted-foreground mt-1">Subscribe to get updates, offers and more.</p>
+              <div className="font-display text-2xl font-semibold">
+                Stay Updated with <span className="text-gold">HUXZAIN</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Subscribe to get updates, offers and more.
+              </p>
             </div>
           </div>
           <form className="flex gap-2 max-w-lg md:ml-auto w-full">
@@ -62,7 +84,11 @@ export function Footer() {
           </p>
           <div className="flex gap-2 mt-5">
             {[Facebook, Twitter, Instagram, Youtube, MessageCircle].map((Icon, i) => (
-              <a key={i} href="#" className="size-9 rounded-full border border-border hover:border-gold/50 hover:text-gold flex items-center justify-center text-muted-foreground transition-colors">
+              <a
+                key={i}
+                href="#"
+                className="size-9 rounded-full border border-border hover:border-gold/50 hover:text-gold flex items-center justify-center text-muted-foreground transition-colors"
+              >
                 <Icon className="size-4" />
               </a>
             ))}
@@ -74,7 +100,13 @@ export function Footer() {
             <ul className="space-y-2.5">
               {g.links.map((l) => (
                 <li key={l.l}>
-                  <Link to={l.to as any} params={(l as any).p} className="text-sm text-muted-foreground hover:text-gold transition-colors">{l.l}</Link>
+                  <Link
+                    to={l.to as any}
+                    params={(l as any).p}
+                    className="text-sm text-muted-foreground hover:text-gold transition-colors"
+                  >
+                    {l.l}
+                  </Link>
                 </li>
               ))}
             </ul>

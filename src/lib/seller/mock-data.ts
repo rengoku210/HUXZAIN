@@ -1,18 +1,32 @@
 // Realistic mock data for the seller dashboard. Swap with Supabase later.
 
 export const revenueSeries = [
-  { d: "Mon", v: 420 }, { d: "Tue", v: 680 }, { d: "Wed", v: 520 },
-  { d: "Thu", v: 910 }, { d: "Fri", v: 1240 }, { d: "Sat", v: 980 }, { d: "Sun", v: 1430 },
+  { d: "Mon", v: 420 },
+  { d: "Tue", v: 680 },
+  { d: "Wed", v: 520 },
+  { d: "Thu", v: 910 },
+  { d: "Fri", v: 1240 },
+  { d: "Sat", v: 980 },
+  { d: "Sun", v: 1430 },
 ];
 
 export const ordersSeries = [
-  { d: "W1", v: 18 }, { d: "W2", v: 26 }, { d: "W3", v: 22 },
-  { d: "W4", v: 34 }, { d: "W5", v: 41 }, { d: "W6", v: 38 }, { d: "W7", v: 52 },
+  { d: "W1", v: 18 },
+  { d: "W2", v: 26 },
+  { d: "W3", v: 22 },
+  { d: "W4", v: 34 },
+  { d: "W5", v: 41 },
+  { d: "W6", v: 38 },
+  { d: "W7", v: 52 },
 ];
 
 export const conversionSeries = [
-  { d: "Jan", v: 2.1 }, { d: "Feb", v: 2.4 }, { d: "Mar", v: 2.9 },
-  { d: "Apr", v: 3.3 }, { d: "May", v: 3.0 }, { d: "Jun", v: 3.8 },
+  { d: "Jan", v: 2.1 },
+  { d: "Feb", v: 2.4 },
+  { d: "Mar", v: 2.9 },
+  { d: "Apr", v: 3.3 },
+  { d: "May", v: 3.0 },
+  { d: "Jun", v: 3.8 },
 ];
 
 export const categoryShare = [
@@ -23,25 +37,123 @@ export const categoryShare = [
 ];
 
 export const recentOrders = [
-  { id: "HX-29481", buyer: "rylan_47", item: "Valorant Immortal Acc.", amount: 124.0, status: "Delivered", time: "2m ago" },
-  { id: "HX-29478", buyer: "ngao", item: "PUBG UC 8100", amount: 78.5, status: "Processing", time: "14m ago" },
-  { id: "HX-29470", buyer: "kira_x", item: "Steam Wallet $50", amount: 47.0, status: "Delivered", time: "1h ago" },
-  { id: "HX-29465", buyer: "tom_w", item: "FIFA Coins 4M", amount: 38.9, status: "Disputed", time: "3h ago" },
-  { id: "HX-29460", buyer: "ahmed", item: "Genshin Top-Up", amount: 22.0, status: "Delivered", time: "6h ago" },
+  {
+    id: "HX-29481",
+    buyer: "rylan_47",
+    item: "Valorant Immortal Acc.",
+    amount: 124.0,
+    status: "Delivered",
+    time: "2m ago",
+  },
+  {
+    id: "HX-29478",
+    buyer: "ngao",
+    item: "PUBG UC 8100",
+    amount: 78.5,
+    status: "Processing",
+    time: "14m ago",
+  },
+  {
+    id: "HX-29470",
+    buyer: "kira_x",
+    item: "Steam Wallet $50",
+    amount: 47.0,
+    status: "Delivered",
+    time: "1h ago",
+  },
+  {
+    id: "HX-29465",
+    buyer: "tom_w",
+    item: "FIFA Coins 4M",
+    amount: 38.9,
+    status: "Disputed",
+    time: "3h ago",
+  },
+  {
+    id: "HX-29460",
+    buyer: "ahmed",
+    item: "Genshin Top-Up",
+    amount: 22.0,
+    status: "Delivered",
+    time: "6h ago",
+  },
 ];
 
 export const listings = [
-  { id: 1, title: "Valorant Immortal | All Agents", sku: "VAL-IM-001", price: 124, stock: 4, status: "Active", views: 2104, sales: 18 },
-  { id: 2, title: "PUBG UC 8100 - Global", sku: "PUBG-8100", price: 78.5, stock: 99, status: "Active", views: 5421, sales: 64 },
-  { id: 3, title: "Steam Wallet Code $50 USD", sku: "STM-50", price: 47, stock: 220, status: "Active", views: 8910, sales: 142 },
-  { id: 4, title: "FIFA Ultimate Coins 4M PS5", sku: "FIFA-4M", price: 38.9, stock: 12, status: "Paused", views: 980, sales: 6 },
-  { id: 5, title: "Genshin Impact Top-Up 6480", sku: "GEN-6480", price: 99, stock: 50, status: "Active", views: 3420, sales: 31 },
+  {
+    id: 1,
+    title: "Valorant Immortal | All Agents",
+    sku: "VAL-IM-001",
+    price: 124,
+    stock: 4,
+    status: "Active",
+    views: 2104,
+    sales: 18,
+  },
+  {
+    id: 2,
+    title: "PUBG UC 8100 - Global",
+    sku: "PUBG-8100",
+    price: 78.5,
+    stock: 99,
+    status: "Active",
+    views: 5421,
+    sales: 64,
+  },
+  {
+    id: 3,
+    title: "Steam Wallet Code $50 USD",
+    sku: "STM-50",
+    price: 47,
+    stock: 220,
+    status: "Active",
+    views: 8910,
+    sales: 142,
+  },
+  {
+    id: 4,
+    title: "FIFA Ultimate Coins 4M PS5",
+    sku: "FIFA-4M",
+    price: 38.9,
+    stock: 12,
+    status: "Paused",
+    views: 980,
+    sales: 6,
+  },
+  {
+    id: 5,
+    title: "Genshin Impact Top-Up 6480",
+    sku: "GEN-6480",
+    price: 99,
+    stock: 50,
+    status: "Active",
+    views: 3420,
+    sales: 31,
+  },
 ];
 
 export const reviews = [
-  { id: 1, buyer: "rylan_47", rating: 5, text: "Instant delivery, exactly as described. Will buy again!", time: "2 days ago" },
-  { id: 2, buyer: "ngao", rating: 5, text: "Smooth transaction and very responsive seller.", time: "5 days ago" },
-  { id: 3, buyer: "kira_x", rating: 4, text: "Took a few mins but everything worked.", time: "1 week ago" },
+  {
+    id: 1,
+    buyer: "rylan_47",
+    rating: 5,
+    text: "Instant delivery, exactly as described. Will buy again!",
+    time: "2 days ago",
+  },
+  {
+    id: 2,
+    buyer: "ngao",
+    rating: 5,
+    text: "Smooth transaction and very responsive seller.",
+    time: "5 days ago",
+  },
+  {
+    id: 3,
+    buyer: "kira_x",
+    rating: 4,
+    text: "Took a few mins but everything worked.",
+    time: "1 week ago",
+  },
 ];
 
 export const conversations = [
@@ -65,13 +177,41 @@ export const withdrawals = [
 ];
 
 export const notifications = [
-  { id: 1, kind: "order", title: "New order HX-29481", body: "Buyer rylan_47 purchased Valorant Immortal.", time: "2m ago", read: false },
-  { id: 2, kind: "review", title: "New 5★ review", body: "rylan_47 left a glowing review.", time: "2h ago", read: false },
-  { id: 3, kind: "system", title: "Payout processed", body: "$500 sent to your bank account.", time: "1d ago", read: true },
+  {
+    id: 1,
+    kind: "order",
+    title: "New order HX-29481",
+    body: "Buyer rylan_47 purchased Valorant Immortal.",
+    time: "2m ago",
+    read: false,
+  },
+  {
+    id: 2,
+    kind: "review",
+    title: "New 5★ review",
+    body: "rylan_47 left a glowing review.",
+    time: "2h ago",
+    read: false,
+  },
+  {
+    id: 3,
+    kind: "system",
+    title: "Payout processed",
+    body: "$500 sent to your bank account.",
+    time: "1d ago",
+    read: true,
+  },
 ];
 
 export const disputes = [
-  { id: "DIS-118", order: "HX-29465", buyer: "tom_w", reason: "Item not as described", status: "Open", opened: "3h ago" },
+  {
+    id: "DIS-118",
+    order: "HX-29465",
+    buyer: "tom_w",
+    reason: "Item not as described",
+    status: "Open",
+    opened: "3h ago",
+  },
 ];
 
 export const coupons = [

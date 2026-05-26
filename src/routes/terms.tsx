@@ -1,13 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
-import { ScrollText, ShieldCheck, UserCheck, Store, ShoppingBag, AlertTriangle, Scale, AlertCircle } from "lucide-react";
+import {
+  ScrollText,
+  ShieldCheck,
+  UserCheck,
+  Store,
+  ShoppingBag,
+  AlertTriangle,
+  Scale,
+  AlertCircle,
+} from "lucide-react";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
       { title: "Terms of Service — HUXZAIN" },
-      { name: "description", content: "Read the HUXZAIN Terms of Service. Understand your rights and obligations as a buyer or seller on our secure digital marketplace." },
+      {
+        name: "description",
+        content:
+          "Read the HUXZAIN Terms of Service. Understand your rights and obligations as a buyer or seller on our secure digital marketplace.",
+      },
       { property: "og:title", content: "Terms of Service — HUXZAIN" },
     ],
   }),
@@ -82,7 +95,7 @@ const sections = [
     icon: AlertCircle,
     title: "7. Limitation of Liability",
     content: [
-      "HUXZAIN provides its platform on an \"as is\" and \"as available\" basis. We make no warranties, express or implied, regarding the platform's reliability, accuracy, or fitness for a particular purpose.",
+      'HUXZAIN provides its platform on an "as is" and "as available" basis. We make no warranties, express or implied, regarding the platform\'s reliability, accuracy, or fitness for a particular purpose.',
       "To the maximum extent permitted by applicable law, HUXZAIN shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, or goodwill, arising from your use of or inability to use the platform.",
       "HUXZAIN's total aggregate liability to any user for any claims related to the platform shall not exceed the total fees paid by that user to HUXZAIN in the six (6) months preceding the event giving rise to the claim.",
       "These Terms constitute the entire agreement between you and HUXZAIN and supersede all prior agreements. If any provision is found unenforceable, the remaining provisions shall continue in full force and effect.",
@@ -104,7 +117,8 @@ function TermsPage() {
             Terms of <span className="text-gold">Service</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto text-sm leading-relaxed">
-            Please read these terms carefully before using HUXZAIN. They govern your rights and responsibilities as a member of our marketplace community.
+            Please read these terms carefully before using HUXZAIN. They govern your rights and
+            responsibilities as a member of our marketplace community.
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
             Last updated: <span className="text-gold">May 2026</span>
@@ -113,7 +127,9 @@ function TermsPage() {
 
         {/* Quick Nav */}
         <div className="mb-10 rounded-2xl border border-border bg-surface/40 p-6">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-4">Jump to Section</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-4">
+            Jump to Section
+          </p>
           <div className="flex flex-wrap gap-2">
             {sections.map((s) => (
               <a

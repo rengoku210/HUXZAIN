@@ -12,5 +12,9 @@ function AuthCallback() {
   useEffect(() => {
     if (auth.ready) nav({ to: auth.isAuthenticated ? "/dashboard" : "/login" });
   }, [auth.ready, auth.isAuthenticated, nav]);
-  return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Finishing sign in…</div>;
+  return (
+    <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+      Finishing sign in…
+    </div>
+  );
 }

@@ -9,7 +9,11 @@ export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
       { title: "Contact Us — HUXZAIN" },
-      { name: "description", content: "Get in touch with the HUXZAIN team. We're here to help with any questions or issues." },
+      {
+        name: "description",
+        content:
+          "Get in touch with the HUXZAIN team. We're here to help with any questions or issues.",
+      },
     ],
   }),
   component: ContactPage,
@@ -78,7 +82,10 @@ function ContactPage() {
             {/* Info cards */}
             <div className="space-y-4">
               {INFO.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-border bg-surface/40 p-5 flex items-start gap-4">
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-border bg-surface/40 p-5 flex items-start gap-4"
+                >
                   <div className="size-11 rounded-xl border border-gold/20 bg-gold/10 flex items-center justify-center shrink-0">
                     <item.icon className="size-5 text-gold" />
                   </div>
@@ -114,7 +121,13 @@ function ContactPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => { setSent(false); setName(""); setEmail(""); setSubject(""); setMessage(""); }}
+                    onClick={() => {
+                      setSent(false);
+                      setName("");
+                      setEmail("");
+                      setSubject("");
+                      setMessage("");
+                    }}
                     className="h-10 px-5 rounded-xl border border-border text-sm hover:border-gold/40 transition-colors"
                   >
                     Send Another
@@ -125,7 +138,9 @@ function ContactPage() {
                   <h2 className="font-semibold text-lg mb-4">Send a Message</h2>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1.5">Name <span className="text-red-400">*</span></label>
+                      <label className="block text-sm font-medium mb-1.5">
+                        Name <span className="text-red-400">*</span>
+                      </label>
                       <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -134,7 +149,9 @@ function ContactPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1.5">Email <span className="text-red-400">*</span></label>
+                      <label className="block text-sm font-medium mb-1.5">
+                        Email <span className="text-red-400">*</span>
+                      </label>
                       <input
                         type="email"
                         value={email}
@@ -154,7 +171,9 @@ function ContactPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">Message <span className="text-red-400">*</span></label>
+                    <label className="block text-sm font-medium mb-1.5">
+                      Message <span className="text-red-400">*</span>
+                    </label>
                     <textarea
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
@@ -168,7 +187,11 @@ function ContactPage() {
                     disabled={sending}
                     className="w-full h-12 rounded-xl bg-gold text-primary-foreground text-sm font-bold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2 transition-all"
                   >
-                    {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                    {sending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
                     {sending ? "Sending…" : "Send Message"}
                   </button>
                 </form>

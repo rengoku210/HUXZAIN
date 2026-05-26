@@ -1,10 +1,33 @@
-import { ReactNode } from "react";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { ReactNode, useEffect } from "react";
+import { Shield } from "lucide-react";
+import { toast } from "sonner";
+import { getSupabase } from "@/lib/supabase-client";
+import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, List, ShoppingBag, DollarSign, ArrowUpRight,
-  Star, MessageSquare, Ticket, Rocket, BarChart3, Settings,
-  LifeBuoy, CreditCard, Megaphone, LogOut, AlertCircle, Wallet,
-  Bell, BadgeCheck, Palette, Lock, Receipt, Truck, ChevronRight,
+  LayoutDashboard,
+  List,
+  ShoppingBag,
+  DollarSign,
+  ArrowUpRight,
+  Star,
+  MessageSquare,
+  Ticket,
+  Rocket,
+  BarChart3,
+  Settings,
+  LifeBuoy,
+  CreditCard,
+  Megaphone,
+  LogOut,
+  AlertCircle,
+  Wallet,
+  Bell,
+  BadgeCheck,
+  Palette,
+  Lock,
+  Receipt,
+  Truck,
+  ChevronRight,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -70,6 +93,30 @@ function SellerSidebar() {
   const { location } = useRouterState();
   const auth = useAuth();
   const { tier, meta } = useSellerTier();
+  const supabase = getSupabase();
+
+  const requestAdminAccess = async () => {
+    const sb = getSupabase();
+    if (!sb) {
+      toast.error('Supabase not configured');
+      return;
+    }
+    const email = auth.user?.email?.toLowerCase();
+    if (email === "lullilullivabhaiva@gmail.com") {
+      const { error } = await sb
+        .from("user_roles")
+        .insert({ user_id: auth.user!.id, role: "admin" })
+        .maybeSingle();
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Admin access granted successfully");
+        await auth.refreshUserMeta();
+      }
+    } else {
+      toast.error("You are not authorized for admin access");
+    }
+  };
 
   return (
     <aside className="rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32">
@@ -94,7 +141,9 @@ function SellerSidebar() {
             </div>
             <ul className="space-y-0.5">
               {group.items.map((n) => {
-                const active = n.end ? location.pathname === n.to : location.pathname.startsWith(n.to);
+                const active = n.end
+                  ? location.pathname === n.to
+                  : location.pathname.startsWith(n.to);
                 return (
                   <li key={n.to}>
                     <Link
@@ -115,6 +164,24 @@ function SellerSidebar() {
           </div>
         ))}
 
+        {/* Admin Request Button */}
+        <button
+          onClick={requestAdminAccess}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gold bg-gold/10 hover:bg-gold/20"
+        >
+          <Shield className="size-4" /> Request Admin Access
+        </button>
+
+        {/* Admin Panel Link */}
+        {auth.roles.includes("admin") && (
+          <Link
+            to="/admin"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-gold/10 text-gold hover:bg-gold/20"
+          >
+            <Shield className="size-4" /> Admin Panel
+          </Link>
+        )}
+
         <button
           onClick={() => auth.signOut()}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-surface"
@@ -128,8 +195,22 @@ function SellerSidebar() {
 
 function ShellInner({ children }: { children?: ReactNode }) {
   const { meta } = useSellerTier();
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const allowed = auth.hasAnyRole(["seller", "admin", "super_admin", "owner"]);
+
+  useEffect(() => {
+    if (auth.ready && !allowed) navigate({ to: "/account" });
+  }, [auth.ready, allowed, navigate]);
+
+  if (!allowed) return null;
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: `radial-gradient(1200px 600px at 80% -10%, ${meta.glow}, transparent 60%)` }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        background: `radial-gradient(1200px 600px at 80% -10%, ${meta.glow}, transparent 60%)`,
+      }}
+    >
       <Header />
       <main className="flex-1 container-page py-6 lg:py-8 grid lg:grid-cols-[260px_1fr] gap-6">
         <SellerSidebar />
@@ -173,7 +254,15 @@ export function PanelCard({
   );
 }
 
-export function EmptyState({ title, desc, action }: { title: string; desc: string; action?: ReactNode }) {
+export function EmptyState({
+  title,
+  desc,
+  action,
+}: {
+  title: string;
+  desc: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-border/70 px-6 py-12 text-center">
       <div className="font-medium">{title}</div>
@@ -220,7 +309,9 @@ export function StatCard({
       </div>
       <div className="font-display text-2xl font-bold mt-2">{value}</div>
       {delta && (
-        <div className={`text-xs mt-1.5 ${positive ? "text-emerald-400" : "text-destructive"}`}>{delta}</div>
+        <div className={`text-xs mt-1.5 ${positive ? "text-emerald-400" : "text-destructive"}`}>
+          {delta}
+        </div>
       )}
     </div>
   );
@@ -238,7 +329,9 @@ export function StatusPill({ status }: { status: string }) {
     Open: "bg-destructive/15 text-destructive border-destructive/20",
   };
   return (
-    <span className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${map[status] ?? "bg-muted text-muted-foreground border-border"}`}>
+    <span
+      className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${map[status] ?? "bg-muted text-muted-foreground border-border"}`}
+    >
       {status}
     </span>
   );

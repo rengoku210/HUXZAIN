@@ -29,19 +29,39 @@ function AdminPayments() {
   const [verifications, setVerifications] = useState<VerificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = getSupabase();
+const loadVerifications = async () => {
+  if (!supabase) return;
+  setLoading(true);
+  try {
+    // Try payment_verifications first
+    let { data, error } = await supabase
+      .from("payment_verifications")
+      .select(`id, user_id, order_id, screenshot_url, ocr_result, fraud_score, status`)
+      .eq("status", "pending");
 
-  const loadVerifications = async () => {
-    if (!supabase) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("payment_verifications")
-        .select(`id, user_id, order_id, screenshot_url, ocr_result, fraud_score, status`)
-        .eq("status", "pending");
+    // Fallback to payment_events if table missing or no results
+    if (error || !data || data.length === 0) {
+      const { data: events, error: eventError } = await supabase
+        .from("payment_events")
+        .select("*")
+        .eq("provider", "manual")
+        .eq("event_type", "proof_uploaded")
+        .eq("processed", false);
 
-      if (error) throw error;
+      if (eventError) throw eventError;
 
-      if (data) {
+      data = (events || []).map(e => ({
+        id: e.id,
+        order_id: e.order_id,
+        user_id: e.payload?.user_id,
+        screenshot_url: e.payload?.screenshot_url,
+        ocr_result: e.payload?.ocr_result,
+        fraud_score: e.payload?.fraud_score,
+        status: e.payload?.status || "pending"
+      }));
+    }
+
+    if (data) {
         const rows = await Promise.all(
           data.map(async (rec: any) => {
             const { data: userData } = await supabase
@@ -65,7 +85,7 @@ function AdminPayments() {
               tags: fraud.tags ?? [],
               status: rec.status,
             } as VerificationRow;
-          })
+          }),
         );
         setVerifications(rows);
       }
@@ -88,7 +108,7 @@ function AdminPayments() {
         { event: "*", schema: "public", table: "payment_verifications" },
         () => {
           loadVerifications();
-        }
+        },
       )
       .subscribe();
 
@@ -162,10 +182,21 @@ function AdminPayments() {
                 {verifications.map((v) => (
                   <tr key={v.id} className="hover:bg-surface/20 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">{v.userEmail}</td>
-                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{v.orderId}</td>
+                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">
+                      {v.orderId}
+                    </td>
                     <td className="px-6 py-4">
-                      <a href={v.screenshotUrl} target="_blank" rel="noreferrer" className="relative group block h-12 w-12 rounded overflow-hidden border border-border bg-black">
-                        <img src={v.screenshotUrl} alt="payment" className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                      <a
+                        href={v.screenshotUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative group block h-12 w-12 rounded overflow-hidden border border-border bg-black"
+                      >
+                        <img
+                          src={v.screenshotUrl}
+                          alt="payment"
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                        />
                         <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <ExternalLink className="size-3 text-white" />
                         </span>
@@ -173,22 +204,26 @@ function AdminPayments() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-medium text-foreground">
-                        {v.amount !== undefined ? `₹${v.amount.toLocaleString()}` : "Amount missing"}
+                        {v.amount !== undefined
+                          ? `₹${v.amount.toLocaleString()}`
+                          : "Amount missing"}
                       </div>
                       <div className="text-xs text-muted-foreground font-mono mt-1">
                         UTR: {v.transactionId || "N/A"}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        v.fraudLevel === "critical" 
-                          ? "bg-red-500/10 text-red-400 border border-red-500/20" 
-                          : v.fraudLevel === "high" 
-                          ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
-                          : v.fraudLevel === "medium" 
-                          ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20" 
-                          : "bg-green-500/10 text-green-400 border border-green-500/20"
-                      }`}>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          v.fraudLevel === "critical"
+                            ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                            : v.fraudLevel === "high"
+                              ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                              : v.fraudLevel === "medium"
+                                ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                : "bg-green-500/10 text-green-400 border border-green-500/20"
+                        }`}
+                      >
                         <AlertTriangle className="size-3" /> {v.fraudScore}% ({v.fraudLevel})
                       </span>
                     </td>
@@ -198,7 +233,10 @@ function AdminPayments() {
                           <span className="text-xs text-muted-foreground">—</span>
                         ) : (
                           v.tags.map((t) => (
-                            <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-xxs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                            <span
+                              key={t}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-xxs font-medium bg-red-500/10 text-red-400 border border-red-500/20"
+                            >
                               {t}
                             </span>
                           ))

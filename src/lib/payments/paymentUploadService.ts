@@ -1,4 +1,4 @@
-// src/lib/payments/paymentUploadService.ts
+﻿// src/lib/payments/paymentUploadService.ts
 //
 // IMPORTANT: This module runs in the browser (client-side).
 // All processing uses Web APIs only — no Node.js modules.
@@ -18,7 +18,11 @@ export interface UploadResult {
  */
 async function resizeImageBrowser(file: File): Promise<ArrayBuffer> {
   try {
-    const bitmap = await createImageBitmap(file, { resizeWidth: 256, resizeHeight: 256, resizeQuality: "medium" });
+    const bitmap = await createImageBitmap(file, {
+      resizeWidth: 256,
+      resizeHeight: 256,
+      resizeQuality: "medium",
+    });
     const canvas = new OffscreenCanvas(256, 256);
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(bitmap, 0, 0, 256, 256);
@@ -69,10 +73,9 @@ export async function uploadPaymentProof(params: {
   const duplicate = !!dupData;
 
   // Record hash (upsert — ignore conflict)
-  await supabase.from("screenshot_hashes").upsert(
-    { user_id: userId, order_id: orderId, hash, path },
-    { onConflict: ["hash"] }
-  );
+  await supabase
+    .from("screenshot_hashes")
+    .upsert({ user_id: userId, order_id: orderId, hash, path }, { onConflict: "hash" });
 
   // Upload with exponential back-off retry
   const maxRetries = 3;

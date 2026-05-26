@@ -58,13 +58,17 @@ export function UpgradeCelebration() {
         <div className="relative">
           <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Welcome to</div>
           <div className="mt-1 flex items-center gap-3">
-            <h2 className="font-display text-3xl font-bold text-gold-gradient">{meta.label} Seller</h2>
+            <h2 className="font-display text-3xl font-bold text-gold-gradient">
+              {meta.label} Seller
+            </h2>
             <TierBadge tier={celebrate} size="lg" showLabel={false} />
           </div>
           <p className="text-sm text-muted-foreground mt-2">{meta.tagline}</p>
 
           <div className="mt-6 rounded-2xl border border-border/60 bg-background/30 p-5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Unlocked benefits</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Unlocked benefits
+            </div>
             <ul className="space-y-2.5">
               {meta.unlocked.map((u, i) => (
                 <li

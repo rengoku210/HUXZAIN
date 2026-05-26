@@ -7,7 +7,11 @@ export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
       { title: "Privacy Policy — HUXZAIN" },
-      { name: "description", content: "HUXZAIN Privacy Policy. Learn how we collect, use, and protect your personal data on our secure digital marketplace." },
+      {
+        name: "description",
+        content:
+          "HUXZAIN Privacy Policy. Learn how we collect, use, and protect your personal data on our secure digital marketplace.",
+      },
       { property: "og:title", content: "Privacy Policy — HUXZAIN" },
     ],
   }),
@@ -142,7 +146,8 @@ function PrivacyPage() {
             Privacy <span className="text-gold">Policy</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto text-sm leading-relaxed">
-            Your privacy matters. This policy explains exactly what data HUXZAIN collects, why we collect it, and how we keep it safe and under your control.
+            Your privacy matters. This policy explains exactly what data HUXZAIN collects, why we
+            collect it, and how we keep it safe and under your control.
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
             Last updated: <span className="text-gold">May 2026</span>
@@ -151,7 +156,9 @@ function PrivacyPage() {
 
         {/* Quick Nav */}
         <div className="mb-10 rounded-2xl border border-border bg-surface/40 p-6">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-4">Quick Navigation</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-4">
+            Quick Navigation
+          </p>
           <div className="flex flex-wrap gap-2">
             {sections.map((s) => (
               <a
@@ -183,9 +190,18 @@ function PrivacyPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {section.subsections.map((sub, i) => (
-                    <div key={i} className="rounded-xl border border-border/60 bg-background/40 p-5">
-                      <h3 className="text-sm font-semibold mb-2" dangerouslySetInnerHTML={{ __html: sub.heading }} />
-                      <p className="text-xs text-muted-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: sub.body }} />
+                    <div
+                      key={i}
+                      className="rounded-xl border border-border/60 bg-background/40 p-5"
+                    >
+                      <h3
+                        className="text-sm font-semibold mb-2"
+                        dangerouslySetInnerHTML={{ __html: sub.heading }}
+                      />
+                      <p
+                        className="text-xs text-muted-foreground leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: sub.body }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -198,10 +214,13 @@ function PrivacyPage() {
         <div className="mt-8 rounded-2xl border border-border bg-surface/40 p-7">
           <h2 className="font-display text-xl font-bold text-gold mb-4">Cookies</h2>
           <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-            HUXZAIN uses essential cookies to maintain your session and remember your preferences. We do not use third-party advertising cookies or tracking pixels for behavioural advertising.
+            HUXZAIN uses essential cookies to maintain your session and remember your preferences.
+            We do not use third-party advertising cookies or tracking pixels for behavioural
+            advertising.
           </p>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            You can control cookie settings in your browser. Disabling essential cookies may affect platform functionality, including the ability to stay logged in.
+            You can control cookie settings in your browser. Disabling essential cookies may affect
+            platform functionality, including the ability to stay logged in.
           </p>
         </div>
 

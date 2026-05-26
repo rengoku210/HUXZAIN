@@ -11,7 +11,9 @@ function Page() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold">Store Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Profile, payouts and seller preferences.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Profile, payouts and seller preferences.
+        </p>
       </div>
 
       <PanelCard title="Profile">
@@ -24,8 +26,12 @@ function Page() {
           <Field label="Default currency" value="USD" />
         </div>
         <div className="mt-5 flex gap-2">
-          <button className="h-10 px-4 rounded-lg bg-gold text-black font-semibold text-sm">Save changes</button>
-          <button className="h-10 px-4 rounded-lg border border-border text-sm hover:bg-surface">Cancel</button>
+          <button className="h-10 px-4 rounded-lg bg-gold text-black font-semibold text-sm">
+            Save changes
+          </button>
+          <button className="h-10 px-4 rounded-lg border border-border text-sm hover:bg-surface">
+            Cancel
+          </button>
         </div>
       </PanelCard>
 
@@ -45,7 +51,10 @@ function Field({ label, value }: { label: string; value: string }) {
   return (
     <label className="block">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <input defaultValue={value} className="mt-1 w-full h-10 px-3 rounded-lg bg-background border border-border text-sm" />
+      <input
+        defaultValue={value}
+        className="mt-1 w-full h-10 px-3 rounded-lg bg-background border border-border text-sm"
+      />
     </label>
   );
 }

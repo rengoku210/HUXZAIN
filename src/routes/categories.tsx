@@ -1,21 +1,150 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
-import { LayoutGrid, ArrowRight } from "lucide-react";
-import { primaryCategories, gamingCategories } from "@/lib/marketplace-data";
+import { LayoutGrid, ArrowRight, PackageOpen } from "lucide-react";
+import * as LucideIcons from "lucide-react";
+import { getSupabase } from "@/lib/supabase-client";
 
 export const Route = createFileRoute("/categories")({
   head: () => ({
     meta: [
       { title: "All Categories — HUXZAIN" },
-      { name: "description", content: "Browse all categories on HUXZAIN — digital products, services, design, programming, SEO, marketing, gaming, and much more." },
+      {
+        name: "description",
+        content:
+          "Browse all categories on HUXZAIN — digital products, services, design, programming, SEO, marketing, gaming, and much more.",
+      },
       { property: "og:title", content: "All Categories — HUXZAIN Digital Marketplace" },
     ],
   }),
   component: CategoriesPage,
 });
 
+function DynamicHeading({ text }: { text: string }) {
+  const parts = text.split(" ");
+  if (parts.length <= 1) return <>{text}</>;
+  const last = parts[parts.length - 1];
+  const rest = parts.slice(0, -1).join(" ");
+  return (
+    <>
+      {rest} <span className="text-gold">{last}</span>
+    </>
+  );
+}
+
 function CategoriesPage() {
+  const [categories, setCategories] = useState<any[]>([]);
+  const [listingsCounts, setListingsCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      const sb = getSupabase();
+      if (!sb) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const [catsRes, listingsRes] = await Promise.all([
+          sb.from("categories").select("*").order("sort_order"),
+          sb.from("listings").select("category_id").eq("status", "active")
+        ]);
+
+        if (catsRes.error) throw catsRes.error;
+        if (listingsRes.error) throw listingsRes.error;
+
+        const cats = catsRes.data ?? [];
+        const listings = listingsRes.data ?? [];
+
+        const counts: Record<string, number> = {};
+        listings.forEach((item: any) => {
+          if (item.category_id) {
+            counts[item.category_id] = (counts[item.category_id] ?? 0) + 1;
+          }
+        });
+
+        setCategories(cats);
+        setListingsCounts(counts);
+      } catch (err) {
+        console.error("Failed to load categories page data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    void loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 container-page py-20 flex justify-center items-center">
+          <LucideIcons.Loader2 className="size-8 text-gold animate-spin" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  const hasParentId = categories.length > 0 && "parent_id" in categories[0];
+
+  const parentCategories = hasParentId
+    ? categories.filter((c) => c.parent_id === null)
+    : categories.filter((c) => !["accounts", "currency", "gift-cards", "boosting", "coaching", "subscriptions", "game-accounts", "rank-boosting", "in-game-credits"].includes(c.slug));
+
+  const primaryCategoriesList = parentCategories.filter((parent) => {
+    const hasChildren = hasParentId
+      ? categories.some((c) => c.parent_id === parent.id)
+      : parent.slug === "gaming-entertainment";
+    return !hasChildren;
+  });
+
+  const groupedCategoriesList = parentCategories.filter((parent) => {
+    const hasChildren = hasParentId
+      ? categories.some((c) => c.parent_id === parent.id)
+      : parent.slug === "gaming-entertainment";
+    return hasChildren;
+  });
+
+  const getCategoryCountStr = (cat: any) => {
+    const directCount = listingsCounts[cat.id] ?? 0;
+    const children = hasParentId
+      ? categories.filter((c) => c.parent_id === cat.id)
+      : (cat.slug === "gaming-entertainment"
+          ? categories.filter((c) => ["accounts", "currency", "gift-cards", "boosting", "coaching", "subscriptions", "game-accounts", "rank-boosting", "in-game-credits"].includes(c.slug))
+          : []);
+    const totalCount = directCount + children.reduce((sum, child) => sum + (listingsCounts[child.id] ?? 0), 0);
+    return `${totalCount.toLocaleString()} ${totalCount === 1 ? "Listing" : "Listings"}`;
+  };
+
+  const getCategoryIconComponent = (iconName: string | null | undefined, slug: string) => {
+    if (iconName && iconName in LucideIcons) {
+      return (LucideIcons as any)[iconName];
+    }
+    const map: Record<string, any> = {
+      "digital-products": LucideIcons.Monitor,
+      "services": LucideIcons.Cog,
+      "hosting": LucideIcons.Server,
+      "seo": LucideIcons.Search,
+      "design": LucideIcons.Palette,
+      "programming": LucideIcons.Code2,
+      "marketing": LucideIcons.Megaphone,
+      "business": LucideIcons.Building2,
+      "gaming-entertainment": LucideIcons.Gamepad2,
+      "accounts": LucideIcons.Gamepad2,
+      "game-accounts": LucideIcons.Gamepad2,
+      "currency": LucideIcons.Coins,
+      "in-game-credits": LucideIcons.Coins,
+      "gift-cards": LucideIcons.Gift,
+      "boosting": LucideIcons.Rocket,
+      "rank-boosting": LucideIcons.Rocket,
+      "coaching": LucideIcons.GraduationCap,
+      "subscriptions": LucideIcons.Crown,
+    };
+    return map[slug] ?? LucideIcons.Package;
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -29,91 +158,128 @@ function CategoriesPage() {
             All <span className="text-gold">Categories</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto text-sm leading-relaxed">
-            Explore our full range of digital products, services, and more. Every category is stocked with vetted listings from verified sellers.
+            Explore our full range of digital products, services, and more. Every category is
+            stocked with vetted listings from verified sellers.
           </p>
         </div>
 
         {/* Primary Categories */}
-        <section className="mb-14">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display text-2xl font-bold">
-              Primary <span className="text-gold">Categories</span>
-            </h2>
-            <span className="text-xs text-muted-foreground border border-border rounded-full px-3 py-1">
-              {primaryCategories.length} categories
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {primaryCategories.map((cat) => {
-              const Icon = cat.icon;
-              return (
-                <Link
-                  key={cat.slug}
-                  to="/category/$slug"
-                  params={{ slug: cat.slug }}
-                  className="group rounded-2xl border border-border bg-surface/40 p-6 hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col gap-4"
-                >
-                  <div className="size-12 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
-                    <Icon className="size-5 text-gold" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sm group-hover:text-gold transition-colors mb-1">
-                      {cat.title}
+        {primaryCategoriesList.length > 0 && (
+          <section className="mb-14">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-display text-2xl font-bold">
+                Primary <span className="text-gold">Categories</span>
+              </h2>
+              <span className="text-xs text-muted-foreground border border-border rounded-full px-3 py-1">
+                {primaryCategoriesList.length} categories
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {primaryCategoriesList.map((cat) => {
+                const Icon = getCategoryIconComponent(cat.icon, cat.slug);
+                return (
+                  <Link
+                    key={cat.slug}
+                    to="/category/$slug"
+                    params={{ slug: cat.slug }}
+                    className="group rounded-2xl border border-border bg-surface/40 p-6 hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col gap-4"
+                  >
+                    <div className="size-12 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
+                      <Icon className="size-5 text-gold" />
                     </div>
-                    <div className="text-xs text-muted-foreground">{cat.count}</div>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gold opacity-0 group-hover:opacity-100 transition-opacity">
-                    Browse <ArrowRight className="size-3" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+                    <div>
+                      <div className="font-semibold text-sm group-hover:text-gold transition-colors mb-1">
+                        {cat.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{getCategoryCountStr(cat)}</div>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gold opacity-0 group-hover:opacity-100 transition-opacity">
+                      Browse <ArrowRight className="size-3" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-        {/* Gaming Categories */}
-        <section className="mb-14">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display text-2xl font-bold">
-              Gaming &amp; <span className="text-gold">Entertainment</span>
-            </h2>
-            <span className="text-xs text-muted-foreground border border-border rounded-full px-3 py-1">
-              {gamingCategories.length} categories
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            {gamingCategories.map((cat) => {
-              const Icon = cat.icon;
-              return (
-                <Link
-                  key={cat.slug}
-                  to="/category/$slug"
-                  params={{ slug: cat.slug }}
-                  className="group rounded-2xl border border-border bg-surface/40 p-5 text-center hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col items-center gap-3"
-                >
-                  <div className="size-11 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
-                    <Icon className="size-5 text-gold" />
-                  </div>
-                  <div className="text-sm font-medium group-hover:text-gold transition-colors">
-                    {cat.title}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+        {/* Grouped Categories (e.g. Gaming & Entertainment) */}
+        {groupedCategoriesList.map((parent) => {
+          const children = hasParentId
+            ? categories.filter((c) => c.parent_id === parent.id)
+            : categories.filter((c) => ["accounts", "currency", "gift-cards", "boosting", "coaching", "subscriptions", "game-accounts", "rank-boosting", "in-game-credits"].includes(c.slug));
+
+          return (
+            <section key={parent.id} className="mb-14">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-display text-2xl font-bold">
+                  <DynamicHeading text={parent.name} />
+                </h2>
+                <span className="text-xs text-muted-foreground border border-border rounded-full px-3 py-1">
+                  {children.length} categories
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+                {children.map((cat) => {
+                  const Icon = getCategoryIconComponent(cat.icon, cat.slug);
+                  return (
+                    <Link
+                      key={cat.slug}
+                      to="/category/$slug"
+                      params={{ slug: cat.slug }}
+                      className="group rounded-2xl border border-border bg-surface/40 p-5 text-center hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col items-center gap-3"
+                    >
+                      <div className="size-11 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
+                        <Icon className="size-5 text-gold" />
+                      </div>
+                      <div className="text-sm font-medium group-hover:text-gold transition-colors">
+                        {cat.name}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
         {/* Popular Tags */}
         <div className="rounded-2xl border border-border bg-surface/40 p-7 mb-10">
-          <h2 className="font-display text-xl font-bold text-gold mb-5">Popular Tags &amp; Subcategories</h2>
+          <h2 className="font-display text-xl font-bold text-gold mb-5">
+            Popular Tags &amp; Subcategories
+          </h2>
           <div className="flex flex-wrap gap-2">
             {[
-              "WordPress Themes", "Shopify Templates", "Logo Design", "Social Media Graphics", "Figma UI Kits",
-              "React Components", "Python Scripts", "Chrome Extensions", "Discord Bots", "Video Editing",
-              "Voice Overs", "Translation", "Business Plans", "Market Research", "Email Marketing",
-              "Backlink Building", "On-Page SEO", "Technical SEO", "Google Ads", "Facebook Ads",
-              "Minecraft Accounts", "Valorant Accounts", "Robux", "Steam Gift Cards", "Warzone Coaching",
-              "Netflix Subscriptions", "Spotify Premium", "VPN Services", "Cloud Hosting", "VPS Servers",
+              "WordPress Themes",
+              "Shopify Templates",
+              "Logo Design",
+              "Social Media Graphics",
+              "Figma UI Kits",
+              "React Components",
+              "Python Scripts",
+              "Chrome Extensions",
+              "Discord Bots",
+              "Video Editing",
+              "Voice Overs",
+              "Translation",
+              "Business Plans",
+              "Market Research",
+              "Email Marketing",
+              "Backlink Building",
+              "On-Page SEO",
+              "Technical SEO",
+              "Google Ads",
+              "Facebook Ads",
+              "Minecraft Accounts",
+              "Valorant Accounts",
+              "Robux",
+              "Steam Gift Cards",
+              "Warzone Coaching",
+              "Netflix Subscriptions",
+              "Spotify Premium",
+              "VPN Services",
+              "Cloud Hosting",
+              "VPS Servers",
             ].map((tag) => (
               <Link
                 key={tag}
@@ -130,14 +296,18 @@ function CategoriesPage() {
         <div className="relative overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-surface-elevated via-surface to-background p-8 flex flex-col md:flex-row items-center gap-6">
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ backgroundImage: "radial-gradient(500px 300px at 90% 50%, oklch(0.82 0.13 82 / 0.1), transparent 60%)" }}
+            style={{
+              backgroundImage:
+                "radial-gradient(500px 300px at 90% 50%, oklch(0.82 0.13 82 / 0.1), transparent 60%)",
+            }}
           />
           <div className="relative flex-1">
             <h3 className="font-display text-xl font-bold mb-1">
               Sell Your Digital Products on <span className="text-gold">HUXZAIN</span>
             </h3>
             <p className="text-sm text-muted-foreground">
-              List your products in any category and reach thousands of ready-to-buy customers with full escrow protection.
+              List your products in any category and reach thousands of ready-to-buy customers with
+              full escrow protection.
             </p>
           </div>
           <Link

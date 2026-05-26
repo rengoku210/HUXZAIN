@@ -1,0 +1,269 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { Plus, Edit, Trash2, Loader2, X, CheckCircle2 } from "lucide-react";
+import { PanelCard } from "@/components/seller/SellerShell";
+import { getSupabase } from "@/lib/supabase-client";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/_authenticated/admin/categories")({
+  head: () => ({ meta: [{ title: "Manage Categories — HUXZAIN Admin" }] }),
+  component: Page,
+});
+
+type Category = {
+  id: string;
+  slug: string;
+  title: string;
+  parent_id: string | null;
+  icon: string | null;
+  sort: number;
+};
+
+function CategoryModal({
+  category,
+  onClose,
+  onSaved,
+}: {
+  category: Partial<Category> | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isNew = !category?.id;
+  const [title, setTitle] = useState(category?.title ?? "");
+  const [slug, setSlug] = useState(category?.slug ?? "");
+  const [sort, setSort] = useState(String(category?.sort ?? "0"));
+  const [icon, setIcon] = useState(category?.icon ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!title.trim() || !slug.trim()) {
+      toast.error("Title and slug are required.");
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setSaving(true);
+
+    const payload = {
+      name: title.trim(),
+      slug: slug.trim().toLowerCase(),
+      sort_order: parseInt(sort) || 0,
+      icon: icon.trim() || null,
+    };
+
+    try {
+      if (isNew) {
+        const { error } = await supabase.from("categories").insert(payload);
+        if (error) throw error;
+        toast.success("Category created!");
+      } else {
+        const { error } = await supabase.from("categories").update(payload).eq("id", category!.id!);
+        if (error) throw error;
+        toast.success("Category updated!");
+      }
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-display text-lg font-bold">
+            {isNew ? "Create Category" : "Edit Category"}
+          </h2>
+          <button onClick={onClose} className="p-1 hover:text-gold transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Digital Products"
+              className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Slug</label>
+            <input
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="e.g. digital-products"
+              className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Sort Order</label>
+              <input
+                type="number"
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Icon (Lucide name)</label>
+              <input
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="e.g. Package"
+                className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-lg border border-border text-sm hover:bg-surface transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 h-10 rounded-lg bg-gold text-black text-sm font-bold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+            {saving ? "Saving..." : isNew ? "Create" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Page() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editTarget, setEditTarget] = useState<Partial<Category> | null | undefined>(undefined);
+
+  async function fetchCategories() {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("categories")
+      .select("*")
+      .order("sort_order")
+      .order("name");
+    
+    const mapped = (data ?? []).map((c: any) => ({
+      ...c,
+      title: c.name ?? "",
+      sort: c.sort_order ?? 0
+    }));
+    setCategories(mapped as Category[]);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  async function deleteCategory(id: string) {
+    if (!confirm("Delete this category?")) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { error } = await supabase.from("categories").delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Category deleted.");
+      fetchCategories();
+    }
+  }
+
+  return (
+    <>
+      {editTarget !== undefined && (
+        <CategoryModal
+          category={editTarget}
+          onClose={() => setEditTarget(undefined)}
+          onSaved={fetchCategories}
+        />
+      )}
+
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Manage Categories</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Organize the marketplace by adding or editing categories.
+          </p>
+        </div>
+        <button
+          onClick={() => setEditTarget(null)}
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-xl bg-gold text-black text-sm font-semibold hover:brightness-110"
+        >
+          <Plus size={16} /> New Category
+        </button>
+      </div>
+
+      <div className="mt-6">
+        <PanelCard title="All Categories">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="size-6 text-gold animate-spin" />
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              No categories found. Create one to get started.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="text-left py-2 pr-4">Title</th>
+                    <th className="text-left py-2 pr-4">Slug</th>
+                    <th className="text-left py-2 pr-4 text-center">Sort</th>
+                    <th className="text-right py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((c) => (
+                    <tr key={c.id} className="border-b border-border/30 hover:bg-surface/40">
+                      <td className="py-3 pr-4 font-medium">{c.title}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{c.slug}</td>
+                      <td className="py-3 pr-4 text-center">{c.sort}</td>
+                      <td className="py-3 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => setEditTarget(c)}
+                            className="p-1.5 rounded hover:bg-surface text-muted-foreground hover:text-gold"
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => deleteCategory(c.id)}
+                            className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </PanelCard>
+      </div>
+    </>
+  );
+}

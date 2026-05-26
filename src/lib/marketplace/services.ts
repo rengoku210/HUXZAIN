@@ -9,8 +9,16 @@
  */
 import { getSupabase } from "@/lib/supabase-client";
 import type {
-  Listing, Order, Wallet, Payout, Review, Dispute,
-  Notification, SupportTicket, Coupon, Boost,
+  Listing,
+  Order,
+  Wallet,
+  Payout,
+  Review,
+  Dispute,
+  Notification,
+  SupportTicket,
+  Coupon,
+  Boost,
 } from "./types";
 
 type Result<T> = { data: T | null; error: string | null };
@@ -19,7 +27,9 @@ function notConfigured<T>(): Result<T> {
   return { data: null, error: "Backend not configured. Add VITE_SUPABASE_* in your .env." };
 }
 
-async function run<T>(fn: () => Promise<{ data: T | null; error: { message: string } | null }>): Promise<Result<T>> {
+async function run<T>(
+  fn: () => Promise<{ data: T | null; error: { message: string } | null }>,
+): Promise<Result<T>> {
   const sb = getSupabase();
   if (!sb) return notConfigured<T>();
   const { data, error } = await fn();
@@ -31,7 +41,11 @@ export const listingsService = {
   listForSeller: (sellerId: string) =>
     run<Listing[]>(async () => {
       const sb = getSupabase()!;
-      return sb.from("listings").select("*").eq("seller_id", sellerId).order("created_at", { ascending: false });
+      return sb
+        .from("listings")
+        .select("*")
+        .eq("seller_id", sellerId)
+        .order("created_at", { ascending: false });
     }),
   listPublic: (opts: { categorySlug?: string; q?: string; limit?: number } = {}) =>
     run<Listing[]>(async () => {
@@ -41,51 +55,101 @@ export const listingsService = {
       return q.limit(opts.limit ?? 40);
     }),
   getById: (id: string) =>
-    run<Listing>(async () => getSupabase()!.from("listings").select("*").eq("id", id).maybeSingle()),
+    run<Listing>(async () =>
+      getSupabase()!.from("listings").select("*").eq("id", id).maybeSingle(),
+    ),
 };
 
 // ---------- Orders ----------
 export const ordersService = {
   forBuyer: (uid: string) =>
-    run<Order[]>(async () => getSupabase()!.from("orders").select("*").eq("buyer_id", uid).order("created_at", { ascending: false })),
+    run<Order[]>(async () =>
+      getSupabase()!
+        .from("orders")
+        .select("*")
+        .eq("buyer_id", uid)
+        .order("created_at", { ascending: false }),
+    ),
   forSeller: (uid: string) =>
-    run<Order[]>(async () => getSupabase()!.from("orders").select("*").eq("seller_id", uid).order("created_at", { ascending: false })),
+    run<Order[]>(async () =>
+      getSupabase()!
+        .from("orders")
+        .select("*")
+        .eq("seller_id", uid)
+        .order("created_at", { ascending: false }),
+    ),
 };
 
 // ---------- Wallet & Payouts ----------
 export const walletService = {
   get: (uid: string) =>
-    run<Wallet>(async () => getSupabase()!.from("wallets").select("*").eq("user_id", uid).maybeSingle()),
+    run<Wallet>(async () =>
+      getSupabase()!.from("wallets").select("*").eq("user_id", uid).maybeSingle(),
+    ),
   payoutHistory: (uid: string) =>
-    run<Payout[]>(async () => getSupabase()!.from("payouts").select("*").eq("user_id", uid).order("requested_at", { ascending: false })),
+    run<Payout[]>(async () =>
+      getSupabase()!
+        .from("payouts")
+        .select("*")
+        .eq("user_id", uid)
+        .order("requested_at", { ascending: false }),
+    ),
   requestPayout: (uid: string, amount_cents: number, method: string) =>
     run<Payout>(async () =>
-      getSupabase()!.from("payouts").insert({ user_id: uid, amount_cents, method, status: "requested" }).select().single(),
+      getSupabase()!
+        .from("payouts")
+        .insert({ user_id: uid, amount_cents, method, status: "requested" })
+        .select()
+        .single(),
     ),
 };
 
 // ---------- Reviews ----------
 export const reviewsService = {
   forSeller: (uid: string) =>
-    run<Review[]>(async () => getSupabase()!.from("reviews").select("*").eq("seller_id", uid).order("created_at", { ascending: false })),
+    run<Review[]>(async () =>
+      getSupabase()!
+        .from("reviews")
+        .select("*")
+        .eq("seller_id", uid)
+        .order("created_at", { ascending: false }),
+    ),
 };
 
 // ---------- Disputes ----------
 export const disputesService = {
   forUser: (uid: string) =>
-    run<Dispute[]>(async () => getSupabase()!.from("disputes").select("*").or(`opened_by.eq.${uid}`).order("created_at", { ascending: false })),
+    run<Dispute[]>(async () =>
+      getSupabase()!
+        .from("disputes")
+        .select("*")
+        .or(`opened_by.eq.${uid}`)
+        .order("created_at", { ascending: false }),
+    ),
 };
 
 // ---------- Notifications ----------
 export const notificationsService = {
   forUser: (uid: string) =>
-    run<Notification[]>(async () => getSupabase()!.from("notifications").select("*").eq("user_id", uid).order("created_at", { ascending: false })),
+    run<Notification[]>(async () =>
+      getSupabase()!
+        .from("notifications")
+        .select("*")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false }),
+    ),
 };
 
 // ---------- Tickets ----------
 export const ticketsService = {
   forUser: (uid: string) =>
-    run<SupportTicket[]>(async () => getSupabase()!.from("support_tickets").select("*").eq("user_id", uid).order("created_at", { ascending: false })),
+    run<SupportTicket[]>(async () =>
+      getSupabase()!
+        .from("support_tickets")
+        .select("*")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false }),
+    ),
 };
 
 // ---------- Coupons ----------

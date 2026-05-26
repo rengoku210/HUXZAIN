@@ -48,7 +48,9 @@ export async function runOcr(buffer: Buffer): Promise<OcrResult> {
 export function parseOcrText(text: string): Partial<OcrResult> {
   const result: Partial<OcrResult> = {};
   // Transaction/UTR ID – look for alphanumeric strings of length 8‑20, allowing optional ID/Ref suffixes
-  const txnMatch = text.match(/(?:UTR|Transaction(?:\s+ID)?|Ref(?:erence)?(?:\s+(?:No|Num|Number))?)\s*[:#]?\s*([A-Z0-9]{8,20})/i);
+  const txnMatch = text.match(
+    /(?:UTR|Transaction(?:\s+ID)?|Ref(?:erence)?(?:\s+(?:No|Num|Number))?)\s*[:#]?\s*([A-Z0-9]{8,20})/i,
+  );
   if (txnMatch) result.transactionId = txnMatch[1];
 
   // Amount – capture numbers with optional commas and decimal
@@ -59,7 +61,9 @@ export function parseOcrText(text: string): Partial<OcrResult> {
   }
 
   // Date / timestamp – common date formats
-  const dateMatch = text.match(/(?:Date|Time)\s*[:]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{2,4})(?:\s+([0-9]{1,2}:[0-9]{2}(?:\s?[AP]M)?))?/i);
+  const dateMatch = text.match(
+    /(?:Date|Time)\s*[:]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{2,4})(?:\s+([0-9]{1,2}:[0-9]{2}(?:\s?[AP]M)?))?/i,
+  );
   if (dateMatch) {
     const datePart = dateMatch[1];
     const timePart = dateMatch[2] ?? "00:00";

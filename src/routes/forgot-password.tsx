@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+﻿import { useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -18,10 +18,17 @@ function ForgotPage() {
   const [busy, setBusy] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
-    e.preventDefault(); setErr(null); setBusy(true);
-    try { await auth.sendPasswordReset(email); setSent(true); }
-    catch (ex) { setErr((ex as Error).message); }
-    finally { setBusy(false); }
+    e.preventDefault();
+    setErr(null);
+    setBusy(true);
+    try {
+      await auth.sendPasswordReset(email);
+      setSent(true);
+    } catch (ex) {
+      setErr((ex as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -34,12 +41,27 @@ function ForgotPage() {
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <Field label="Email" type="email" value={email} onChange={setEmail} required />
             {err && <div className="text-xs text-red-400">{err}</div>}
-            {sent && <div className="text-xs text-gold">If an account exists, a reset link has been sent.</div>}
-            <button disabled={busy} className="w-full h-11 rounded-lg bg-gold text-primary-foreground font-semibold text-sm hover:brightness-110 disabled:opacity-60">
-              {busy ? "Sending…" : "Send reset link"}
+            {sent && (
+              <div className="text-xs text-gold">
+                If an account exists, a reset link has been sent.
+              </div>
+            )}
+            <button
+              disabled={busy}
+              className="w-full h-11 rounded-lg bg-gold text-primary-foreground font-semibold text-sm hover:brightness-110 disabled:opacity-60"
+            >
+              {busy ? "Sendingâ€¦" : "Send reset link"}
             </button>
           </form>
-          <div className="mt-4 text-xs"><Link to="/login" className="text-gold hover:underline">Back to sign in</Link></div>
+          <div className="mt-4 text-xs">
+            <Link
+              to="/login"
+              search={{ redirect: "/dashboard" }}
+              className="text-gold hover:underline"
+            >
+              Back to sign in
+            </Link>
+          </div>
         </div>
       </main>
       <Footer />

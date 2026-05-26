@@ -1,9 +1,3 @@
-/**
- * Auth context: wraps the app, exposes the current user, profile,
- * and role list. Backed by Supabase when env is configured; falls
- * back to an unauthenticated stub otherwise (so the UI stays usable
- * for design preview).
- */
 import {
   createContext,
   useCallback,
@@ -16,20 +10,20 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabase } from "@/lib/supabase-client";
 import { isSupabaseConfigured } from "@/lib/env";
-import {
-  type Role,
-  hasAnyRole,
-  hasPermission,
-  type Permission,
-} from "@/lib/roles";
+import { type Role, hasAnyRole, hasPermission, type Permission } from "@/lib/roles";
 
 export type Profile = {
   id: string;
+  email?: string | null;
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  bio?: string | null;
+  country?: string | null;
+  email_visibility?: string | null;
   is_seller: boolean;
   is_verified: boolean;
+  seller_approved?: boolean;
 };
 
 type AuthState = {
@@ -44,16 +38,31 @@ type AuthState = {
   hasAnyRole: (roles: Role[]) => boolean;
   can: (p: Permission) => boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<void>;
+  signInWithOtp: (email: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    displayName?: string,
+    intent?: string,
+  ) => Promise<void>;
   signInWithOAuth: (provider: "google" | "apple") => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUserMeta: () => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  becomeSeller: () => Promise<void>;
 };
 
 const AuthCtx = createContext<AuthState | null>(null);
+
+function uniqueRoles(rows: { role: Role }[] | null | undefined): Role[] {
+  const out = new Set<Role>();
+  for (const row of rows ?? []) out.add(row.role);
+  out.add("buyer");
+  return [...out];
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabase();
@@ -64,76 +73,165 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<Role[]>([]);
 
   const loadUserMeta = useCallback(
-    async (userId: string) => {
+    async (userId: string, fallbackUser?: User | null) => {
       if (!supabase) return;
-      console.log("[AuthContext] Loading user metadata for user ID:", userId);
+
+      // 1. Fetch existing profile and roles first
+      // We use try-catch and specific checks to ensure null safety
+      let p, r;
       try {
-        const [{ data: p, error: pErr }, { data: r, error: rErr }] = await Promise.all([
+        const [resP, resR] = await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
           supabase.from("user_roles").select("role").eq("user_id", userId),
         ]);
+        p = resP.data;
+        r = resR.data;
         
-        if (pErr) console.warn("[AuthContext] Profiles table fetch warning:", pErr.message);
-        if (rErr) console.warn("[AuthContext] User roles table fetch warning:", rErr.message);
+        if (resP.error) console.warn("Profile load error:", resP.error.message);
+        if (resR.error) console.warn("Role load error:", resR.error.message);
+      } catch (err) {
+        console.error("Critical error loading user meta:", err);
+      }
 
-        const rolesList = ((r ?? []) as { role: Role }[]).map((x) => x.role);
-        
-        // Support database profile is_seller state
-        if (p && p.is_seller && !rolesList.includes("seller" as Role)) {
-          console.log("[AuthContext] Synthesizing 'seller' role from profiles.is_seller = true");
-          rolesList.push("seller" as Role);
+      const email = fallbackUser?.email ?? p?.email ?? null;
+      let finalProfile = p;
+
+      // 2. Only insert if profile does not exist
+      if (!p) {
+        console.log(`[Auth] Creating missing profile for ${userId}...`);
+        const displayName =
+          (fallbackUser?.user_metadata?.display_name as string | undefined) ??
+          email?.split("@")[0] ??
+          "User";
+
+        const { data: newProfile, error: insErr } = await supabase
+          .from("profiles")
+          .insert({
+            id: userId,
+            email,
+            display_name: displayName,
+          })
+          .select()
+          .maybeSingle();
+
+        if (insErr) {
+          console.error("Failed to create initial profile:", insErr.message);
+        } else if (newProfile) {
+          finalProfile = newProfile;
         }
-
-        // Support Client-Side localStorage role overrides for testing
-        if (typeof window !== "undefined") {
-          const overrides = localStorage.getItem(`huxzain_roles_${userId}`);
-          if (overrides) {
-            try {
-              const extraRoles = JSON.parse(overrides) as Role[];
-              console.log("[AuthContext] Found localStorage role overrides:", extraRoles);
-              extraRoles.forEach((role) => {
-                if (!rolesList.includes(role)) {
-                  rolesList.push(role);
-                }
-              });
-            } catch (jsonErr) {
-              console.error("[AuthContext] Failed to parse localStorage overrides:", jsonErr);
-            }
+      } else {
+        // Profile exists. If email changed or is missing in DB, update just the email
+        if (email && p.email !== email) {
+          const { data: updatedProfile } = await supabase
+            .from("profiles")
+            .update({ email })
+            .eq("id", userId)
+            .select()
+            .maybeSingle();
+          if (updatedProfile) {
+            finalProfile = updatedProfile;
           }
         }
-
-        console.log("[AuthContext] Final loaded roles for session:", rolesList);
-        setProfile((p as Profile) ?? null);
-        setRoles(rolesList);
-      } catch (err: any) {
-        console.error("[AuthContext] Critical exception in loadUserMeta:", err.message);
       }
+
+      // 3. Ensure roles exist in DB
+      const dbRoles = uniqueRoles((r ?? []) as { role: Role }[]);
+      
+      try {
+        // Always ensure "buyer" role for every user
+        if (!dbRoles.includes("buyer")) {
+          console.log(`[Auth] Adding missing buyer role for ${userId}...`);
+          await supabase
+            .from("user_roles")
+            .insert({ user_id: userId, role: "buyer" as Role })
+            .maybeSingle();
+          dbRoles.push("buyer");
+        }
+
+        // Sync seller intent from metadata if they don't have the role yet
+        const intent = fallbackUser?.user_metadata?.intent;
+        if (intent === "seller" && !dbRoles.includes("seller")) {
+          console.log(`[Auth] Syncing seller intent from metadata for ${userId}...`);
+          const { error: syncErr } = await supabase
+            .from("user_roles")
+            .insert({ user_id: userId, role: "seller" as Role });
+          
+          if (!syncErr) dbRoles.push("seller");
+          else console.warn("[Auth] Seller intent sync failed:", syncErr.message);
+        }
+      } catch (err) {
+        console.warn("[Auth] Role sync exception:", err);
+      }
+
+      const hasSeller = dbRoles.includes("seller");
+
+      try {
+        // 4. Sync profile.is_seller flag if it doesn't match the user_roles state
+        if (finalProfile && Boolean((finalProfile as Profile).is_seller) !== hasSeller) {
+          console.log(`[Auth] Syncing is_seller flag in DB for ${userId}...`);
+          const { data: syncedProfile, error: profileSyncErr } = await supabase
+            .from("profiles")
+            .update({ is_seller: hasSeller })
+            .eq("id", userId)
+            .select()
+            .maybeSingle();
+          
+          if (profileSyncErr) console.warn("[Auth] Profile sync failed:", profileSyncErr.message);
+          else if (syncedProfile) {
+            finalProfile = syncedProfile;
+          }
+        }
+      } catch (err) {
+        console.warn("[Auth] Profile sync exception:", err);
+      }
+
+      console.log(`[Auth] User meta loaded for ${userId}. Roles: ${dbRoles.join(", ")}`);
+      setProfile(
+        finalProfile ? ({ ...(finalProfile as Profile), is_seller: hasSeller } as Profile) : null,
+      );
+      setRoles(dbRoles);
     },
     [supabase],
   );
+
+  const refreshUserMeta = useCallback(async () => {
+    if (session?.user) {
+      console.log("[AuthContext] Refreshing user meta...");
+      await loadUserMeta(session.user.id, session.user);
+    }
+  }, [session, loadUserMeta]);
 
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
 
-    // Listener FIRST, then getSession (avoids missed events).
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
       if (!mounted) return;
       setSession(s);
       if (s?.user) {
-        // defer DB calls to avoid deadlocks inside the callback
-        setTimeout(() => loadUserMeta(s.user.id), 0);
+        setTimeout(() => loadUserMeta(s.user.id, s.user), 0);
       } else {
         setProfile(null);
         setRoles([]);
       }
     });
 
-    supabase.auth.getSession().then(({ data }) => {
+    // Fallback: if Supabase takes too long to wake up (e.g. paused project), force ready state
+    const timeoutId = setTimeout(() => {
+      if (mounted) setReady(true);
+    }, 4000);
+
+    supabase.auth.getSession().then(({ data, error }) => {
       if (!mounted) return;
-      setSession(data.session);
-      if (data.session?.user) loadUserMeta(data.session.user.id);
+      if (error) console.error("[AuthContext] getSession error:", error);
+      setSession(data?.session ?? null);
+      if (data?.session?.user) loadUserMeta(data.session.user.id, data.session.user);
       setReady(true);
+    }).catch(err => {
+      console.error("[AuthContext] getSession exception:", err);
+      if (mounted) setReady(true);
+    }).finally(() => {
+      clearTimeout(timeoutId);
     });
 
     return () => {
@@ -156,39 +254,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasAnyRole: (rs) => hasAnyRole(roles, rs),
       can: (p) => hasPermission(roles, p),
       async signInWithPassword(email, password) {
-        if (!supabase) throw new Error("Auth not configured. Add VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.");
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (!supabase)
+          throw new Error("Auth not configured. Add VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.");
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (data.user) await loadUserMeta(data.user.id, data.user);
       },
-      async signUp(email, password, displayName) {
+      async signInWithOtp(email) {
         if (!supabase) throw new Error("Auth not configured.");
-        const redirect = typeof window !== "undefined" ? `${window.location.origin}/auth/verified` : undefined;
+        const siteUrl = import.meta.env.VITE_SITE_URL ?? window.location.origin;
+        const redirect = `${siteUrl}/auth/callback`;
+        console.log(`[Auth] Attempting to send magic link to: ${email} (Redirect: ${redirect})`);
+        const { data, error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirect },
+        });
+        console.log('[Auth] signInWithOtp response data:', data);
+        console.log('[Auth] signInWithOtp response error:', error);
+        if (error) {
+          console.error('[Auth] Magic link error:', error.message);
+          throw error;
+        }
+        console.log('[Auth] Magic link sent successfully.');
+      },
+      async signUp(email, password, displayName, intent) {
+        if (!supabase) throw new Error("Auth not configured.");
+        const siteUrl = import.meta.env.VITE_SITE_URL ?? (import.meta.env.VITE_VERCEL_URL ? `https://${import.meta.env.VITE_VERCEL_URL}` : window.location.origin);
+        const redirect = `${siteUrl}/auth/verified`;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: redirect,
-            data: { display_name: displayName ?? null },
+            data: { 
+              display_name: displayName ?? null,
+              intent: intent ?? null
+            },
           },
         });
         if (error) throw error;
-        // Assign default buyer role
-        if (data?.user?.id) {
-          const { error: roleError } = await supabase
-            .from('user_roles')
-            .insert({ user_id: data.user.id, role: 'buyer' as Role });
-          if (roleError) console.error('Failed to assign default buyer role', roleError);
-        }
+        if (data.user) await loadUserMeta(data.user.id, data.user);
       },
       async signInWithOAuth(provider) {
         if (!supabase) throw new Error("Auth not configured.");
-        const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
-        const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+        const redirectTo =
+          typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo },
+        });
         if (error) throw error;
       },
       async sendPasswordReset(email) {
         if (!supabase) throw new Error("Auth not configured.");
-        const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
+        const redirectTo =
+          typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
         if (error) throw error;
       },
@@ -204,18 +324,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut() {
         if (!supabase) return;
-        if (typeof window !== "undefined" && session?.user) {
-          localStorage.removeItem(`huxzain_roles_${session.user.id}`);
-        }
         await supabase.auth.signOut();
       },
-      async refreshUserMeta() {
-        if (session?.user) {
-          await loadUserMeta(session.user.id);
+      refreshUserMeta,
+      async updateProfile(updates) {
+        if (!supabase || !session?.user) throw new Error("Not authenticated");
+        
+        const { data, error } = await supabase
+          .from("profiles")
+          .update(updates)
+          .eq("id", session.user.id)
+          .select()
+          .maybeSingle();
+        
+        if (error) throw error;
+        if (data) {
+          setProfile((prev) => (prev ? { ...prev, ...data } : (data as Profile)));
         }
       },
+      async becomeSeller() {
+        if (!supabase || !session?.user) throw new Error("Not authenticated");
+        
+        console.log("[AuthContext] Attempting to grant seller role...");
+        // 1. Add role
+        const { error: roleErr } = await supabase
+          .from("user_roles")
+          .insert({ user_id: session.user.id, role: "seller" as Role });
+        
+        // Postgres code 23505 is unique violation (already has role)
+        if (roleErr && roleErr.code !== "23505") {
+          throw roleErr;
+        }
+
+        // 2. Explicitly update profile flag for immediate consistency
+        const { error: profileErr } = await supabase
+          .from("profiles")
+          .update({ is_seller: true })
+          .eq("id", session.user.id);
+        
+        if (profileErr) console.warn("[AuthContext] Profile flag update failed:", profileErr.message);
+
+        // 3. Update local state immediately
+        setRoles((prev) => prev.includes("seller") ? prev : [...prev, "seller"]);
+        setProfile((prev) => prev ? { ...prev, is_seller: true } : prev);
+        
+        console.log("[AuthContext] Seller role activated.");
+      },
     };
-  }, [ready, configured, session, profile, roles, supabase, loadUserMeta]);
+  }, [ready, configured, session, profile, roles, supabase, refreshUserMeta]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
