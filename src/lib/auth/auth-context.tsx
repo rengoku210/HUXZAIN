@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabase } from "@/lib/supabase-client";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isSupabaseConfigured, env } from "@/lib/env";
 import { type Role, hasAnyRole, hasPermission, type Permission } from "@/lib/roles";
 
 export type Profile = {
@@ -262,8 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signInWithOtp(email) {
         if (!supabase) throw new Error("Auth not configured.");
-        const siteUrl = import.meta.env.VITE_SITE_URL ?? window.location.origin;
-        const redirect = `${siteUrl}/auth/callback`;
+        const redirect = `${env.siteUrl}/auth/callback`;
         console.log(`[Auth] Attempting to send magic link to: ${email} (Redirect: ${redirect})`);
         const { data, error } = await supabase.auth.signInWithOtp({
           email,
@@ -279,8 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signUp(email, password, displayName, intent) {
         if (!supabase) throw new Error("Auth not configured.");
-        const siteUrl = import.meta.env.VITE_SITE_URL ?? (import.meta.env.VITE_VERCEL_URL ? `https://${import.meta.env.VITE_VERCEL_URL}` : window.location.origin);
-        const redirect = `${siteUrl}/auth/verified`;
+        const redirect = `${env.siteUrl}/auth/verified`;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -297,8 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signInWithOAuth(provider) {
         if (!supabase) throw new Error("Auth not configured.");
-        const redirectTo =
-          typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+        const redirectTo = `${env.siteUrl}/auth/callback`;
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
           options: { redirectTo },
@@ -307,8 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async sendPasswordReset(email) {
         if (!supabase) throw new Error("Auth not configured.");
-        const redirectTo =
-          typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
+        const redirectTo = `${env.siteUrl}/reset-password`;
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
         if (error) throw error;
       },
