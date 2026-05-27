@@ -22,6 +22,7 @@ const nav = [
   { to: "/admin/listings", label: "Listings", icon: List },
   { to: "/admin/categories", label: "Categories", icon: List },
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
+  { to: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
   { to: "/admin/disputes", label: "Disputes", icon: AlertCircle },
   { to: "/admin/reports", label: "Reports", icon: Flag },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },

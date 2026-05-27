@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export type SellerTier = "standard" | "pro" | "elite" | "enterprise";
 
@@ -40,14 +41,13 @@ export const TIERS: Record<SellerTier, TierMeta> = {
       "Up to 10 active listings",
       "Basic analytics",
       "Standard support",
-      "2.9% transaction fee",
     ],
   },
   pro: {
     id: "pro",
     label: "Pro",
     tagline: "Serious sellers ready to scale.",
-    monthly: 19,
+    monthly: 299,
     accent: "text-sky-300",
     ring: "ring-sky-400/30",
     badgeGradient: "linear-gradient(135deg, #38bdf8, #2563eb)",
@@ -59,14 +59,13 @@ export const TIERS: Record<SellerTier, TierMeta> = {
       "Pro analytics dashboard",
       "Priority chat support",
       "Custom coupons",
-      "1.9% transaction fee",
     ],
   },
   elite: {
     id: "elite",
     label: "Elite",
     tagline: "Top performers with verified excellence.",
-    monthly: 49,
+    monthly: 599,
     accent: "text-gold",
     ring: "ring-gold/40",
     badgeGradient: "linear-gradient(135deg, oklch(0.88 0.13 88), oklch(0.62 0.13 70))",
@@ -75,18 +74,17 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     rank: 2,
     unlocked: [
       "Elite seller badge on every listing",
-      "Advanced funnel analytics",
-      "Featured rotation on homepage",
-      "Animated store banner",
-      "1.4% transaction fee",
-      "Dedicated account manager",
+      "Featured homepage rotation",
+      "Advanced analytics",
+      "Lower transaction fee",
+      "Dedicated account support",
     ],
   },
   enterprise: {
     id: "enterprise",
     label: "Enterprise",
     tagline: "White-glove infrastructure for large studios.",
-    monthly: 199,
+    monthly: 999,
     accent: "text-violet-300",
     ring: "ring-violet-400/40",
     badgeGradient: "linear-gradient(135deg, #c4b5fd, #7c3aed)",
@@ -94,13 +92,11 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     glow: "0 0 50px oklch(0.6 0.2 300 / 0.28)",
     rank: 3,
     unlocked: [
-      "Executive analytics suite",
-      "API access + webhooks",
-      "Multi-seat team accounts",
-      "Custom payout schedule",
-      "0.9% transaction fee",
-      "24/7 priority hotline",
-      "Co-branded storefront",
+      "Full premium plan",
+      "Executive analytics",
+      "Multi-user/store team access",
+      "Priority payout",
+      "Highest visibility/support",
     ],
   },
 };
@@ -116,28 +112,28 @@ type TierState = {
 };
 
 const Ctx = createContext<TierState | null>(null);
-const STORAGE_KEY = "huxzain.seller.tier";
 
 export function SellerTierProvider({ children }: { children: ReactNode }) {
+  const { profile } = useAuth();
   const [tier, setTierState] = useState<SellerTier>("standard");
   const [celebrate, setCelebrate] = useState<SellerTier | null>(null);
 
+  // Sync state with database profile subscription_tier
   useEffect(() => {
-    // TODO: Once real subscription payments are implemented, read tier from
-    // the database instead of localStorage. For now, always start at standard.
-    // try {
-    //   const v = localStorage.getItem(STORAGE_KEY) as SellerTier | null;
-    //   if (v && TIERS[v]) setTierState(v);
-    // } catch { /* ignore */ }
-  }, []);
+    if (profile?.subscription_tier && TIERS[profile.subscription_tier as SellerTier]) {
+      const dbTier = profile.subscription_tier as SellerTier;
+      if (dbTier !== tier) {
+        setTierState(dbTier);
+        // Trigger celebratory popup when user upgraded successfully!
+        if (tier !== "standard") {
+          setCelebrate(dbTier);
+        }
+      }
+    }
+  }, [profile?.subscription_tier, tier]);
 
   const setTier = useCallback((t: SellerTier) => {
     setTierState(t);
-    try {
-      localStorage.setItem(STORAGE_KEY, t);
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   const upgrade = useCallback(

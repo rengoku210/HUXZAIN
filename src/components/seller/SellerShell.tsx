@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Shield } from "lucide-react";
 import { toast } from "sonner";
 import { getSupabase } from "@/lib/supabase-client";
@@ -119,7 +119,7 @@ function SellerSidebar() {
   };
 
   return (
-    <aside className="rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32">
+    <aside className="hidden lg:block rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32">
       <div
         className="rounded-xl p-4 mb-3 border border-border/60 relative overflow-hidden"
         style={{ background: meta.surfaceGradient }}
@@ -193,6 +193,88 @@ function SellerSidebar() {
   );
 }
 
+function MobileSellerNav() {
+  const [open, setOpen] = useState(false);
+  const { location } = useRouterState();
+  const auth = useAuth();
+  const { tier, meta } = useSellerTier();
+
+  // Find active nav item to display in the collapsed bar
+  const allItems = navGroups.flatMap(g => g.items);
+  const activeItem = allItems.find(n => n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)) || allItems[0];
+
+  return (
+    <div className="lg:hidden w-full mb-4">
+      {/* Active Item and Menu Toggle Trigger */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-4 rounded-2xl border border-border bg-surface/60 backdrop-blur-md shadow-lg"
+      >
+        <div className="flex items-center gap-3">
+          <div className="size-8 rounded-lg bg-gold/10 text-gold flex items-center justify-center">
+            {activeItem && <activeItem.icon size={16} />}
+          </div>
+          <div className="text-left">
+            <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Seller Menu</div>
+            <div className="text-sm font-bold text-foreground">{activeItem?.label || "Navigation"}</div>
+          </div>
+        </div>
+        <span className="text-xs text-gold bg-gold/10 px-3 py-1.5 rounded-xl border border-gold/20 font-bold transition-all active:scale-95">
+          {open ? "Close" : "Choose View"}
+        </span>
+      </button>
+
+      {/* Expanded Menu Dropdown */}
+      {open && (
+        <div className="mt-2 rounded-2xl border border-border bg-surface/90 backdrop-blur-xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 z-40 relative max-h-[70vh] overflow-y-auto space-y-4">
+          {navGroups.map((group) => (
+            <div key={group.title}>
+              <div className="px-3 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/60 mb-1.5">
+                {group.title}
+              </div>
+              <ul className="grid grid-cols-2 gap-1.5">
+                {group.items.map((n) => {
+                  const active = n.end
+                    ? location.pathname === n.to
+                    : location.pathname.startsWith(n.to);
+                  return (
+                    <li key={n.to}>
+                      <Link
+                        to={n.to}
+                        onClick={() => setOpen(false)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs transition-colors border ${
+                          active
+                            ? "bg-gold/10 text-gold border-gold/20 font-bold"
+                            : "text-muted-foreground hover:text-foreground hover:bg-surface border-transparent"
+                        }`}
+                      >
+                        <n.icon className="size-3.5" /> <span className="truncate">{n.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+
+          {/* Action buttons */}
+          <div className="border-t border-border/40 pt-4 flex gap-2">
+            <button
+              onClick={() => {
+                setOpen(false);
+                auth.signOut();
+              }}
+              className="flex-1 h-9 rounded-xl border border-border text-xs text-muted-foreground hover:text-destructive flex items-center justify-center gap-2 bg-surface/20"
+            >
+              <LogOut size={12} /> Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ShellInner({ children }: { children?: ReactNode }) {
   const { meta } = useSellerTier();
   const auth = useAuth();
@@ -214,7 +296,10 @@ function ShellInner({ children }: { children?: ReactNode }) {
       <Header />
       <main className="flex-1 container-page py-6 lg:py-8 grid lg:grid-cols-[260px_1fr] gap-6">
         <SellerSidebar />
-        <div className="min-w-0">{children ?? <Outlet />}</div>
+        <div className="min-w-0">
+          <MobileSellerNav />
+          {children ?? <Outlet />}
+        </div>
       </main>
       <Footer />
       <UpgradeCelebration />

@@ -24,6 +24,7 @@ export type Profile = {
   is_seller: boolean;
   is_verified: boolean;
   seller_approved?: boolean;
+  subscription_tier?: string | null;
 };
 
 type AuthState = {
