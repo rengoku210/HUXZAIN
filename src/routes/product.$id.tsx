@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   ChevronRight,
@@ -169,7 +169,7 @@ function ProductPage() {
       });
 
       navigate({
-        to: "/checkout/verify-payment",
+        to: "/checkout/payment",
         search: { orderId: order.id, listingId: listing.id, price: String(price) },
       });
     } catch (e: any) {

@@ -236,7 +236,7 @@ export function Header() {
       cartStore.removeItem(item.id);
 
       navigate({
-        to: "/checkout/verify-payment",
+        to: "/checkout/payment",
         search: { orderId: order.id, listingId: item.id, price: String(price) },
       });
     } catch (e: any) {
@@ -249,8 +249,13 @@ export function Header() {
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl">
         {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="container-page flex h-16 items-center gap-4">
-          <Link to="/" className="flex items-center shrink-0">
-            <img src={logo} alt="HUXZAIN" className="h-10 w-auto" />
+          <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
+            <img 
+              src={logo} 
+              alt="HUXZAIN" 
+              className="h-10 w-auto bg-transparent mix-blend-screen select-none pointer-events-none" 
+              style={{ mixBlendMode: "screen" }}
+            />
           </Link>
 
           {/* Search */}

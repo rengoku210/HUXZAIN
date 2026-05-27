@@ -78,7 +78,12 @@ export function Footer() {
 
       <div className="container-page py-14 grid gap-10 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div>
-          <img src={logo} alt="HUXZAIN" className="h-11 w-auto mb-5" />
+          <img 
+            src={logo} 
+            alt="HUXZAIN" 
+            className="h-11 w-auto mb-5 bg-transparent mix-blend-screen select-none pointer-events-none" 
+            style={{ mixBlendMode: "screen" }}
+          />
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
             The most secure marketplace for digital products and services.
           </p>

@@ -58,6 +58,7 @@ import { Route as AuthenticatedSellerBoostsRouteImport } from './routes/_authent
 import { Route as AuthenticatedSellerAnalyticsRouteImport } from './routes/_authenticated/seller.analytics'
 import { Route as AuthenticatedSellerAdsRouteImport } from './routes/_authenticated/seller.ads'
 import { Route as AuthenticatedCheckoutVerifyPaymentRouteImport } from './routes/_authenticated/checkout.verify-payment'
+import { Route as AuthenticatedCheckoutPaymentRouteImport } from './routes/_authenticated/checkout.payment'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminSubscriptionsRouteImport } from './routes/_authenticated/admin.subscriptions'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
@@ -335,6 +336,12 @@ const AuthenticatedCheckoutVerifyPaymentRoute =
     path: '/checkout/verify-payment',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCheckoutPaymentRoute =
+  AuthenticatedCheckoutPaymentRouteImport.update({
+    id: '/checkout/payment',
+    path: '/checkout/payment',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -436,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/checkout/payment': typeof AuthenticatedCheckoutPaymentRoute
   '/checkout/verify-payment': typeof AuthenticatedCheckoutVerifyPaymentRoute
   '/seller/ads': typeof AuthenticatedSellerAdsRoute
   '/seller/analytics': typeof AuthenticatedSellerAnalyticsRoute
@@ -495,6 +503,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/checkout/payment': typeof AuthenticatedCheckoutPaymentRoute
   '/checkout/verify-payment': typeof AuthenticatedCheckoutVerifyPaymentRoute
   '/seller/ads': typeof AuthenticatedSellerAdsRoute
   '/seller/analytics': typeof AuthenticatedSellerAnalyticsRoute
@@ -558,6 +567,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/checkout/payment': typeof AuthenticatedCheckoutPaymentRoute
   '/_authenticated/checkout/verify-payment': typeof AuthenticatedCheckoutVerifyPaymentRoute
   '/_authenticated/seller/ads': typeof AuthenticatedSellerAdsRoute
   '/_authenticated/seller/analytics': typeof AuthenticatedSellerAnalyticsRoute
@@ -621,6 +631,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/subscriptions'
     | '/admin/users'
+    | '/checkout/payment'
     | '/checkout/verify-payment'
     | '/seller/ads'
     | '/seller/analytics'
@@ -680,6 +691,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/subscriptions'
     | '/admin/users'
+    | '/checkout/payment'
     | '/checkout/verify-payment'
     | '/seller/ads'
     | '/seller/analytics'
@@ -742,6 +754,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/subscriptions'
     | '/_authenticated/admin/users'
+    | '/_authenticated/checkout/payment'
     | '/_authenticated/checkout/verify-payment'
     | '/_authenticated/seller/ads'
     | '/_authenticated/seller/analytics'
@@ -1141,6 +1154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCheckoutVerifyPaymentRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/checkout/payment': {
+      id: '/_authenticated/checkout/payment'
+      path: '/checkout/payment'
+      fullPath: '/checkout/payment'
+      preLoaderRoute: typeof AuthenticatedCheckoutPaymentRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
@@ -1310,12 +1330,14 @@ const AuthenticatedSellerRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedSellerRoute: typeof AuthenticatedSellerRouteWithChildren
+  AuthenticatedCheckoutPaymentRoute: typeof AuthenticatedCheckoutPaymentRoute
   AuthenticatedCheckoutVerifyPaymentRoute: typeof AuthenticatedCheckoutVerifyPaymentRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedSellerRoute: AuthenticatedSellerRouteWithChildren,
+  AuthenticatedCheckoutPaymentRoute: AuthenticatedCheckoutPaymentRoute,
   AuthenticatedCheckoutVerifyPaymentRoute:
     AuthenticatedCheckoutVerifyPaymentRoute,
 }

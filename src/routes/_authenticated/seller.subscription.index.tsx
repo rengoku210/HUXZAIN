@@ -198,7 +198,7 @@ function Page() {
                   ) : upgradable ? (
                     <button
                       onClick={() => {
-                        navigate({ to: "/seller/subscription/payment" as any, search: { plan: t } as any });
+                        navigate({ to: "/checkout/payment" as any, search: { plan: t } as any });
                       }}
                       className="w-full h-10 rounded-xl font-semibold text-xs text-black hover:brightness-110 active:scale-95 transition-all inline-flex items-center justify-center gap-1.5"
                       style={{ background: m.badgeGradient }}
