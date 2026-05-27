@@ -1,5 +1,5 @@
 // Seller Listings — full CRUD: view, create, edit, delete, image upload
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import {
   Plus,
@@ -79,6 +79,7 @@ function ListingModal({
   const [tagInput, setTagInput] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,156 +125,171 @@ function ListingModal({
   };
 
   async function handleSave() {
-    if (!title.trim()) {
-      toast.error("Title is required.");
+    setErrorMsg(null);
+
+    // 1. Validation check
+    if (!userId) {
+      const msg = "Authentication error: You must be logged in as an authorized seller to create a listing.";
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      const msg = "Title is required.";
+      setErrorMsg(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription) {
+      const msg = "Description is required.";
+      setErrorMsg(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (!categoryId) {
+      const msg = "Please select a category.";
+      setErrorMsg(msg);
+      toast.error(msg);
+      return;
+    }
+
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum < 0) {
-      toast.error("Enter a valid price.");
+      const msg = "Enter a valid positive price.";
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
 
     const supabase = getSupabase();
     if (!supabase) {
-      toast.error("Not configured.");
+      const msg = "Marketplace backend is not configured.";
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
+
     setSaving(true);
+    console.log("[Rebuild Listing Flow] Starting creation pipeline...");
 
     try {
-      const uploadedUrls: string[] = [];
-      for (const item of gallery) {
+      // 2. Upload cover image first (sequential with descriptive errors)
+      let coverImageUrl: string | null = null;
+      
+      if (gallery.length > 0) {
+        const item = gallery[0];
         if (item.file) {
+          console.log("[Rebuild Listing Flow] Uploading cover image file:", item.file.name);
           const ext = item.file.name.split(".").pop() ?? "jpg";
           const path = `${userId}/listings/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-          const { error: upErr } = await supabase.storage
+          
+          const { data: upData, error: upErr } = await supabase.storage
             .from("listing-images")
             .upload(path, item.file, { upsert: true, contentType: item.file.type });
-          if (upErr) throw upErr;
+            
+          if (upErr) {
+            console.error("[Rebuild Listing Flow] Cover image upload error:", upErr);
+            throw new Error(`Cover image upload failed: ${upErr.message}`);
+          }
+          
           const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
-          uploadedUrls.push(urlData.publicUrl);
-        } else {
-          uploadedUrls.push(item.url);
+          coverImageUrl = urlData.publicUrl;
+          console.log("[Rebuild Listing Flow] Cover image uploaded successfully. URL:", coverImageUrl);
+        } else if (item.url) {
+          coverImageUrl = item.url;
         }
       }
 
-      const coverUrl = uploadedUrls.length > 0 ? uploadedUrls[0] : null;
-
-      let finalCategoryId: string | null = null;
+      // Resolve category UUID
+      let finalCategoryId = categoryId;
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
-      if (isUuid) {
-        finalCategoryId = categoryId;
-      } else if (categoryId) {
-        const matched = categories.find(
-          (c) =>
-            c.slug === categoryId &&
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)
-        );
-        if (matched) finalCategoryId = matched.id;
+      if (!isUuid) {
+        const matched = categories.find(c => c.slug === categoryId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id));
+        if (matched) {
+          finalCategoryId = matched.id;
+        } else if (categories.length > 0) {
+          finalCategoryId = categories.find(c => c.id !== "more")?.id || categories[0].id;
+        }
       }
 
-      if (!categoryId) {
-        toast.error("Please select a category.");
-        setSaving(false);
-        return;
-      }
+      // Generate clean slug
+      const generatedSlug = slugify(trimmedTitle);
 
-      // Ensure category_id is not null to satisfy database NOT NULL constraint
-      if (!finalCategoryId && categories.length > 0) {
-        finalCategoryId = categories.find(c => c.id !== "more")?.id || categories[0].id;
-      }
-
-      // Ensure status is valid for database enum listing_status
-      // Valid values: 'draft', 'active', 'hidden', 'flagged', 'archived'
-      // 'pending_review' is not a valid enum value — map it to 'draft'
+      // Status logic mapping (database enum limit check)
       let dbStatus = status;
       if (dbStatus === "pending_review") {
         dbStatus = "draft";
       }
-
-      // New listings always start as 'active'; edits keep the chosen status
       const finalStatus = isNew ? "active" : dbStatus;
 
-      // Build payload using ONLY columns confirmed present in the live production DB.
-      // DO NOT add: delivery_type, delivery_time, gallery_urls, tags
-      // — those columns are absent from the live schema cache (causes PGRST204).
-      const basePayload = {
-        title: title.trim(),
-        description: description.trim() || null,
-        slug: slugify(title.trim()),
+      // 3. Direct direct insert / update payload
+      const payload: any = {
+        title: trimmedTitle,
+        description: trimmedDescription,
+        slug: generatedSlug,
         price_inr: priceNum,
         status: finalStatus,
-        cover_image_url: coverUrl,
+        cover_image_url: coverImageUrl,
         category_id: finalCategoryId,
       };
 
-      console.log('Final safe listing payload:', JSON.stringify(basePayload, null, 2));
-      console.log('[Listing] seller_id:', userId, '| isNew:', isNew);
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Request timed out after 10s. Check your connection.")), 10000)
-      );
+      console.log("[Rebuild Listing Flow] Database payload:", JSON.stringify(payload, null, 2));
 
       if (isNew) {
-        const insertPromise = async () => {
-          const payload = {
-            ...basePayload,
-            seller_id: userId,
-          };
-          // Log exact payload so any future schema mismatch is immediately visible
-          console.log('[Insert] listing insert payload', JSON.stringify(payload, null, 2));
-          const { data: insertedRow, error } = await supabase
-            .from("listings")
-            .insert(payload)
-            .select()
-            .maybeSingle();
-          console.log('[Insert] Supabase response — row:', insertedRow, '| error:', error);
-          if (error) {
-            console.error('[Insert] Failed — code:', error.code, '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
-            throw error;
-          }
-        };
-        await Promise.race([insertPromise(), timeoutPromise]);
+        payload.seller_id = userId;
+        console.log("[Rebuild Listing Flow] Performing direct INSERT...");
+        const { data, error } = await supabase
+          .from("listings")
+          .insert(payload)
+          .select()
+          .maybeSingle();
+
+        if (error) {
+          console.error("[Rebuild Listing Flow] INSERT error:", error);
+          throw error;
+        }
+        
+        console.log("[Rebuild Listing Flow] Direct INSERT response:", data);
+        if (!data) {
+          throw new Error("Database insert completed but did not return the created row. This can happen due to Row Level Security (RLS) policies blocking your user from inserting.");
+        }
       } else {
-        const updatePromise = async () => {
-          console.log('[Update] listing.id:', listing?.id);
-          console.log('[Update] userId:', userId);
-          console.log('[Update] payload:', basePayload);
+        console.log("[Rebuild Listing Flow] Performing direct UPDATE...");
+        payload.updated_at = new Date().toISOString();
+        const { data, error } = await supabase
+          .from("listings")
+          .update(payload)
+          .eq("id", listing.id!)
+          .select()
+          .maybeSingle();
 
-          // Verify the row exists first
-          const { data: existingRow } = await supabase
-            .from('listings')
-            .select('id, seller_id, status')
-            .eq('id', listing?.id!)
-            .maybeSingle();
-          console.log('[Update] Existing DB row:', existingRow);
-
-          const { data, error } = await supabase
-            .from('listings')
-            .update({
-              ...basePayload,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', listing?.id!)
-            .select();
-          console.log('[Update] Updated listing:', data);
-          console.log('[Update] Update error:', error);
-          if (error) throw error;
-        };
-        await Promise.race([updatePromise(), timeoutPromise]);
+        if (error) {
+          console.error("[Rebuild Listing Flow] UPDATE error:", error);
+          throw error;
+        }
+        
+        console.log("[Rebuild Listing Flow] Direct UPDATE response:", data);
+        if (!data) {
+          throw new Error("Database update completed but did not return the updated row. Make sure you own this listing.");
+        }
       }
 
-      // Success: refresh listing list and notify user
-      toast.success(isNew ? `"${title.trim()}" created successfully!` : `"${title.trim()}" updated successfully!`);
+      // 4. Success behavior
+      toast.success(isNew ? "Listing created successfully!" : "Listing updated successfully!");
       onSaved(isNew);
       onClose();
-    } catch (e: any) {
-      console.error("[ListingModal] Save error:", e);
-      // Show the exact DB error so nothing is silent
-      const code = e?.code ? ` [${e.code}]` : '';
-      const msg = e?.message ?? e?.details ?? JSON.stringify(e) ?? "Unknown error";
-      toast.error(`Unable to save listing${code}: ${msg}`);
+    } catch (err: any) {
+      console.error("[Rebuild Listing Flow] Critical failure:", err);
+      const code = err?.code ? ` [${err.code}]` : '';
+      const messageText = err?.message ?? err?.details ?? JSON.stringify(err) ?? "Unknown database/network error";
+      const fullError = `Unable to save listing${code}: ${messageText}`;
+      setErrorMsg(fullError);
+      toast.error(fullError);
     } finally {
       setSaving(false);
     }
@@ -448,6 +464,12 @@ function ListingModal({
             </div>
           </div>
 
+          {errorMsg && (
+            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-medium">
+              {errorMsg}
+            </div>
+          )}
+
           <div className="flex gap-3 mt-6">
             <button
               onClick={onClose}
@@ -510,6 +532,7 @@ function PublishSuccessModal({
 // ── Main page ───────────────────────────────────────────────────────────────────
 function Page() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { intent } = Route.useSearch();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -623,12 +646,14 @@ function Page() {
         <ListingModal
           listing={editTarget}
           userId={user?.id ?? ""}
-          onClose={() => setEditTarget(undefined)}
+          onClose={() => {
+            setEditTarget(undefined);
+            navigate({ to: "/seller/listings", search: {} });
+          }}
           onSaved={(isNewListing) => {
-            // Refresh the listing table immediately so new listing appears without manual reload
             fetchListings();
             setEditTarget(undefined);
-            // The toast.success is already fired inside ListingModal before onClose()
+            navigate({ to: "/seller/listings", search: {} });
           }}
           categories={categories}
         />
