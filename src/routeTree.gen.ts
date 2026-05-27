@@ -42,7 +42,6 @@ import { Route as AuthenticatedSellerWalletRouteImport } from './routes/_authent
 import { Route as AuthenticatedSellerVerificationRouteImport } from './routes/_authenticated/seller.verification'
 import { Route as AuthenticatedSellerTransactionsRouteImport } from './routes/_authenticated/seller.transactions'
 import { Route as AuthenticatedSellerSupportRouteImport } from './routes/_authenticated/seller.support'
-import { Route as AuthenticatedSellerSubscriptionRouteImport } from './routes/_authenticated/seller.subscription'
 import { Route as AuthenticatedSellerStoreRouteImport } from './routes/_authenticated/seller.store'
 import { Route as AuthenticatedSellerSettingsRouteImport } from './routes/_authenticated/seller.settings'
 import { Route as AuthenticatedSellerSecurityRouteImport } from './routes/_authenticated/seller.security'
@@ -68,6 +67,7 @@ import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminDisputesRouteImport } from './routes/_authenticated/admin.disputes'
 import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin.categories'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
+import { Route as AuthenticatedSellerSubscriptionIndexRouteImport } from './routes/_authenticated/seller.subscription.index'
 import { Route as AuthenticatedSellerSubscriptionPaymentRouteImport } from './routes/_authenticated/seller.subscription.payment'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -240,12 +240,6 @@ const AuthenticatedSellerSupportRoute =
     path: '/support',
     getParentRoute: () => AuthenticatedSellerRoute,
   } as any)
-const AuthenticatedSellerSubscriptionRoute =
-  AuthenticatedSellerSubscriptionRouteImport.update({
-    id: '/subscription',
-    path: '/subscription',
-    getParentRoute: () => AuthenticatedSellerRoute,
-  } as any)
 const AuthenticatedSellerStoreRoute =
   AuthenticatedSellerStoreRouteImport.update({
     id: '/store',
@@ -394,11 +388,17 @@ const AuthenticatedAdminAnalyticsRoute =
     path: '/analytics',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedSellerSubscriptionIndexRoute =
+  AuthenticatedSellerSubscriptionIndexRouteImport.update({
+    id: '/subscription/',
+    path: '/subscription/',
+    getParentRoute: () => AuthenticatedSellerRoute,
+  } as any)
 const AuthenticatedSellerSubscriptionPaymentRoute =
   AuthenticatedSellerSubscriptionPaymentRouteImport.update({
-    id: '/payment',
-    path: '/payment',
-    getParentRoute: () => AuthenticatedSellerSubscriptionRoute,
+    id: '/subscription/payment',
+    path: '/subscription/payment',
+    getParentRoute: () => AuthenticatedSellerRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -452,7 +452,6 @@ export interface FileRoutesByFullPath {
   '/seller/security': typeof AuthenticatedSellerSecurityRoute
   '/seller/settings': typeof AuthenticatedSellerSettingsRoute
   '/seller/store': typeof AuthenticatedSellerStoreRoute
-  '/seller/subscription': typeof AuthenticatedSellerSubscriptionRouteWithChildren
   '/seller/support': typeof AuthenticatedSellerSupportRoute
   '/seller/transactions': typeof AuthenticatedSellerTransactionsRoute
   '/seller/verification': typeof AuthenticatedSellerVerificationRoute
@@ -461,6 +460,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/seller/': typeof AuthenticatedSellerIndexRoute
   '/seller/subscription/payment': typeof AuthenticatedSellerSubscriptionPaymentRoute
+  '/seller/subscription/': typeof AuthenticatedSellerSubscriptionIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -511,7 +511,6 @@ export interface FileRoutesByTo {
   '/seller/security': typeof AuthenticatedSellerSecurityRoute
   '/seller/settings': typeof AuthenticatedSellerSettingsRoute
   '/seller/store': typeof AuthenticatedSellerStoreRoute
-  '/seller/subscription': typeof AuthenticatedSellerSubscriptionRouteWithChildren
   '/seller/support': typeof AuthenticatedSellerSupportRoute
   '/seller/transactions': typeof AuthenticatedSellerTransactionsRoute
   '/seller/verification': typeof AuthenticatedSellerVerificationRoute
@@ -520,6 +519,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/seller': typeof AuthenticatedSellerIndexRoute
   '/seller/subscription/payment': typeof AuthenticatedSellerSubscriptionPaymentRoute
+  '/seller/subscription': typeof AuthenticatedSellerSubscriptionIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -574,7 +574,6 @@ export interface FileRoutesById {
   '/_authenticated/seller/security': typeof AuthenticatedSellerSecurityRoute
   '/_authenticated/seller/settings': typeof AuthenticatedSellerSettingsRoute
   '/_authenticated/seller/store': typeof AuthenticatedSellerStoreRoute
-  '/_authenticated/seller/subscription': typeof AuthenticatedSellerSubscriptionRouteWithChildren
   '/_authenticated/seller/support': typeof AuthenticatedSellerSupportRoute
   '/_authenticated/seller/transactions': typeof AuthenticatedSellerTransactionsRoute
   '/_authenticated/seller/verification': typeof AuthenticatedSellerVerificationRoute
@@ -583,6 +582,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/seller/': typeof AuthenticatedSellerIndexRoute
   '/_authenticated/seller/subscription/payment': typeof AuthenticatedSellerSubscriptionPaymentRoute
+  '/_authenticated/seller/subscription/': typeof AuthenticatedSellerSubscriptionIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -637,7 +637,6 @@ export interface FileRouteTypes {
     | '/seller/security'
     | '/seller/settings'
     | '/seller/store'
-    | '/seller/subscription'
     | '/seller/support'
     | '/seller/transactions'
     | '/seller/verification'
@@ -646,6 +645,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/seller/'
     | '/seller/subscription/payment'
+    | '/seller/subscription/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -696,7 +696,6 @@ export interface FileRouteTypes {
     | '/seller/security'
     | '/seller/settings'
     | '/seller/store'
-    | '/seller/subscription'
     | '/seller/support'
     | '/seller/transactions'
     | '/seller/verification'
@@ -705,6 +704,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/seller'
     | '/seller/subscription/payment'
+    | '/seller/subscription'
   id:
     | '__root__'
     | '/'
@@ -758,7 +758,6 @@ export interface FileRouteTypes {
     | '/_authenticated/seller/security'
     | '/_authenticated/seller/settings'
     | '/_authenticated/seller/store'
-    | '/_authenticated/seller/subscription'
     | '/_authenticated/seller/support'
     | '/_authenticated/seller/transactions'
     | '/_authenticated/seller/verification'
@@ -767,6 +766,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/seller/'
     | '/_authenticated/seller/subscription/payment'
+    | '/_authenticated/seller/subscription/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1029,13 +1029,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSellerSupportRouteImport
       parentRoute: typeof AuthenticatedSellerRoute
     }
-    '/_authenticated/seller/subscription': {
-      id: '/_authenticated/seller/subscription'
-      path: '/subscription'
-      fullPath: '/seller/subscription'
-      preLoaderRoute: typeof AuthenticatedSellerSubscriptionRouteImport
-      parentRoute: typeof AuthenticatedSellerRoute
-    }
     '/_authenticated/seller/store': {
       id: '/_authenticated/seller/store'
       path: '/store'
@@ -1211,12 +1204,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/seller/subscription/': {
+      id: '/_authenticated/seller/subscription/'
+      path: '/subscription'
+      fullPath: '/seller/subscription/'
+      preLoaderRoute: typeof AuthenticatedSellerSubscriptionIndexRouteImport
+      parentRoute: typeof AuthenticatedSellerRoute
+    }
     '/_authenticated/seller/subscription/payment': {
       id: '/_authenticated/seller/subscription/payment'
-      path: '/payment'
+      path: '/subscription/payment'
       fullPath: '/seller/subscription/payment'
       preLoaderRoute: typeof AuthenticatedSellerSubscriptionPaymentRouteImport
-      parentRoute: typeof AuthenticatedSellerSubscriptionRoute
+      parentRoute: typeof AuthenticatedSellerRoute
     }
   }
 }
@@ -1250,21 +1250,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
-interface AuthenticatedSellerSubscriptionRouteChildren {
-  AuthenticatedSellerSubscriptionPaymentRoute: typeof AuthenticatedSellerSubscriptionPaymentRoute
-}
-
-const AuthenticatedSellerSubscriptionRouteChildren: AuthenticatedSellerSubscriptionRouteChildren =
-  {
-    AuthenticatedSellerSubscriptionPaymentRoute:
-      AuthenticatedSellerSubscriptionPaymentRoute,
-  }
-
-const AuthenticatedSellerSubscriptionRouteWithChildren =
-  AuthenticatedSellerSubscriptionRoute._addFileChildren(
-    AuthenticatedSellerSubscriptionRouteChildren,
-  )
-
 interface AuthenticatedSellerRouteChildren {
   AuthenticatedSellerAdsRoute: typeof AuthenticatedSellerAdsRoute
   AuthenticatedSellerAnalyticsRoute: typeof AuthenticatedSellerAnalyticsRoute
@@ -1281,13 +1266,14 @@ interface AuthenticatedSellerRouteChildren {
   AuthenticatedSellerSecurityRoute: typeof AuthenticatedSellerSecurityRoute
   AuthenticatedSellerSettingsRoute: typeof AuthenticatedSellerSettingsRoute
   AuthenticatedSellerStoreRoute: typeof AuthenticatedSellerStoreRoute
-  AuthenticatedSellerSubscriptionRoute: typeof AuthenticatedSellerSubscriptionRouteWithChildren
   AuthenticatedSellerSupportRoute: typeof AuthenticatedSellerSupportRoute
   AuthenticatedSellerTransactionsRoute: typeof AuthenticatedSellerTransactionsRoute
   AuthenticatedSellerVerificationRoute: typeof AuthenticatedSellerVerificationRoute
   AuthenticatedSellerWalletRoute: typeof AuthenticatedSellerWalletRoute
   AuthenticatedSellerWithdrawalsRoute: typeof AuthenticatedSellerWithdrawalsRoute
   AuthenticatedSellerIndexRoute: typeof AuthenticatedSellerIndexRoute
+  AuthenticatedSellerSubscriptionPaymentRoute: typeof AuthenticatedSellerSubscriptionPaymentRoute
+  AuthenticatedSellerSubscriptionIndexRoute: typeof AuthenticatedSellerSubscriptionIndexRoute
 }
 
 const AuthenticatedSellerRouteChildren: AuthenticatedSellerRouteChildren = {
@@ -1306,14 +1292,16 @@ const AuthenticatedSellerRouteChildren: AuthenticatedSellerRouteChildren = {
   AuthenticatedSellerSecurityRoute: AuthenticatedSellerSecurityRoute,
   AuthenticatedSellerSettingsRoute: AuthenticatedSellerSettingsRoute,
   AuthenticatedSellerStoreRoute: AuthenticatedSellerStoreRoute,
-  AuthenticatedSellerSubscriptionRoute:
-    AuthenticatedSellerSubscriptionRouteWithChildren,
   AuthenticatedSellerSupportRoute: AuthenticatedSellerSupportRoute,
   AuthenticatedSellerTransactionsRoute: AuthenticatedSellerTransactionsRoute,
   AuthenticatedSellerVerificationRoute: AuthenticatedSellerVerificationRoute,
   AuthenticatedSellerWalletRoute: AuthenticatedSellerWalletRoute,
   AuthenticatedSellerWithdrawalsRoute: AuthenticatedSellerWithdrawalsRoute,
   AuthenticatedSellerIndexRoute: AuthenticatedSellerIndexRoute,
+  AuthenticatedSellerSubscriptionPaymentRoute:
+    AuthenticatedSellerSubscriptionPaymentRoute,
+  AuthenticatedSellerSubscriptionIndexRoute:
+    AuthenticatedSellerSubscriptionIndexRoute,
 }
 
 const AuthenticatedSellerRouteWithChildren =

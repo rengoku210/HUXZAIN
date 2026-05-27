@@ -28,6 +28,8 @@ import {
   Receipt,
   Truck,
   ChevronRight,
+  Menu,
+  X,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -89,7 +91,13 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-function SellerSidebar() {
+function SellerSidebar({ 
+  onLinkClick, 
+  className = "hidden lg:block rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32"
+}: { 
+  onLinkClick?: () => void; 
+  className?: string;
+}) {
   const { location } = useRouterState();
   const auth = useAuth();
   const { tier, meta } = useSellerTier();
@@ -119,7 +127,7 @@ function SellerSidebar() {
   };
 
   return (
-    <aside className="hidden lg:block rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32">
+    <aside className={className}>
       <div
         className="rounded-xl p-4 mb-3 border border-border/60 relative overflow-hidden"
         style={{ background: meta.surfaceGradient }}
@@ -148,6 +156,9 @@ function SellerSidebar() {
                   <li key={n.to}>
                     <Link
                       to={n.to}
+                      onClick={() => {
+                        if (onLinkClick) onLinkClick();
+                      }}
                       className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                         active
                           ? "bg-gold/10 text-gold border border-gold/20"
@@ -166,7 +177,10 @@ function SellerSidebar() {
 
         {/* Admin Request Button */}
         <button
-          onClick={requestAdminAccess}
+          onClick={() => {
+            if (onLinkClick) onLinkClick();
+            requestAdminAccess();
+          }}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gold bg-gold/10 hover:bg-gold/20"
         >
           <Shield className="size-4" /> Request Admin Access
@@ -176,6 +190,9 @@ function SellerSidebar() {
         {auth.roles.includes("admin") && (
           <Link
             to="/admin"
+            onClick={() => {
+              if (onLinkClick) onLinkClick();
+            }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-gold/10 text-gold hover:bg-gold/20"
           >
             <Shield className="size-4" /> Admin Panel
@@ -183,7 +200,10 @@ function SellerSidebar() {
         )}
 
         <button
-          onClick={() => auth.signOut()}
+          onClick={() => {
+            if (onLinkClick) onLinkClick();
+            auth.signOut();
+          }}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-surface"
         >
           <LogOut className="size-4" /> Logout
@@ -279,7 +299,13 @@ function ShellInner({ children }: { children?: ReactNode }) {
   const { meta } = useSellerTier();
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useRouterState().location;
   const allowed = auth.hasAnyRole(["seller", "admin", "super_admin", "owner"]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Find active nav item to display in the mobile top bar
+  const allItems = navGroups.flatMap(g => g.items);
+  const activeItem = allItems.find(n => n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)) || allItems[0];
 
   useEffect(() => {
     if (auth.ready && !allowed) navigate({ to: "/account" });
@@ -294,10 +320,63 @@ function ShellInner({ children }: { children?: ReactNode }) {
       }}
     >
       <Header />
+      
+      {/* Sticky Mobile Top Bar */}
+      <div className="lg:hidden sticky top-[72px] z-30 w-full border-b border-border bg-background/80 backdrop-blur-md px-4 py-3 flex items-center justify-between">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="size-10 rounded-xl border border-border bg-surface/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-gold/30 active:scale-95 transition-all"
+        >
+          <Menu size={20} />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="size-6 rounded-lg bg-gold/10 text-gold flex items-center justify-center">
+            {activeItem && <activeItem.icon size={12} />}
+          </div>
+          <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+            {activeItem?.label || "Seller Portal"}
+          </span>
+        </div>
+        <div className="w-10 flex justify-end">
+          <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+        </div>
+      </div>
+
+      {/* Slide-out Navigation Drawer Portal for Mobile */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop Blur Overlay */}
+          <div
+            onClick={() => setDrawerOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300 ease-out animate-in fade-in"
+          />
+
+          {/* Drawer Panel Container */}
+          <div className="relative w-[280px] max-w-[85vw] h-full bg-background border-r border-border p-4 flex flex-col overflow-y-auto z-50 animate-in slide-in-from-left duration-300 ease-out">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/20">
+              <div className="flex items-center gap-2">
+                <span className="font-display font-extrabold text-gold tracking-wider text-sm">HUXZAIN SELLER</span>
+              </div>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="size-8 rounded-full border border-border flex items-center justify-center hover:border-gold/40 text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            
+            {/* Render the sidebar in drawer mode */}
+            <SellerSidebar 
+              onLinkClick={() => setDrawerOpen(false)} 
+              className="flex-1 space-y-4"
+            />
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 container-page py-6 lg:py-8 grid lg:grid-cols-[260px_1fr] gap-6">
         <SellerSidebar />
         <div className="min-w-0">
-          <MobileSellerNav />
           {children ?? <Outlet />}
         </div>
       </main>

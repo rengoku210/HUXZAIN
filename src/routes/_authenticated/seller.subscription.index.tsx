@@ -8,12 +8,10 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/seller/subscription")({
+export const Route = createFileRoute("/_authenticated/seller/subscription/")({
   head: () => ({ meta: [{ title: "Subscription — HUXZAIN Seller" }] }),
   component: Page,
 });
-
-const order: SellerTier[] = ["standard", "pro", "elite", "enterprise"];
 
 type PaymentProof = {
   id: string;
@@ -248,3 +246,5 @@ function Page() {
     </div>
   );
 }
+
+const order: SellerTier[] = ["standard", "pro", "elite", "enterprise"];
