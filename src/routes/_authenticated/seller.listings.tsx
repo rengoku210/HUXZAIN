@@ -195,23 +195,27 @@ function ListingModal({
       // New listings always start as 'active'; edits keep the chosen status
       const finalStatus = isNew ? "active" : dbStatus;
 
-      // Use correct DB column names matching the actual live listings table schema
+      // Build payload using ONLY columns confirmed to exist in the live production
+      // listings table (from the base schema migration).
+      // DO NOT add: delivery_time, gallery_urls, tags — these columns are defined in
+      // later migrations that may not have been applied to the live DB (causes PGRST204).
       const basePayload = {
         title: title.trim(),
         description: description.trim() || null,
         slug: slugify(title.trim()),
         price: priceNum,
-        delivery_time: String(parseInt(deliveryTime) || 24),
         delivery_type: deliveryType,
         status: finalStatus,
         cover_image_url: coverUrl,
-        gallery_urls: uploadedUrls,
-        tags: tags,
         category_id: finalCategoryId,
       };
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timed out. Please check your network connection.")), 10000)
+      console.log('[Listing] Final payload to submit:', JSON.stringify(basePayload, null, 2));
+      console.log('[Listing] seller_id (userId):', userId);
+      console.log('[Listing] isNew:', isNew);
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Request timed out after 10s. Check your connection.")), 10000)
       );
 
       if (isNew) {
@@ -220,8 +224,18 @@ function ListingModal({
             ...basePayload,
             seller_id: userId,
           };
-          const { error } = await supabase.from("listings").insert(payload);
-          if (error) throw error;
+          // Log exact payload so any future schema mismatch is immediately visible
+          console.log('[Insert] listing insert payload', JSON.stringify(payload, null, 2));
+          const { data: insertedRow, error } = await supabase
+            .from("listings")
+            .insert(payload)
+            .select()
+            .maybeSingle();
+          console.log('[Insert] Supabase response — row:', insertedRow, '| error:', error);
+          if (error) {
+            console.error('[Insert] Failed — code:', error.code, '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
+            throw error;
+          }
         };
         await Promise.race([insertPromise(), timeoutPromise]);
       } else {
@@ -253,13 +267,16 @@ function ListingModal({
         await Promise.race([updatePromise(), timeoutPromise]);
       }
 
-      // Call onSaved BEFORE onClose so the parent can refresh + show success modal
+      // Success: refresh listing list and notify user
+      toast.success(isNew ? `"${title.trim()}" created successfully!` : `"${title.trim()}" updated successfully!`);
       onSaved(isNew);
       onClose();
     } catch (e: any) {
       console.error("[ListingModal] Save error:", e);
+      // Show the exact DB error so nothing is silent
+      const code = e?.code ? ` [${e.code}]` : '';
       const msg = e?.message ?? e?.details ?? JSON.stringify(e) ?? "Unknown error";
-      toast.error(`Could not save listing: ${msg}`);
+      toast.error(`Unable to save listing${code}: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -519,15 +536,15 @@ function Page() {
       .eq("seller_id", user.id)
       .order("created_at", { ascending: false });
     
-    // Map live database columns to frontend Listing properties
-    // DB columns: price, delivery_time, delivery_type, gallery_urls, cover_image_url
+    // Map live database columns to frontend Listing properties.
+    // Note: gallery_urls, tags, delivery_time may not exist in production DB yet.
     const mappedListings = (data ?? []).map((l: any) => ({
       ...l,
       price: l.price ?? 0,
       price_cents: Math.round((l.price ?? 0) * 100),
       cover_url: l.cover_image_url ?? null,
       gallery_urls: l.gallery_urls ?? [],
-      delivery_time: l.delivery_time ?? "24",
+      delivery_time: l.delivery_time ?? "",
       delivery_type: (l.delivery_type ?? "manual") as "instant" | "manual",
     }));
     setListings(mappedListings as Listing[]);
@@ -611,13 +628,10 @@ function Page() {
           userId={user?.id ?? ""}
           onClose={() => setEditTarget(undefined)}
           onSaved={(isNewListing) => {
+            // Refresh the listing table immediately so new listing appears without manual reload
             fetchListings();
-            setSuccessMessage(
-              isNewListing
-                ? "Your listing has been created successfully."
-                : "Listing published successfully."
-            );
-            setShowPublishSuccess(true);
+            setEditTarget(undefined);
+            // The toast.success is already fired inside ListingModal before onClose()
           }}
           categories={categories}
         />
