@@ -13,18 +13,24 @@ function AuthCallback() {
   const { ready, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
     async function handleAuth() {
       const supabase = getSupabase();
       if (!supabase) {
         setError("Auth not configured");
+        setProcessing(false);
         return;
       }
 
       try {
+        console.log("[AuthCallback] Processing auth callback...");
+        
         // 1. Check for session in hash (standard Supabase redirect)
         const hash = window.location.hash;
+        let hasSession = false;
+
         if (hash && hash.includes("access_token=")) {
           const params = new URLSearchParams(hash.substring(1));
           const access_token = params.get("access_token");
@@ -37,6 +43,7 @@ function AuthCallback() {
               refresh_token,
             });
             if (sessionError) throw sessionError;
+            hasSession = true;
           }
         }
 
@@ -46,14 +53,25 @@ function AuthCallback() {
           console.log("[AuthCallback] Exchanging code for session...");
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) throw exchangeError;
+          hasSession = true;
         }
 
-        // 2. Wait for AuthProvider to be ready and sync state
-        // The ready flag in useAuth() is driven by getSession and onAuthStateChange
+        // If neither was present, check if we already have an active session
+        if (!hasSession) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.log("[AuthCallback] Active session found");
+            hasSession = true;
+          }
+        }
+
+        console.log("[AuthCallback] Auth processing complete. Has session:", hasSession);
       } catch (e: any) {
-        console.error("[AuthCallback] error:", e.message);
+        console.error("[AuthCallback] error during handleAuth:", e.message);
         setError(e.message);
         toast.error(`Sign in failed: ${e.message}`);
+      } finally {
+        setProcessing(false);
       }
     }
 
@@ -61,29 +79,40 @@ function AuthCallback() {
   }, []);
 
   useEffect(() => {
-    // 3. Once auth is ready, redirect
-    if (ready) {
-      if (isAuthenticated) {
-        console.log("[AuthCallback] Success. Redirecting to dashboard.");
-        void navigate({ to: "/dashboard" });
-      } else if (error) {
-        console.log("[AuthCallback] Failed. Redirecting to login.");
-        void navigate({ to: "/login" });
+    // If we are authenticated at any point, redirect to dashboard immediately
+    if (isAuthenticated) {
+      console.log("[AuthCallback] Success. Redirecting to dashboard.");
+      void navigate({ to: "/dashboard" });
+      return;
+    }
+
+    // Wait for the local flow to finish processing and the Auth provider to be ready
+    if (!processing && ready) {
+      if (error) {
+        console.log("[AuthCallback] Failed with error. Let user see error screen.");
       } else {
-        // Fallback for direct navigation or weird states
-        setTimeout(() => {
-          if (ready) void navigate({ to: isAuthenticated ? "/dashboard" : "/" });
-        }, 1500);
+        // If no error but not authenticated yet, we might be loading user profile.
+        // Wait up to 3 seconds for isAuthenticated to become true.
+        const timer = setTimeout(() => {
+          if (isAuthenticated) {
+            console.log("[AuthCallback] Success (delayed). Redirecting to dashboard.");
+            void navigate({ to: "/dashboard" });
+          } else {
+            console.log("[AuthCallback] No session or authentication timed out. Redirecting to home.");
+            void navigate({ to: "/" });
+          }
+        }, 3000);
+        return () => clearTimeout(timer);
       }
     }
-  }, [ready, isAuthenticated, error, navigate]);
+  }, [processing, ready, isAuthenticated, error, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
       <div className="flex flex-col items-center max-w-sm text-center">
         {error ? (
           <>
-            <div className="size-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4 text-red-500">
+            <div className="size-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4 text-red-500 font-bold">
               !
             </div>
             <h1 className="text-xl font-bold mb-2">Login failed</h1>
@@ -110,3 +139,4 @@ function AuthCallback() {
     </div>
   );
 }
+

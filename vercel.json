@@ -4,7 +4,15 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/auth/callback",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/auth/verified",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/((?!assets/|static/|favicon.ico|robots.txt).*).*",
       "destination": "/index.html"
     }
   ]
