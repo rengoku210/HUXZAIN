@@ -195,24 +195,21 @@ function ListingModal({
       // New listings always start as 'active'; edits keep the chosen status
       const finalStatus = isNew ? "active" : dbStatus;
 
-      // Build payload using ONLY columns confirmed to exist in the live production
-      // listings table (from the base schema migration).
-      // DO NOT add: delivery_time, gallery_urls, tags — these columns are defined in
-      // later migrations that may not have been applied to the live DB (causes PGRST204).
+      // Build payload using ONLY columns confirmed present in the live production DB.
+      // DO NOT add: delivery_type, delivery_time, gallery_urls, tags
+      // — those columns are absent from the live schema cache (causes PGRST204).
       const basePayload = {
         title: title.trim(),
         description: description.trim() || null,
         slug: slugify(title.trim()),
         price: priceNum,
-        delivery_type: deliveryType,
         status: finalStatus,
         cover_image_url: coverUrl,
         category_id: finalCategoryId,
       };
 
-      console.log('[Listing] Final payload to submit:', JSON.stringify(basePayload, null, 2));
-      console.log('[Listing] seller_id (userId):', userId);
-      console.log('[Listing] isNew:', isNew);
+      console.log('Final safe listing payload:', JSON.stringify(basePayload, null, 2));
+      console.log('[Listing] seller_id:', userId, '| isNew:', isNew);
 
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Request timed out after 10s. Check your connection.")), 10000)
