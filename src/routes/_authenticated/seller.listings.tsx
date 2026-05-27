@@ -185,19 +185,15 @@ function ListingModal({
       }
 
       // Ensure status is valid for database enum listing_status
+      // Valid values: 'draft', 'active', 'hidden', 'flagged', 'archived'
+      // 'pending_review' is not a valid enum value — map it to 'draft'
       let dbStatus = status;
-      if (dbStatus === "hidden" || dbStatus === "pending_review") {
+      if (dbStatus === "pending_review") {
         dbStatus = "draft";
       }
 
-      // Determine final status to store
-      let finalStatus = isNew ? "active" : dbStatus;
-      if (!isNew && status === "active" && dbStatus !== "active") {
-        finalStatus = "active";
-      }
-      if (status === "draft") {
-        finalStatus = "draft";
-      }
+      // New listings always start as 'active'; edits keep the chosen status
+      const finalStatus = isNew ? "active" : dbStatus;
 
       // Use correct DB column names matching the actual live listings table schema
       const basePayload = {

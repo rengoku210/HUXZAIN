@@ -3,7 +3,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
-import { sendVerificationEmail } from "../lib/email.functions";
 import { Field } from "./login";
 
 export const Route = createFileRoute("/signup")({
@@ -27,36 +26,41 @@ function SignupPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return; // prevent double-submit
     setErr(null);
+
+    // Client-side validation
+    if (!name.trim()) {
+      setErr("Display name is required.");
+      return;
+    }
+    if (password.length < 8) {
+      setErr("Password must be at least 8 characters.");
+      return;
+    }
+
     setBusy(true);
     try {
       console.log(`[Signup] Attempting signup for ${email}...`);
-      try {
-        await auth.signUp(email, password, name, intent);
-      } catch (signupEx: any) {
-        // If user already exists, Supabase might throw an error depending on config.
-        // We catch it here and proceed to send a link anyway.
-        if (signupEx.message?.includes("already been registered") || signupEx.status === 422) {
-          console.log("[Signup] User already registered, proceeding to send link.");
-        } else {
-          throw signupEx;
-        }
-      }
-      
-      console.log(`[Signup] Auth signup step done, now sending link via email...`);
-      
-      const res = await sendVerificationEmail({ data: { email } });
-      if (res && !res.success) {
-        console.warn("[Signup] Verification email failed:", res.error);
-        // We don't block the user since the account WAS created, 
-        // they can try resending from the next page.
-      }
-      
+      await auth.signUp(email, password, name.trim(), intent);
+      console.log(`[Signup] Signup successful.`);
       setDone(true);
       setTimeout(() => nav({ to: "/verify-email", search: { email, intent } }), 500);
-    } catch (ex) {
-      console.error("[Signup] Exception during signup flow:", ex);
-      setErr((ex as Error).message);
+    } catch (ex: any) {
+      console.error("[Signup] Exception during signup:", ex);
+      const msg: string = ex?.message ?? "Signup failed. Please try again.";
+      // Translate common Supabase error messages to user-friendly text
+      if (
+        msg.toLowerCase().includes("already registered") ||
+        msg.toLowerCase().includes("already been registered") ||
+        ex?.status === 422
+      ) {
+        setErr("An account with this email already exists. Try signing in instead.");
+      } else if (msg.toLowerCase().includes("password")) {
+        setErr("Password is too weak. Use at least 8 characters.");
+      } else {
+        setErr(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -71,7 +75,7 @@ function SignupPage() {
             {intent === "seller" ? "Create your seller account" : "Create your HUXZAIN account"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {intent === "seller" 
+            {intent === "seller"
               ? "Join thousands of verified sellers on the marketplace."
               : "Join the marketplace as a buyer. Upgrade to seller anytime."}
           </p>
@@ -91,6 +95,7 @@ function SignupPage() {
               <div className="text-xs text-gold">Check your inbox to verify your email.</div>
             )}
             <button
+              type="submit"
               disabled={busy}
               className="w-full h-11 rounded-lg bg-gold text-primary-foreground font-semibold text-sm hover:brightness-110 disabled:opacity-60"
             >
@@ -114,4 +119,3 @@ function SignupPage() {
     </div>
   );
 }
-
