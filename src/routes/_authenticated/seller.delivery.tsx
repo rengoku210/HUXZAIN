@@ -67,7 +67,7 @@ function Page() {
         const buyerIds = Array.from(new Set(fetchedOrders.map((o) => o.buyer_id)));
         const { data: profilesData } = await supabase
           .from("profiles")
-          .select("id, display_name, username, email")
+          .select("id, display_name, username")
           .in("id", buyerIds);
 
         const profilesMap = new Map((profilesData ?? []).map((p) => [p.id, p]));

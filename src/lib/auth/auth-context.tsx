@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Critical error loading user meta:", err);
       }
 
-      const email = fallbackUser?.email ?? p?.email ?? null;
+      const email = fallbackUser?.email ?? null;
       let finalProfile = p;
 
       // 2. Only insert if profile does not exist
@@ -117,11 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const generatedUsername = `${baseUsername}_${Math.random().toString(36).substring(2, 7)}`;
 
         try {
+          // We omit 'email' column because it does not exist in the public.profiles table schema
           const { data: newProfile, error: insErr } = await supabase
             .from("profiles")
             .insert({
               id: userId,
-              email,
               display_name: displayName,
               username: generatedUsername,
               is_seller: true, // Mark as seller by default when recovering
@@ -134,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Memory fallback to prevent listing creation crashes
             finalProfile = {
               id: userId,
-              email,
               display_name: displayName,
               username: generatedUsername,
               is_seller: true,
@@ -150,7 +149,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Memory fallback
           finalProfile = {
             id: userId,
-            email,
             display_name: displayName,
             username: generatedUsername,
             is_seller: true,
@@ -158,19 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             seller_approved: true,
             avatar_url: null,
           } as any;
-        }
-      } else {
-        // Profile exists. If email changed or is missing in DB, update just the email
-        if (email && p.email !== email) {
-          const { data: updatedProfile } = await supabase
-            .from("profiles")
-            .update({ email })
-            .eq("id", userId)
-            .select()
-            .maybeSingle();
-          if (updatedProfile) {
-            finalProfile = updatedProfile;
-          }
         }
       }
 
@@ -244,7 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log(`[Auth] User meta loaded for ${userId}. Roles: ${dbRoles.join(", ")}`);
       setProfile(
-        finalProfile ? ({ ...(finalProfile as Profile), is_seller: hasSeller } as Profile) : null,
+        finalProfile ? ({ ...(finalProfile as Profile), email, is_seller: hasSeller } as Profile) : null,
       );
       setRoles(dbRoles);
     },

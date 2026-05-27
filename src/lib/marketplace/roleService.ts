@@ -14,7 +14,7 @@ export const roleService = {
     const supabase = getSupabase();
     if (!supabase) throw new Error("Supabase not configured");
     // Join profiles with user_roles
-    const { data: profiles, error: pErr } = await supabase.from("profiles").select("id,email");
+    const { data: profiles, error: pErr } = await supabase.from("profiles").select("id, display_name");
     if (pErr) throw pErr;
     const { data: roleRows, error: rErr } = await supabase
       .from("user_roles")
@@ -30,7 +30,7 @@ export const roleService = {
     return (
       profiles?.map((p) => ({
         id: p.id,
-        email: p.email,
+        email: (p as any).email ?? null, // Fallback since email column is missing in DB
         roles: roleMap[p.id] ?? [],
       })) ?? []
     );

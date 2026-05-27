@@ -26,7 +26,7 @@ const supabase = createClient(
 );
 
 async function check() {
-  const { data: users, error: userError } = await supabase.from("profiles").select("id, email, display_name, is_seller").limit(10);
+  const { data: users, error: userError } = await supabase.from("profiles").select("id, display_name, is_seller").limit(10);
   if (userError) console.error("User Error:", userError);
   console.log("Users:", users);
 

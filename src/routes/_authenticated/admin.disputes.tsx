@@ -18,7 +18,7 @@ type Dispute = {
   status: "open" | "investigating" | "resolved_buyer" | "resolved_seller" | "closed";
   resolution: string | null;
   created_at: string;
-  profiles?: { display_name: string; email: string };
+  profiles?: { display_name: string };
 };
 
 function Page() {
@@ -32,7 +32,7 @@ function Page() {
     setLoading(true);
     const { data } = await supabase
       .from("disputes")
-      .select("*, profiles:opened_by(display_name, email)")
+      .select("*, profiles:opened_by(display_name)")
       .order("created_at", { ascending: false });
     setDisputes((data ?? []) as Dispute[]);
     setLoading(false);
