@@ -202,7 +202,7 @@ function ListingModal({
         title: title.trim(),
         description: description.trim() || null,
         slug: slugify(title.trim()),
-        price: priceNum,
+        price_inr: priceNum,
         status: finalStatus,
         cover_image_url: coverUrl,
         category_id: finalCategoryId,
@@ -537,8 +537,8 @@ function Page() {
     // Note: gallery_urls, tags, delivery_time may not exist in production DB yet.
     const mappedListings = (data ?? []).map((l: any) => ({
       ...l,
-      price: l.price ?? 0,
-      price_cents: Math.round((l.price ?? 0) * 100),
+      price: l.price_inr ?? l.price ?? 0,
+      price_cents: Math.round((l.price_inr ?? l.price ?? 0) * 100),
       cover_url: l.cover_image_url ?? null,
       gallery_urls: l.gallery_urls ?? [],
       delivery_time: l.delivery_time ?? "",
