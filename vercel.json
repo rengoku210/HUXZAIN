@@ -1,7 +1,5 @@
 {
-  "cleanUrls": true,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
       "source": "/auth/callback",
@@ -12,7 +10,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "/((?!assets/|static/|favicon.ico|robots.txt).*).*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
