@@ -76,6 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (userId: string, fallbackUser?: User | null) => {
       if (!supabase) return;
 
+      // Validate userId as a valid UUID to prevent database 400 Bad Request (invalid input syntax for type uuid)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+      if (!isUuid) {
+        console.warn("[AuthContext] loadUserMeta called with invalid UUID:", userId);
+        setReady(true);
+        return;
+      }
+
       // 1. Fetch existing profile and roles first
       // We use try-catch and specific checks to ensure null safety
       let p, r;
@@ -104,20 +112,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email?.split("@")[0] ??
           "User";
 
-        const { data: newProfile, error: insErr } = await supabase
-          .from("profiles")
-          .insert({
+        // Safely generate a unique-ish username
+        const baseUsername = email?.split("@")[0]?.toLowerCase()?.replace(/[^a-z0-9_]/g, "") || "user";
+        const generatedUsername = `${baseUsername}_${Math.random().toString(36).substring(2, 7)}`;
+
+        try {
+          const { data: newProfile, error: insErr } = await supabase
+            .from("profiles")
+            .insert({
+              id: userId,
+              email,
+              display_name: displayName,
+              username: generatedUsername,
+              is_seller: true, // Mark as seller by default when recovering
+            })
+            .select()
+            .maybeSingle();
+
+          if (insErr) {
+            console.error("Failed to create initial profile in DB:", insErr.message);
+            // Memory fallback to prevent listing creation crashes
+            finalProfile = {
+              id: userId,
+              email,
+              display_name: displayName,
+              username: generatedUsername,
+              is_seller: true,
+              is_verified: false,
+              seller_approved: true,
+              avatar_url: null,
+            } as any;
+          } else if (newProfile) {
+            finalProfile = newProfile;
+          }
+        } catch (e: any) {
+          console.error("Exception creating profile:", e.message);
+          // Memory fallback
+          finalProfile = {
             id: userId,
             email,
             display_name: displayName,
-          })
-          .select()
-          .maybeSingle();
-
-        if (insErr) {
-          console.error("Failed to create initial profile:", insErr.message);
-        } else if (newProfile) {
-          finalProfile = newProfile;
+            username: generatedUsername,
+            is_seller: true,
+            is_verified: false,
+            seller_approved: true,
+            avatar_url: null,
+          } as any;
         }
       } else {
         // Profile exists. If email changed or is missing in DB, update just the email
@@ -148,6 +188,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           dbRoles.push("buyer");
         }
 
+        // If the profile did not exist previously (!p), also ensure they get the "seller" role automatically
+        if (!p || !dbRoles.includes("seller")) {
+          console.log(`[Auth] Ensuring seller role for ${userId}...`);
+          const { error: syncErr } = await supabase
+            .from("user_roles")
+            .insert({ user_id: userId, role: "seller" as Role });
+          
+          if (!syncErr) {
+            if (!dbRoles.includes("seller")) dbRoles.push("seller");
+          } else {
+            console.warn("[Auth] Seller role auto-grant failed:", syncErr.message);
+          }
+        }
+
         // Sync seller intent from metadata if they don't have the role yet
         const intent = fallbackUser?.user_metadata?.intent;
         if (intent === "seller" && !dbRoles.includes("seller")) {
@@ -156,8 +210,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from("user_roles")
             .insert({ user_id: userId, role: "seller" as Role });
           
-          if (!syncErr) dbRoles.push("seller");
-          else console.warn("[Auth] Seller intent sync failed:", syncErr.message);
+          if (!syncErr) {
+            if (!dbRoles.includes("seller")) dbRoles.push("seller");
+          } else {
+            console.warn("[Auth] Seller intent sync failed:", syncErr.message);
+          }
         }
       } catch (err) {
         console.warn("[Auth] Role sync exception:", err);
