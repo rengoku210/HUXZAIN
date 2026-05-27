@@ -204,11 +204,13 @@ function ListingModal({
         title: title.trim(),
         description: description.trim() || null,
         slug: slugify(title.trim()),
-        price_inr: priceNum,
-        delivery_time_hours: parseInt(deliveryTime) || 24,
+        price: priceNum,
+        delivery_time: String(parseInt(deliveryTime) || 24),
+        delivery_type: deliveryType,
         status: finalStatus,
         cover_image_url: coverUrl,
-        images: uploadedUrls,
+        gallery_urls: uploadedUrls,
+        tags: tags,
         category_id: finalCategoryId,
       };
 
@@ -255,11 +257,13 @@ function ListingModal({
         await Promise.race([updatePromise(), timeoutPromise]);
       }
 
-      // fetchListings is handled by onSaved callback
+      // Call onSaved BEFORE onClose so the parent can refresh + show success modal
+      onSaved(isNew);
       onClose();
     } catch (e: any) {
       console.error("[ListingModal] Save error:", e);
-      toast.error("Could not create listing. Please try again.");
+      const msg = e?.message ?? e?.details ?? JSON.stringify(e) ?? "Unknown error";
+      toast.error(`Could not save listing: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -520,14 +524,15 @@ function Page() {
       .order("created_at", { ascending: false });
     
     // Map live database columns to frontend Listing properties
+    // DB columns: price, delivery_time, delivery_type, gallery_urls, cover_image_url
     const mappedListings = (data ?? []).map((l: any) => ({
       ...l,
-      price: l.price_inr ?? 0,
-      price_cents: (l.price_inr ?? 0) * 100,
+      price: l.price ?? 0,
+      price_cents: Math.round((l.price ?? 0) * 100),
       cover_url: l.cover_image_url ?? null,
-      gallery_urls: l.images ?? [],
-      delivery_time: `${l.delivery_time_hours ?? 24} hours`,
-      delivery_type: "manual", // Fallback default
+      gallery_urls: l.gallery_urls ?? [],
+      delivery_time: l.delivery_time ?? "24",
+      delivery_type: (l.delivery_type ?? "manual") as "instant" | "manual",
     }));
     setListings(mappedListings as Listing[]);
     const { data: cats } = await supabase
