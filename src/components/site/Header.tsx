@@ -251,17 +251,10 @@ export function Header() {
         {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="container-page flex h-16 items-center gap-4">
           <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
-            {/* Mobile Viewport: HUXZAIN HZ Symbol Emblem Only */}
             <img 
               src={mark} 
-              alt="HUXZAIN Symbol" 
-              className="md:hidden h-11 w-auto bg-transparent select-none pointer-events-none object-contain" 
-            />
-            {/* Desktop Viewport: Full wordmark logo */}
-            <img 
-              src={logo} 
               alt="HUXZAIN" 
-              className="hidden md:block h-10 w-auto bg-transparent select-none pointer-events-none object-contain" 
+              className="h-11 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
             />
           </Link>
 

@@ -10,6 +10,7 @@ import {
   Heart,
 } from "lucide-react";
 import logo from "@/assets/huxzain-logo.png";
+import mark from "@/assets/huxzain-mark.png";
 
 const groups = [
   {
@@ -79,9 +80,9 @@ export function Footer() {
       <div className="container-page py-14 grid gap-10 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div>
           <img 
-            src={logo} 
+            src={mark} 
             alt="HUXZAIN" 
-            className="h-11 w-auto mb-5 bg-transparent select-none pointer-events-none" 
+            className="h-11 w-auto mb-5 bg-transparent select-none pointer-events-none object-contain" 
           />
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
             The most secure marketplace for digital products and services.
