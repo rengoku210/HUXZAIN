@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import logo from "@/assets/huxzain-logo.png";
+import mark from "@/assets/huxzain-mark.png";
 import defaultAvatar from "@/assets/default-avatar.png";
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
@@ -250,10 +251,17 @@ export function Header() {
         {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="container-page flex h-16 items-center gap-4">
           <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
+            {/* Mobile Viewport: HUXZAIN HZ Symbol Emblem Only */}
+            <img 
+              src={mark} 
+              alt="HUXZAIN Symbol" 
+              className="md:hidden h-11 w-auto bg-transparent select-none pointer-events-none object-contain" 
+            />
+            {/* Desktop Viewport: Full wordmark logo */}
             <img 
               src={logo} 
               alt="HUXZAIN" 
-              className="h-10 w-auto bg-transparent select-none pointer-events-none" 
+              className="hidden md:block h-10 w-auto bg-transparent select-none pointer-events-none object-contain" 
             />
           </Link>
 
