@@ -254,7 +254,12 @@ export function Header() {
               src={logo} 
               alt="HUXZAIN" 
               className="h-10 w-auto bg-transparent mix-blend-screen select-none pointer-events-none" 
-              style={{ mixBlendMode: "screen" }}
+              style={{ 
+                mixBlendMode: "screen",
+                isolation: "isolate",
+                transform: "translate3d(0, 0, 0)",
+                WebkitTransform: "translate3d(0, 0, 0)"
+              }}
             />
           </Link>
 
