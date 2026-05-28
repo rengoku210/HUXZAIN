@@ -81,13 +81,7 @@ export function Footer() {
           <img 
             src={logo} 
             alt="HUXZAIN" 
-            className="h-11 w-auto mb-5 bg-transparent mix-blend-screen select-none pointer-events-none" 
-            style={{ 
-              mixBlendMode: "screen",
-              isolation: "isolate",
-              transform: "translate3d(0, 0, 0)",
-              WebkitTransform: "translate3d(0, 0, 0)"
-            }}
+            className="h-11 w-auto mb-5 bg-transparent select-none pointer-events-none" 
           />
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
             The most secure marketplace for digital products and services.
