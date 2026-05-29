@@ -1,3 +1,5 @@
+"use server";
+
 // src/lib/ai.functions.ts
 // ═══════════════════════════════════════════════════════════════════
 // HUXZAIN — TanStack Start Bridge for AI Payment Verification
