@@ -162,9 +162,9 @@ async function downloadImageAsBase64(imageUrl: string): Promise<string> {
   return dataUrl;
 }
 
-// ── Step B: Primary OCR via NVIDIA Llama 3.2 11B Vision ───────────────
-async function runLlama11bOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
-  console.log(`${LOG_TAG} Step B: Llama 3.2 11B Vision OCR request starting...`);
+// ── Step B: Primary OCR via microsoft/phi-4-multimodal-instruct ───────────────
+async function runPhi4Ocr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
+  console.log(`${LOG_TAG} Step B: Phi-4 Multimodal OCR request starting...`);
   console.log("[AI] Running Phi-4");
 
   const prompt = `Analyze the provided payment screenshot and extract all visible information.
@@ -172,7 +172,7 @@ Return your findings ONLY as a valid JSON object with these exact keys:
 {
   "paid_amount": <number or null>,
   "currency": "<string or null>",
-  "status": "<string or null>",
+  "payment_status": "<string or null>",
   "transaction_id": "<string or null>",
   "payment_app": "<string or null>",
   "timestamp_text": "<string or null>",
@@ -183,7 +183,7 @@ Return your findings ONLY as a valid JSON object with these exact keys:
 Important:
 - paid_amount should be a number (e.g. 599.00), not a string
 - transaction_id should be the UPI UTR / reference number
-- Return ONLY the JSON. No markdown. No explanation.`;
+- Return strict JSON only. No markdown. No explanation.`;
 
   try {
     const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
@@ -193,7 +193,7 @@ Important:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "meta/llama-3.2-11b-vision-instruct",
+        model: "microsoft/phi-4-multimodal-instruct",
         messages: [
           {
             role: "user",
@@ -208,41 +208,52 @@ Important:
       }),
     }, 20000);
 
-    console.log(`${LOG_TAG} Step B: Llama 11B API response: ${response.status} ${response.statusText}`);
+    console.log(`${LOG_TAG} Step B: Phi-4 API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error(`${LOG_TAG} Step B: Llama 11B API error body:`, errBody);
+      console.error(`${LOG_TAG} Step B: Phi-4 API error body:`, errBody);
       return null;
     }
 
     const json = await response.json();
     const rawContent = json.choices?.[0]?.message?.content || "";
-    console.log(`${LOG_TAG} Step B: Llama 11B raw output:`, rawContent.substring(0, 500));
+    console.log(`${LOG_TAG} Step B: Phi-4 raw output:`, rawContent.substring(0, 500));
 
-    // Extract JSON from the response (handle markdown code blocks too)
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`${LOG_TAG} Step B: Could not find JSON in Llama 11B output`);
+      console.warn(`${LOG_TAG} Step B: Could not find JSON in Phi-4 output`);
       return null;
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractionData;
-    console.log(`${LOG_TAG} Step B: Llama 11B parsed successfully:`, JSON.stringify(parsed));
+    const parsed = JSON.parse(jsonMatch[0]);
+    // Map payment_status to status
+    const mapped: ExtractionData = {
+      paid_amount: parsed.paid_amount ?? null,
+      currency: parsed.currency ?? null,
+      status: parsed.payment_status ?? parsed.status ?? null,
+      transaction_id: parsed.transaction_id ?? null,
+      payment_app: parsed.payment_app ?? null,
+      timestamp_text: parsed.timestamp_text ?? null,
+      receiver_name: parsed.receiver_name ?? null,
+      sender_name: parsed.sender_name ?? null,
+    };
+    
+    console.log(`${LOG_TAG} Step B: Phi-4 parsed successfully:`, JSON.stringify(mapped));
     console.log("[AI] Phi-4 completed");
-    return parsed;
+    return mapped;
   } catch (err: any) {
-    console.error(`${LOG_TAG} Step B: Llama 11B exception:`, err.message);
+    console.error(`${LOG_TAG} Step B: Phi-4 exception:`, err.message);
     return null;
   }
 }
 
-// ── Step C: Fallback OCR via Llama 3.2 90B Vision ────────────────────
-async function runLlama90bOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
-  console.log(`${LOG_TAG} Step C: Llama 3.2 90B Vision fallback OCR starting...`);
-  console.log("[AI] Running Llama fallback");
+// ── Step C: Fallback OCR via google/paligemma ────────────────────
+async function runPaliGemmaFallbackOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
+  console.log(`${LOG_TAG} Step C: PaliGemma fallback OCR starting...`);
+  console.log("[AI] Running PaliGemma fallback");
 
-  const prompt = `Perform OCR on this payment screenshot. Extract all visible payment information.
+  const prompt = `Perform OCR on this payment screenshot. Focus on fallback OCR, screenshot validation, cropped image detection, edited screenshot detection, and UI authenticity detection.
 Return ONLY a JSON object with these keys:
 {
   "paid_amount": <number or null>,
@@ -252,9 +263,12 @@ Return ONLY a JSON object with these keys:
   "payment_app": "<string or null>",
   "timestamp_text": "<string or null>",
   "receiver_name": "<string or null>",
-  "sender_name": "<string or null>"
+  "sender_name": "<string or null>",
+  "is_edited": <boolean>,
+  "is_cropped": <boolean>,
+  "authenticity_confidence": <number 0-100>
 }
-Return ONLY the JSON. No explanation.`;
+Return strict JSON. No explanation.`;
 
   try {
     const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
@@ -264,7 +278,7 @@ Return ONLY the JSON. No explanation.`;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "meta/llama-3.2-90b-vision-instruct",
+        model: "google/paligemma",
         messages: [
           {
             role: "user",
@@ -277,31 +291,31 @@ Return ONLY the JSON. No explanation.`;
         max_tokens: 512,
         temperature: 0.1,
       }),
-    }, 15000);
+    }, 12000);
 
-    console.log(`${LOG_TAG} Step C: Llama 90B API response: ${response.status} ${response.statusText}`);
+    console.log(`${LOG_TAG} Step C: PaliGemma API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error(`${LOG_TAG} Step C: Llama 90B API error body:`, errBody);
+      console.error(`${LOG_TAG} Step C: PaliGemma API error body:`, errBody);
       return null;
     }
 
     const json = await response.json();
     const rawContent = json.choices?.[0]?.message?.content || "";
-    console.log(`${LOG_TAG} Step C: Llama 90B raw output:`, rawContent.substring(0, 500));
+    console.log(`${LOG_TAG} Step C: PaliGemma raw output:`, rawContent.substring(0, 500));
 
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`${LOG_TAG} Step C: Could not find JSON in Llama 90B output`);
+      console.warn(`${LOG_TAG} Step C: Could not find JSON in PaliGemma output`);
       return null;
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractionData;
-    console.log(`${LOG_TAG} Step C: Llama 90B parsed successfully:`, JSON.stringify(parsed));
+    console.log(`${LOG_TAG} Step C: PaliGemma parsed successfully:`, JSON.stringify(parsed));
     return parsed;
   } catch (err: any) {
-    console.error(`${LOG_TAG} Step C: Llama 90B exception:`, err.message);
+    console.error(`${LOG_TAG} Step C: PaliGemma exception:`, err.message);
     return null;
   }
 }
@@ -318,14 +332,14 @@ interface NemotronResult {
   ai_authenticity_score: number;
 }
 
-async function runLlamaReasoning(
+async function runMistralNemotronReasoning(
   apiKey: string,
   expectedAmount: number,
   orderCreatedTime: string,
   extractedData: ExtractionData
 ): Promise<NemotronResult | null> {
-  console.log(`${LOG_TAG} Step D: Llama 3.3 70B reasoning starting...`);
-  console.log("[AI] Running Nemotron");
+  console.log(`${LOG_TAG} Step D: Mistral Nemotron reasoning starting...`);
+  console.log("[AI] Running Mistral Nemotron");
 
   const serverTime = new Date().toISOString();
   const prompt = `You are the HUXZAIN marketplace Payment Reasoning Engine.
@@ -340,16 +354,16 @@ EXPECTED:
 EXTRACTED FROM SCREENSHOT:
 ${JSON.stringify(extractedData, null, 2)}
 
-Based on this comparison, produce a JSON object:
+Based on this comparison, produce a strict JSON object exactly like this:
 {
-  "ai_score": <number 0-100, where 0 = perfectly safe, 100 = definite fraud>,
-  "ai_risk_label": "<one of: Verified Safe, Low Risk, Needs Review, Moderate Risk, High Risk, Critical Risk>",
-  "ai_recommendation": "<one of: Approve, Manual Review, Reject>",
-  "ai_reason": "<brief explanation in 1-2 sentences>",
-  "ai_amount_match": <boolean>,
-  "ai_timestamp_match": "<string describing time drift, e.g. 'Within 5 minutes' or 'Days apart'>",
-  "ai_utr": "<extracted UTR/transaction ID string or null>",
-  "ai_authenticity_score": <number 0-100, visual confidence of screenshot authenticity>
+  "score": <number 0-100, where 0 = perfectly safe, 100 = definite fraud>,
+  "risk_label": "<one of: Verified Safe, Low Risk, Needs Review, Moderate Risk, High Risk, Critical Risk>",
+  "recommendation": "<one of: Approve, Manual Review, Reject>",
+  "reason": "<brief explanation in 1-2 sentences>",
+  "amount_match": <boolean>,
+  "timestamp_match": "<string describing time drift, e.g. 'Within 5 minutes'>",
+  "utr": "<extracted UTR/transaction ID string or null>",
+  "authenticity_score": <number 0-100>
 }
 
 Return ONLY the JSON. No markdown. No explanation.`;
@@ -362,36 +376,46 @@ Return ONLY the JSON. No markdown. No explanation.`;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "meta/llama-3.3-70b-instruct",
+        model: "mistralai/mistral-nemotron",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 512,
         temperature: 0.1,
       }),
-    }, 15000);
+    }, 12000);
 
-    console.log(`${LOG_TAG} Step D: Llama 70B API response: ${response.status} ${response.statusText}`);
+    console.log(`${LOG_TAG} Step D: Mistral Nemotron API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error(`${LOG_TAG} Step D: Llama 70B API error body:`, errBody);
+      console.error(`${LOG_TAG} Step D: Mistral Nemotron API error body:`, errBody);
       return null;
     }
 
     const json = await response.json();
     const rawContent = json.choices?.[0]?.message?.content || "";
-    console.log(`${LOG_TAG} Step D: Llama 70B raw output:`, rawContent.substring(0, 500));
+    console.log(`${LOG_TAG} Step D: Mistral Nemotron raw output:`, rawContent.substring(0, 500));
 
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`${LOG_TAG} Step D: Could not find JSON in Llama 70B output`);
+      console.warn(`${LOG_TAG} Step D: Could not find JSON in Mistral Nemotron output`);
       return null;
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as NemotronResult;
-    console.log(`${LOG_TAG} Step D: Llama 70B parsed successfully:`, JSON.stringify(parsed));
-    return parsed;
+    const parsed = JSON.parse(jsonMatch[0]);
+    const mapped: NemotronResult = {
+      ai_score: parsed.score ?? 50,
+      ai_risk_label: parsed.risk_label ?? "Needs Review",
+      ai_recommendation: parsed.recommendation ?? "Manual Review",
+      ai_reason: parsed.reason ?? "AI Reasoning completed",
+      ai_amount_match: parsed.amount_match ?? false,
+      ai_timestamp_match: parsed.timestamp_match ?? "Unknown",
+      ai_utr: parsed.utr ?? null,
+      ai_authenticity_score: parsed.authenticity_score ?? 50,
+    };
+    console.log(`${LOG_TAG} Step D: Mistral Nemotron parsed successfully:`, JSON.stringify(mapped));
+    return mapped;
   } catch (err: any) {
-    console.error(`${LOG_TAG} Step D: Llama 70B exception:`, err.message);
+    console.error(`${LOG_TAG} Step D: Mistral Nemotron exception:`, err.message);
     return null;
   }
 }
@@ -465,15 +489,19 @@ async function writeCacheToDb(
 }
 
 // ── Fallback Result Generator ────────────────────────────────────────
-function buildFallbackResult(proofId: string, reason: string): VerificationResult {
+function buildFallbackResult(proofId: string, reason: string): any {
   return {
+    success: false,
+    status: "manual_review",
+    reason: "AI analysis unavailable",
+    recommendation: "Manual Review",
+    // Keep interface compatibility just in case
     ai_available: false,
-    status: "manual_review_required",
     ai_score: null,
-    ai_risk_label: "Scan Unavailable",
+    ai_risk_label: "Manual Review",
     ai_model_used: "None",
     ai_recommendation: "Manual Review",
-    ai_reason: reason,
+    ai_reason: "AI analysis unavailable",
     ai_amount_match: null,
     ai_timestamp_match: null,
     ai_utr: null,
@@ -579,13 +607,13 @@ async function verifyPaymentProofInternal(proofId: string): Promise<Verification
     return buildFallbackResult(proofId, `Could not download payment screenshot: ${err.message}`);
   }
 
-  // ── Step B: Primary OCR (Llama 11B) ────────────────────────────
+  // ── Step B: Primary OCR (Phi-4) ────────────────────────────
   let extractedData: ExtractionData | null = null;
-  let modelUsed = "Llama 3.2 11B Vision";
+  let modelUsed = "microsoft/phi-4-multimodal-instruct";
 
-  extractedData = await runLlama11bOcr(apiKey, base64Image);
+  extractedData = await runPhi4Ocr(apiKey, base64Image);
 
-  // ── Step C: Fallback OCR (Llama 90B) ───────────────────────────
+  // ── Step C: Fallback OCR (PaliGemma) ───────────────────────────
   const needsFallback =
     !extractedData ||
     extractedData.paid_amount === null ||
@@ -594,19 +622,19 @@ async function verifyPaymentProofInternal(proofId: string): Promise<Verification
 
   if (needsFallback) {
     console.log(`${LOG_TAG} Step B incomplete. Triggering Step C fallback...`);
-    modelUsed = "Llama 3.2 90B Vision (Fallback)";
-    const llamaResult = await runLlama90bOcr(apiKey, base64Image);
-    if (llamaResult) {
-      // Merge: prefer Llama results but keep any primary fields that fallback missed
+    modelUsed = "google/paligemma (Fallback)";
+    const fallbackResult = await runPaliGemmaFallbackOcr(apiKey, base64Image);
+    if (fallbackResult) {
+      // Merge: prefer fallback results but keep any primary fields that fallback missed
       extractedData = {
-        paid_amount: llamaResult.paid_amount ?? extractedData?.paid_amount ?? null,
-        currency: llamaResult.currency ?? extractedData?.currency ?? null,
-        status: llamaResult.status ?? extractedData?.status ?? null,
-        transaction_id: llamaResult.transaction_id ?? extractedData?.transaction_id ?? null,
-        payment_app: llamaResult.payment_app ?? extractedData?.payment_app ?? null,
-        timestamp_text: llamaResult.timestamp_text ?? extractedData?.timestamp_text ?? null,
-        receiver_name: llamaResult.receiver_name ?? extractedData?.receiver_name ?? null,
-        sender_name: llamaResult.sender_name ?? extractedData?.sender_name ?? null,
+        paid_amount: fallbackResult.paid_amount ?? extractedData?.paid_amount ?? null,
+        currency: fallbackResult.currency ?? extractedData?.currency ?? null,
+        status: fallbackResult.status ?? extractedData?.status ?? null,
+        transaction_id: fallbackResult.transaction_id ?? extractedData?.transaction_id ?? null,
+        payment_app: fallbackResult.payment_app ?? extractedData?.payment_app ?? null,
+        timestamp_text: fallbackResult.timestamp_text ?? extractedData?.timestamp_text ?? null,
+        receiver_name: fallbackResult.receiver_name ?? extractedData?.receiver_name ?? null,
+        sender_name: fallbackResult.sender_name ?? extractedData?.sender_name ?? null,
       };
     }
   }
@@ -630,8 +658,8 @@ async function verifyPaymentProofInternal(proofId: string): Promise<Verification
   console.log(`${LOG_TAG} OCR extraction complete. Model used: ${modelUsed}`);
   console.log(`${LOG_TAG} Extracted data:`, JSON.stringify(extractedData));
 
-  // ── Step D: Llama Reasoning ─────────────────────────────────
-  let nemotronResult = await runLlamaReasoning(
+  // ── Step D: Reasoning (Mistral Nemotron) ─────────────────────────────────
+  let nemotronResult = await runMistralNemotronReasoning(
     apiKey,
     expectedAmount,
     orderCreatedTime,
@@ -644,7 +672,7 @@ async function verifyPaymentProofInternal(proofId: string): Promise<Verification
     nemotronResult = computeHeuristicScore(extractedData, expectedAmount);
     modelUsed += " + Heuristic Scoring";
   } else {
-    modelUsed += " + Llama 3.3 70B Reasoning";
+    modelUsed += " + mistralai/mistral-nemotron";
   }
 
   // ── Build Final Result ─────────────────────────────────────────
@@ -683,8 +711,8 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
 
   const timeoutPromise = new Promise<VerificationResult>((_, reject) => {
     setTimeout(() => {
-      reject(new Error("AI analysis timed out"));
-    }, 35000);
+      reject(new Error("AI analysis unavailable"));
+    }, 30000);
   });
 
   try {
@@ -697,22 +725,9 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
   } catch (err: any) {
     console.log("[AI] Returning error");
     
-    if (err.message === "AI analysis timed out") {
+    if (err.message === "AI analysis unavailable") {
       console.log("[AI] Timeout triggered");
-      return {
-        ai_available: false,
-        status: "timeout",
-        ai_score: null,
-        ai_risk_label: "Timeout",
-        ai_model_used: "None",
-        ai_recommendation: "Manual Review",
-        ai_reason: "AI analysis timed out",
-        ai_amount_match: null,
-        ai_timestamp_match: null,
-        ai_utr: null,
-        ai_authenticity_score: null,
-        ai_checked_at: new Date().toISOString(),
-      };
+      return buildFallbackResult(proofId, "AI analysis unavailable");
     }
     
     return buildFallbackResult(proofId, err.message || "Unknown error");
