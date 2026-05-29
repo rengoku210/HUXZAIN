@@ -302,6 +302,7 @@ function UnifiedPaymentPage() {
           .from("payment_events")
           .insert({
             order_id: finalOrderId,
+            event_id: `evt_manual_${finalOrderId}_${Date.now()}`,
             provider: "manual",
             event_type: "proof_uploaded",
             payload: {
