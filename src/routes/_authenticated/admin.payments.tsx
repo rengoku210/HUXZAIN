@@ -1,7 +1,7 @@
-// src/routes/_authenticated/admin.payments.tsx
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
+import { analyzePaymentProof } from "@/lib/ai.functions";
 import {
   CreditCard,
   CheckCircle,
@@ -39,6 +39,16 @@ interface UnifiedProofRow {
   rejection_reason: string | null;
   created_at: string;
   order_id?: string | null;
+  ai_score?: number | null;
+  ai_risk_label?: string | null;
+  ai_model_used?: string | null;
+  ai_recommendation?: string | null;
+  ai_reason?: string | null;
+  ai_amount_match?: boolean | null;
+  ai_timestamp_match?: string | null;
+  ai_utr?: string | null;
+  ai_authenticity_score?: number | null;
+  ai_checked_at?: string | null;
   // Joined
   profiles?: {
     display_name?: string | null;
@@ -62,6 +72,8 @@ function AdminPayments() {
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [typeFilter, setTypeFilter] = useState<"all" | "listing" | "subscription">("all");
   const [search, setSearch] = useState("");
+  const [aiResult, setAiResult] = useState<any | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const supabase = getSupabase();
 
@@ -144,6 +156,43 @@ function AdminPayments() {
       supabase.removeChannel(subscription);
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (activeProof) {
+      setAiResult(null);
+      const proofWithAi = activeProof as any;
+      if (proofWithAi.ai_checked_at && proofWithAi.ai_score !== undefined && proofWithAi.ai_score !== null) {
+        setAiResult({
+          ai_score: proofWithAi.ai_score,
+          ai_risk_label: proofWithAi.ai_risk_label,
+          ai_model_used: proofWithAi.ai_model_used,
+          ai_recommendation: proofWithAi.ai_recommendation,
+          ai_reason: proofWithAi.ai_reason,
+          ai_amount_match: proofWithAi.ai_amount_match,
+          ai_timestamp_match: proofWithAi.ai_timestamp_match,
+          ai_utr: proofWithAi.ai_utr,
+          ai_authenticity_score: proofWithAi.ai_authenticity_score,
+          ai_checked_at: proofWithAi.ai_checked_at,
+        });
+        return;
+      }
+
+      setAiLoading(true);
+      analyzePaymentProof(activeProof.id)
+        .then((res) => {
+          setAiResult(res);
+        })
+        .catch((err) => {
+          console.error("[AI Verification] Fetch error:", err);
+        })
+        .finally(() => {
+          setAiLoading(false);
+        });
+    } else {
+      setAiResult(null);
+      setAiLoading(false);
+    }
+  }, [activeProof]);
 
   // ── Approve Handler ──
   const executeApprove = async () => {
@@ -867,6 +916,108 @@ function AdminPayments() {
                   />
                 </div>
               </div>
+
+              {/* AI Automated Verification Card */}
+              {(aiLoading || aiResult) && (
+                <div className="mb-6 p-4 rounded-2xl border border-border/80 bg-surface/30 relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gold/20 via-gold to-gold/20 animate-pulse" />
+                  
+                  <div className="flex items-center justify-between mb-3.5">
+                    <h4 className="font-display text-xs font-extrabold text-gold uppercase tracking-widest flex items-center gap-1.5">
+                      <Sparkles className="size-4 animate-spin-slow text-gold animate-pulse" /> AI Automated Verification
+                    </h4>
+                    {aiResult && (
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Scanned {new Date(aiResult.ai_checked_at).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+
+                  {aiLoading ? (
+                    <div className="py-6 flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="size-5 animate-spin text-gold" />
+                      <span className="text-xs text-muted-foreground font-medium animate-pulse font-mono">
+                        Analyzing screenshot with NVIDIA NIMs...
+                      </span>
+                    </div>
+                  ) : aiResult ? (
+                    <div className="space-y-4">
+                      {/* Scoring Header */}
+                      <div className="flex items-center gap-4 bg-surface/40 p-3 rounded-xl border border-border/50">
+                        <div className="relative size-14 shrink-0 flex items-center justify-center rounded-full bg-black/40 border border-border/60">
+                          <span className="font-display text-lg font-extrabold text-foreground">
+                            {aiResult.ai_score}
+                          </span>
+                          <span className="absolute bottom-0.5 text-[8px] text-muted-foreground uppercase font-bold">
+                            /100
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
+                              aiResult.ai_score <= 10 
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                : aiResult.ai_score <= 35 
+                                ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                : aiResult.ai_score <= 50
+                                ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                : "bg-red-500/10 text-red-400 border border-red-500/20"
+                            }`}>
+                              {aiResult.ai_risk_label}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground border border-border/60 rounded px-1.5 py-0.5 bg-black/20 font-mono">
+                              {aiResult.ai_recommendation}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                            Model: <span className="text-foreground font-medium font-mono text-[9px]">{aiResult.ai_model_used}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Analytics Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Amount Match</span>
+                          <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
+                            {aiResult.ai_amount_match ? (
+                              <span className="text-emerald-400">✅ Match</span>
+                            ) : (
+                              <span className="text-red-400">❌ Mismatch</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UTR Detected</span>
+                          <span className="font-mono text-foreground font-extrabold mt-0.5 block truncate select-all">
+                            {aiResult.ai_utr || "N/A"}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Timestamp Audit</span>
+                          <span className="text-foreground font-extrabold mt-0.5 block truncate">
+                            {aiResult.ai_timestamp_match || "Unknown"}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UI Authenticity</span>
+                          <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
+                            <span className={aiResult.ai_authenticity_score >= 80 ? "text-emerald-400" : aiResult.ai_authenticity_score >= 50 ? "text-yellow-400" : "text-red-400"}>
+                              {aiResult.ai_authenticity_score}% Reliable
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Explanatory summary */}
+                      <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[11px] leading-relaxed font-mono">
+                        <strong className="text-gold block mb-1">AI Reasoning Summary:</strong>
+                        {aiResult.ai_reason}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Actions */}
               {activeProof.status === "pending" && (
