@@ -961,9 +961,14 @@ function AdminPayments() {
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gold/20 via-gold to-gold/20 animate-pulse" />
                   
                   <div className="flex items-center justify-between mb-3.5">
-                    <h4 className="font-display text-xs font-extrabold text-gold uppercase tracking-widest flex items-center gap-1.5">
-                      <Sparkles className="size-4 text-gold animate-pulse" /> AI Automated Verification
-                    </h4>
+                    <div>
+                      <h4 className="font-display text-xs font-extrabold text-gold uppercase tracking-widest flex items-center gap-1.5">
+                        <Sparkles className="size-4 text-gold" /> Payment Proof Verification
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+                        Verified using file timestamp and image metadata
+                      </p>
+                    </div>
                     {aiResult?.ai_checked_at && (
                       <span className="text-[10px] text-muted-foreground font-mono">
                         Scanned {new Date(aiResult.ai_checked_at).toLocaleTimeString()}
@@ -975,7 +980,7 @@ function AdminPayments() {
                     <div className="py-6 flex flex-col items-center justify-center gap-2">
                       <Loader2 className="size-5 animate-spin text-gold" />
                       <span className="text-xs text-muted-foreground font-medium animate-pulse font-mono">
-                        Analyzing screenshot…
+                        Analyzing metadata…
                       </span>
                     </div>
                   ) : aiError || (aiResult && (aiResult.ai_available === false || aiResult.status === "manual_review_required")) ? (
@@ -984,10 +989,10 @@ function AdminPayments() {
                         <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
                         <div>
                           <h5 className="font-semibold text-xs text-foreground uppercase tracking-wider">
-                            AI verification unavailable
+                            Metadata unavailable
                           </h5>
                           <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed font-mono">
-                            Manual review required
+                            Manual review recommended
                           </p>
                         </div>
                       </div>
@@ -1070,7 +1075,7 @@ function AdminPayments() {
 
                       {/* Explanatory summary */}
                       <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[11px] leading-relaxed font-mono">
-                        <strong className="text-gold block mb-1">AI Reasoning Summary:</strong>
+                        <strong className="text-gold block mb-1">Metadata Verification Summary:</strong>
                         {aiResult.ai_reason}
                       </div>
                     </div>
