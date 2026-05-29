@@ -67,6 +67,7 @@ describe("Integration Flow: Upload -> Create Verification", () => {
 
     mockOrdersQuery = {
       select: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi
         .fn()

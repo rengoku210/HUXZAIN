@@ -82,7 +82,7 @@ function getSafeFallbackResult(proofId: string, reasonMsg: string) {
 
 // ── SERVER FUNCTION: analyzePaymentProof ─────────────────────────────────────────
 export const analyzePaymentProof = createServerFn({ method: "POST" })
-  .validator((proofId: string) => proofId)
+  .inputValidator((proofId: string) => proofId)
   .handler(async ({ data: proofId }) => {
     console.log("[AI Verification] Running browser-safe server-side scan for ID:", proofId);
 

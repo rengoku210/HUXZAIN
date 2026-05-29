@@ -417,7 +417,7 @@ function AdminSubscriptionsPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
             <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-gold">
-              <CheckCircle size={18} className="text-gold" /> Confirm Payment Approval
+              <CheckCircle2 size={18} className="text-gold" /> Confirm Payment Approval
             </h3>
             <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
               Are you sure you want to approve this payment? This will confirm the buyer payment and continue order processing.

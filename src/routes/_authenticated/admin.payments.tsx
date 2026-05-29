@@ -210,15 +210,15 @@ function AdminPayments() {
       }
 
       setAiLoading(true);
-      analyzePaymentProof(activeProof.id)
-        .then((res) => {
+      analyzePaymentProof({ data: activeProof.id })
+        .then((res: any) => {
           if (res) {
             setAiResult(res);
           } else {
             setAiError("No analysis returned from the payment verification engine.");
           }
         })
-        .catch((err) => {
+        .catch((err: any) => {
           console.error("[AI Verification] Fetch error:", err);
           setAiError(err.message || "Failed to analyze screenshot.");
         })

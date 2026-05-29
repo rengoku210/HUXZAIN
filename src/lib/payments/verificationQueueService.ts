@@ -31,12 +31,19 @@ export async function createVerification(params: {
   const { userId, orderId, uploadResult } = params;
 
   // 1. Run OCR (simulation or real)
-  const ocrResult = await runOcr(uploadResult.signedUrl);
+  const response = await fetch(uploadResult.signedUrl);
+  const arrayBuf = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuf);
+  const ocrResult = await runOcr(buffer);
 
   // 2. Fraud scoring
   const { score: fraudScore } = await calculateFraudScore({
     userId,
     orderId,
+    transactionId: ocrResult.transactionId,
+    amount: ocrResult.amount,
+    timestamp: ocrResult.timestamp,
+    ocrConfidence: ocrResult.confidence,
     screenshotHash: uploadResult.hash,
   });
 

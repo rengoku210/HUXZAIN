@@ -25,12 +25,12 @@ async function getWorker(): Promise<Worker> {
 }
 
 /**
- * Run OCR on an image buffer using Tesseract.js.
+ * Run OCR on an image buffer or URL string using Tesseract.js.
  * Returns raw text and parsed fields.
  */
-export async function runOcr(buffer: Buffer): Promise<OcrResult> {
+export async function runOcr(image: Buffer | string): Promise<OcrResult> {
   const w = await getWorker();
-  const { data } = await w.recognize(buffer);
+  const { data } = await w.recognize(image);
   const raw = data.text;
   const confidence = data.confidence ? data.confidence / 100 : undefined;
   const parsed = parseOcrText(raw);
