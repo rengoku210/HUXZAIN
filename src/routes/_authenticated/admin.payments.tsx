@@ -74,8 +74,30 @@ function AdminPayments() {
   const [search, setSearch] = useState("");
   const [aiResult, setAiResult] = useState<any | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [hasAiColumns, setHasAiColumns] = useState<boolean | null>(null);
 
   const supabase = getSupabase();
+
+  // Dynamic schema verification on component mount
+  useEffect(() => {
+    async function verifyDbSchema() {
+      if (!supabase) return;
+      try {
+        const { error } = await supabase
+          .from("payment_proofs")
+          .select("ai_score")
+          .limit(1);
+        
+        // If error is present (e.g. column does not exist), columns are missing
+        setHasAiColumns(!error);
+      } catch (err) {
+        console.warn("[AI Verification] Dynamic column check failed:", err);
+        setHasAiColumns(false);
+      }
+    }
+    verifyDbSchema();
+  }, [supabase]);
 
   async function fetchProofs() {
     if (!supabase) return;
@@ -160,8 +182,17 @@ function AdminPayments() {
   useEffect(() => {
     if (activeProof) {
       setAiResult(null);
+      setAiError(null);
+      
       const proofWithAi = activeProof as any;
-      if (proofWithAi.ai_checked_at && proofWithAi.ai_score !== undefined && proofWithAi.ai_score !== null) {
+      
+      // Only read cached database fields if column existence has been successfully confirmed
+      if (
+        hasAiColumns &&
+        proofWithAi.ai_checked_at &&
+        proofWithAi.ai_score !== undefined &&
+        proofWithAi.ai_score !== null
+      ) {
         setAiResult({
           ai_score: proofWithAi.ai_score,
           ai_risk_label: proofWithAi.ai_risk_label,
@@ -173,6 +204,7 @@ function AdminPayments() {
           ai_utr: proofWithAi.ai_utr,
           ai_authenticity_score: proofWithAi.ai_authenticity_score,
           ai_checked_at: proofWithAi.ai_checked_at,
+          ai_available: true,
         });
         return;
       }
@@ -180,10 +212,15 @@ function AdminPayments() {
       setAiLoading(true);
       analyzePaymentProof(activeProof.id)
         .then((res) => {
-          setAiResult(res);
+          if (res) {
+            setAiResult(res);
+          } else {
+            setAiError("No analysis returned from the payment verification engine.");
+          }
         })
         .catch((err) => {
           console.error("[AI Verification] Fetch error:", err);
+          setAiError(err.message || "Failed to analyze screenshot.");
         })
         .finally(() => {
           setAiLoading(false);
@@ -191,8 +228,9 @@ function AdminPayments() {
     } else {
       setAiResult(null);
       setAiLoading(false);
+      setAiError(null);
     }
-  }, [activeProof]);
+  }, [activeProof, hasAiColumns]);
 
   // ── Approve Handler ──
   const executeApprove = async () => {
@@ -918,15 +956,15 @@ function AdminPayments() {
               </div>
 
               {/* AI Automated Verification Card */}
-              {(aiLoading || aiResult) && (
+              {(aiLoading || aiResult || aiError) && (
                 <div className="mb-6 p-4 rounded-2xl border border-border/80 bg-surface/30 relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gold/20 via-gold to-gold/20 animate-pulse" />
                   
                   <div className="flex items-center justify-between mb-3.5">
                     <h4 className="font-display text-xs font-extrabold text-gold uppercase tracking-widest flex items-center gap-1.5">
-                      <Sparkles className="size-4 animate-spin-slow text-gold animate-pulse" /> AI Automated Verification
+                      <Sparkles className="size-4 text-gold animate-pulse" /> AI Automated Verification
                     </h4>
-                    {aiResult && (
+                    {aiResult?.ai_checked_at && (
                       <span className="text-[10px] text-muted-foreground font-mono">
                         Scanned {new Date(aiResult.ai_checked_at).toLocaleTimeString()}
                       </span>
@@ -937,8 +975,28 @@ function AdminPayments() {
                     <div className="py-6 flex flex-col items-center justify-center gap-2">
                       <Loader2 className="size-5 animate-spin text-gold" />
                       <span className="text-xs text-muted-foreground font-medium animate-pulse font-mono">
-                        Analyzing screenshot with NVIDIA NIMs...
+                        Analyzing screenshot…
                       </span>
+                    </div>
+                  ) : aiError || (aiResult && (aiResult.ai_available === false || aiResult.status === "manual_review_required")) ? (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2.5">
+                        <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <h5 className="font-semibold text-xs text-foreground uppercase tracking-wider">
+                            AI verification unavailable
+                          </h5>
+                          <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed font-mono">
+                            Manual review required
+                          </p>
+                        </div>
+                      </div>
+                      {aiResult?.ai_reason && (
+                        <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[10px] leading-relaxed font-mono text-muted-foreground">
+                          <strong className="text-gold block mb-1">Reason:</strong>
+                          {aiResult.ai_reason}
+                        </div>
+                      )}
                     </div>
                   ) : aiResult ? (
                     <div className="space-y-4">
