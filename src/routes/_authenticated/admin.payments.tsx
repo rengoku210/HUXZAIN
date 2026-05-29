@@ -55,6 +55,7 @@ function AdminPayments() {
   const [loading, setLoading] = useState(true);
   const [activeProof, setActiveProof] = useState<UnifiedProofRow | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actioning, setActioning] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
@@ -144,29 +145,34 @@ function AdminPayments() {
   }, [supabase]);
 
   // ── Approve Handler ──
-  const handleApprove = async (proof: UnifiedProofRow) => {
-    if (!supabase) return;
-    if (
-      !confirm(
-        `Are you sure you want to APPROVE this ${proof.payment_type} payment of ₹${Number(proof.amount).toFixed(2)}?`,
-      )
-    )
-      return;
+  const executeApprove = async () => {
+    if (!supabase || !activeProof) return;
 
     setActioning(true);
+    console.log("[AdminPayments] Initiating approval for payment proof ID:", activeProof.id);
+    
     try {
       // 1. Update payment_proofs row directly
-      const { error: proofErr } = await supabase
+      const { data: updateData, error: proofErr } = await supabase
         .from("payment_proofs")
-        .update({ status: "approved", rejection_reason: null, updated_at: new Date().toISOString() })
-        .eq("id", proof.id);
+        .update({ 
+          status: "approved", 
+          rejection_reason: null, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq("id", activeProof.id)
+        .select("*");
 
-      if (proofErr) throw proofErr;
+      console.log("[AdminPayments] Supabase update response for payment_proofs:", updateData);
+      if (proofErr) {
+        console.error("[AdminPayments] Supabase update error for payment_proofs:", proofErr);
+        throw proofErr;
+      }
 
       // Safe non-blocking sync to legacy/active tables
       try {
-        if (proof.payment_type === "listing") {
-          const orderId = proof.payment_reference?.replace("order:", "");
+        if (activeProof.payment_type === "listing") {
+          const orderId = activeProof.payment_reference?.replace("order:", "");
           if (orderId) {
             const { data: event } = await supabase
               .from("payment_events")
@@ -183,11 +189,11 @@ function AdminPayments() {
                 .eq("id", event.id);
             }
           }
-        } else if (proof.payment_type === "subscription") {
+        } else if (activeProof.payment_type === "subscription") {
           await supabase
             .from("subscription_payment_proofs")
             .update({ status: "approved", rejection_reason: null })
-            .eq("user_id", proof.user_id)
+            .eq("user_id", activeProof.user_id)
             .eq("status", "pending");
         }
       } catch (syncEx) {
@@ -195,27 +201,27 @@ function AdminPayments() {
       }
 
       // 2. For listing purchases — process order approval flow
-      if (proof.payment_type === "listing" && proof.payment_reference) {
-        const orderIdMatch = proof.payment_reference.match(/^order:(.+)$/);
+      if (activeProof.payment_type === "listing" && activeProof.payment_reference) {
+        const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
         if (orderIdMatch) {
           const orderId = orderIdMatch[1];
-          await processListingOrderApproval(orderId, Number(proof.amount), proof.user_id);
+          await processListingOrderApproval(orderId, Number(activeProof.amount), activeProof.user_id);
         }
       }
 
       // 3. For subscription purchases — activate plan
-      if (proof.payment_type === "subscription" && proof.payment_reference) {
-        const planMatch = proof.payment_reference.match(/^subscription:(.+)$/);
+      if (activeProof.payment_type === "subscription" && activeProof.payment_reference) {
+        const planMatch = activeProof.payment_reference.match(/^subscription:(.+)$/);
         if (planMatch) {
           const planId = planMatch[1];
           await supabase
             .from("profiles")
             .update({ subscription_tier: planId })
-            .eq("id", proof.user_id);
+            .eq("id", activeProof.user_id);
 
           // Notify buyer
           await supabase.from("notifications").insert({
-            user_id: proof.user_id,
+            user_id: activeProof.user_id,
             kind: "subscription.activated",
             title: "Subscription Activated",
             body: `Your ${planId.toUpperCase()} plan has been activated. Enjoy the premium features!`,
@@ -227,7 +233,7 @@ function AdminPayments() {
           await supabase
             .from("subscription_payment_proofs")
             .update({ status: "approved", rejection_reason: null })
-            .eq("user_id", proof.user_id)
+            .eq("user_id", activeProof.user_id)
             .eq("status", "pending");
         } catch (e) {
           console.warn("[AdminPayments] subscription_payment_proofs sync skipped:", e);
@@ -235,10 +241,24 @@ function AdminPayments() {
       }
 
       toast.success(
-        `Payment ${proof.payment_type === "listing" ? "order" : "subscription"} approved successfully!`,
+        `Payment ${activeProof.payment_type === "listing" ? "order" : "subscription"} approved successfully!`,
       );
+
+      // OPTIMISTIC STATE UPDATE
+      setProofs(prevProofs => 
+        prevProofs.map(p => 
+          p.id === activeProof.id 
+            ? { ...p, status: "approved", rejection_reason: null } 
+            : p
+        )
+      );
+
+      setShowApproveModal(false);
       setActiveProof(null);
-      fetchProofs();
+
+      console.log("[AdminPayments] Reloading payments from DB...");
+      await fetchProofs();
+      console.log("[AdminPayments] Reload completed successfully!");
     } catch (err: any) {
       console.error("[AdminPayments] Approve error:", err);
       toast.error(`Approval failed: ${err.message}`);
@@ -369,24 +389,27 @@ function AdminPayments() {
   const handleRejectSubmit = async () => {
     if (!supabase || !activeProof) return;
 
-    if (!rejectionReason.trim()) {
-      toast.error("Please enter a rejection reason.");
-      return;
-    }
-
+    const trimmedReason = rejectionReason.trim() || "No reason specified";
     setActioning(true);
+    console.log("[AdminPayments] Initiating rejection for payment proof ID:", activeProof.id, "with reason:", trimmedReason);
+
     try {
       // 1. Update payment_proofs directly
-      const { error } = await supabase
+      const { data: updateData, error } = await supabase
         .from("payment_proofs")
         .update({
           status: "rejected",
-          rejection_reason: rejectionReason.trim(),
+          rejection_reason: trimmedReason,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", activeProof.id);
+        .eq("id", activeProof.id)
+        .select("*");
 
-      if (error) throw error;
+      console.log("[AdminPayments] Supabase update response for rejection:", updateData);
+      if (error) {
+        console.error("[AdminPayments] Supabase rejection error:", error);
+        throw error;
+      }
 
       // Safe non-blocking sync to legacy/active tables
       try {
@@ -401,7 +424,7 @@ function AdminPayments() {
               .maybeSingle();
 
             if (event) {
-              const newPayload = { ...event.payload, status: "rejected", rejection_reason: rejectionReason.trim() };
+              const newPayload = { ...event.payload, status: "rejected", rejection_reason: trimmedReason };
               await supabase
                 .from("payment_events")
                 .update({ payload: newPayload, processed: false })
@@ -411,7 +434,7 @@ function AdminPayments() {
         } else if (activeProof.payment_type === "subscription") {
           await supabase
             .from("subscription_payment_proofs")
-            .update({ status: "rejected", rejection_reason: rejectionReason.trim() })
+            .update({ status: "rejected", rejection_reason: trimmedReason })
             .eq("user_id", activeProof.user_id)
             .eq("status", "pending");
         }
@@ -447,7 +470,7 @@ function AdminPayments() {
         try {
           await supabase
             .from("subscription_payment_proofs")
-            .update({ status: "rejected", rejection_reason: rejectionReason.trim() })
+            .update({ status: "rejected", rejection_reason: trimmedReason })
             .eq("user_id", activeProof.user_id)
             .eq("status", "pending");
         } catch (e) {
@@ -460,14 +483,27 @@ function AdminPayments() {
         user_id: activeProof.user_id,
         kind: "payment.rejected",
         title: "Payment Proof Rejected",
-        body: `Your payment proof was rejected. Reason: ${rejectionReason.trim()}. Please submit a valid proof.`,
+        body: `Your payment proof was rejected. Reason: ${trimmedReason}. Please submit a valid proof.`,
       });
 
       toast.success("Payment proof rejected.");
+
+      // OPTIMISTIC STATE UPDATE
+      setProofs(prevProofs => 
+        prevProofs.map(p => 
+          p.id === activeProof.id 
+            ? { ...p, status: "rejected", rejection_reason: trimmedReason } 
+            : p
+        )
+      );
+
       setShowRejectModal(false);
       setRejectionReason("");
       setActiveProof(null);
-      fetchProofs();
+
+      console.log("[AdminPayments] Reloading payments after rejection...");
+      await fetchProofs();
+      console.log("[AdminPayments] Reload completed successfully!");
     } catch (err: any) {
       console.error("[AdminPayments] Reject error:", err);
       toast.error(`Rejection failed: ${err.message}`);
@@ -815,21 +851,16 @@ function AdminPayments() {
                   <button
                     onClick={() => setShowRejectModal(true)}
                     disabled={actioning}
-                    className="flex-1 h-11 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                    className="flex-1 h-11 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <X size={14} /> Reject
                   </button>
                   <button
-                    onClick={() => handleApprove(activeProof)}
+                    onClick={() => setShowApproveModal(true)}
                     disabled={actioning}
-                    className="flex-1 h-11 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:brightness-110 inline-flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50"
+                    className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
                   >
-                    {actioning ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Check size={14} />
-                    )}
-                    Approve & Confirm
+                    <Check size={14} /> Approve & Confirm
                   </button>
                 </div>
               )}
@@ -838,40 +869,76 @@ function AdminPayments() {
         </div>
       )}
 
+      {/* ─── CONFIRM APPROVAL MODAL ─── */}
+      {showApproveModal && activeProof && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-gold">
+              <CheckCircle size={18} className="text-gold" /> Confirm Payment Approval
+            </h3>
+            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
+              Are you sure you want to approve this payment? This will confirm the buyer payment and continue order processing.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowApproveModal(false)}
+                disabled={actioning}
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeApprove}
+                disabled={actioning}
+                className="flex-1 h-10 rounded-xl bg-gold text-black hover:brightness-110 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer border-none"
+              >
+                {actioning ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" /> Processing...
+                  </>
+                ) : (
+                  "Confirm Approval"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── REJECTION REASON MODAL ─── */}
       {showRejectModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-2xl">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
             <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-red-400">
-              <AlertCircle size={16} /> Enter Rejection Reason
+              <AlertCircle size={18} /> Reject Payment
             </h3>
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              The buyer will see this rejection reason. Please provide a clear explanation.
+              Are you sure you want to reject this payment? The buyer will see this rejection reason in their dashboard and notifications.
             </p>
             <textarea
               rows={3}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g., Blurry screenshot, incorrect amount, duplicate transaction, etc."
-              className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-red-500/50 resize-none mb-4"
+              placeholder="Reason for rejection (optional)..."
+              className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-red-500/50 resize-none mb-5 text-foreground placeholder:text-muted-foreground"
             />
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 onClick={() => {
                   setShowRejectModal(false);
                   setRejectionReason("");
                 }}
                 disabled={actioning}
-                className="flex-1 h-9 rounded-lg border border-border text-xs hover:bg-surface transition-colors"
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRejectSubmit}
-                disabled={actioning || !rejectionReason.trim()}
-                className="flex-1 h-9 rounded-lg bg-red-500 hover:brightness-110 text-white text-xs font-bold transition-all disabled:opacity-50"
+                disabled={actioning}
+                className="flex-1 h-10 rounded-xl bg-red-500 hover:brightness-110 text-white text-xs font-bold transition-all disabled:opacity-50 cursor-pointer border-none"
               >
-                {actioning ? "Rejecting..." : "Confirm Rejection"}
+                {actioning ? "Rejecting..." : "Reject Payment"}
               </button>
             </div>
           </div>
