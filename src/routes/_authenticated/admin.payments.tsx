@@ -97,11 +97,6 @@ function AdminPayments() {
                 id,
                 title,
                 cover_image_url
-              ),
-              profiles:buyer_id (
-                display_name,
-                username,
-                email
               )
             `)
             .in("id", orderIds);
@@ -109,16 +104,33 @@ function AdminPayments() {
           if (ordersErr) {
             console.error("[AdminPayments] Error fetching associated orders:", ordersErr);
           } else if (orders) {
+            // Fetch profiles separately to bypass relationship limitations
+            const buyerIds = orders.map(o => o.buyer_id).filter(Boolean);
+            let profiles: any[] = [];
+            
+            if (buyerIds.length > 0) {
+              const { data: profs, error: profsErr } = await supabase
+                .from("profiles")
+                .select("id, display_name, username")
+                .in("id", buyerIds);
+              if (!profsErr && profs) {
+                profiles = profs;
+              } else if (profsErr) {
+                console.error("[AdminPayments] Error fetching profiles for orders:", profsErr);
+              }
+            }
+
             // Map payment_events to UnifiedProofRow interface
             const mappedListings: UnifiedProofRow[] = events.map(event => {
               const orderObj = orders.find(o => o.id === event.order_id);
               const payload = event.payload || {};
-              const buyerProfile = orderObj?.profiles || null;
+              const buyerId = payload.user_id || orderObj?.buyer_id || "";
+              const buyerProfile = profiles.find(p => p.id === buyerId);
               const listingObj = orderObj?.listings || null;
               
               return {
                 id: event.id,
-                user_id: payload.user_id || orderObj?.buyer_id || "",
+                user_id: buyerId,
                 listing_id: listingObj?.id || null,
                 payment_type: "listing",
                 amount: payload.amount || orderObj?.amount_inr || 0,
@@ -130,7 +142,7 @@ function AdminPayments() {
                 profiles: buyerProfile ? {
                   display_name: buyerProfile.display_name,
                   username: buyerProfile.username,
-                  email: buyerProfile.email
+                  email: null // email column does not exist on profiles in production DB
                 } : null,
                 listings: listingObj ? {
                   title: listingObj.title || orderObj?.listing_title || "Listing",
@@ -156,7 +168,7 @@ function AdminPayments() {
         if (userIds.length > 0) {
           const { data: profiles, error: profsErr } = await supabase
             .from("profiles")
-            .select("id, display_name, username, email")
+            .select("id, display_name, username")
             .in("id", userIds);
 
           if (profsErr) {
@@ -178,7 +190,7 @@ function AdminPayments() {
                 profiles: prof ? {
                   display_name: prof.display_name,
                   username: prof.username,
-                  email: prof.email
+                  email: null
                 } : null,
                 listings: null
               };
