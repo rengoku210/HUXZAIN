@@ -407,3 +407,63 @@ export async function verifyPaymentProof(proofId: string): Promise<any> {
     return buildGuaranteedFallback(err.message || "Unknown error");
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// NEW EXTERNAL OCR INTEGRATION (Lovable API)
+// ═══════════════════════════════════════════════════════════════════
+export async function extractPaymentOCR(proofId: string): Promise<any> {
+  console.log(`${LOG_TAG} Starting OCR extraction for proof ID: ${proofId}`);
+  
+  // 1. Fetch Payment Proof from DB
+  const supabase = getAdminClient() || getAnonClient();
+  if (!supabase) {
+    throw new Error("Database client not available.");
+  }
+
+  const { data: proof, error: proofErr } = await supabase
+    .from("payment_proofs")
+    .select("screenshot_url")
+    .eq("id", proofId)
+    .single();
+
+  if (proofErr || !proof || !proof.screenshot_url) {
+    throw new Error(`Database query failed or no screenshot found.`);
+  }
+
+  // 2. Download Image Buffer
+  let downloadedImage;
+  try {
+    downloadedImage = await downloadImageBuffer(proof.screenshot_url);
+  } catch (err: any) {
+    throw new Error(`Could not download payment screenshot: ${err.message}`);
+  }
+
+  // 3. Construct FormData & Send to Lovable API
+  try {
+    console.log(`${LOG_TAG} Sending image to Lovable OCR API...`);
+    const formData = new FormData();
+    const blob = new Blob([downloadedImage.buffer], { type: downloadedImage.contentType });
+    
+    // Provide a generic filename to satisfy API parsers
+    const extension = downloadedImage.contentType.split("/")[1] || "jpg";
+    formData.append("image", blob, `screenshot.${extension}`);
+
+    const ocrResponse = await fetch("https://pay-slip-miner.lovable.app/api/extract-payment", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!ocrResponse.ok) {
+      const errorText = await ocrResponse.text().catch(() => "Unknown error");
+      console.error(`${LOG_TAG} Lovable API error: ${ocrResponse.status} ${errorText}`);
+      throw new Error(`OCR API responded with ${ocrResponse.status}`);
+    }
+
+    const ocrJson = await ocrResponse.json();
+    console.log(`${LOG_TAG} OCR extraction successful:`, JSON.stringify(ocrJson));
+    return ocrJson;
+  } catch (err: any) {
+    console.error(`${LOG_TAG} OCR extraction failed:`, err.message);
+    throw new Error(`Failed to extract payment details: ${err.message}`);
+  }
+}

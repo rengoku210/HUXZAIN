@@ -45,3 +45,20 @@ export const analyzePaymentProof = createServerFn({ method: "POST" })
       };
     }
   });
+
+// ── SERVER FUNCTION: extractPaymentDetails (OCR) ─────────────────────
+export const extractPaymentDetails = createServerFn({ method: "POST" })
+  .inputValidator((proofId: string) => proofId)
+  .handler(async ({ data: proofId }) => {
+    console.log("[AI Bridge] extractPaymentDetails called with proofId:", proofId);
+    // Dynamically import to ensure server-side isolation if needed, or use static
+    const { extractPaymentOCR } = await import("@/server/ai/payment-verification-service");
+    
+    try {
+      const result = await extractPaymentOCR(proofId);
+      return result;
+    } catch (err: any) {
+      console.error("[AI Bridge] OCR extraction threw exception:", err.stack || err.message || err);
+      throw err; // Let TanStack start catch and bubble to frontend
+    }
+  });

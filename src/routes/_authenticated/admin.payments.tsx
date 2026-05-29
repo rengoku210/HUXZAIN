@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
-import { analyzePaymentProof } from "@/lib/ai.functions";
+import { extractPaymentDetails } from "@/lib/ai.functions";
 import {
   CreditCard,
   CheckCircle,
@@ -72,32 +72,11 @@ function AdminPayments() {
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [typeFilter, setTypeFilter] = useState<"all" | "listing" | "subscription">("all");
   const [search, setSearch] = useState("");
-  const [aiResult, setAiResult] = useState<any | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [hasAiColumns, setHasAiColumns] = useState<boolean | null>(null);
+  const [ocrData, setOcrData] = useState<any | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
 
   const supabase = getSupabase();
-
-  // Dynamic schema verification on component mount
-  useEffect(() => {
-    async function verifyDbSchema() {
-      if (!supabase) return;
-      try {
-        const { error } = await supabase
-          .from("payment_proofs")
-          .select("ai_score")
-          .limit(1);
-        
-        // If error is present (e.g. column does not exist), columns are missing
-        setHasAiColumns(!error);
-      } catch (err) {
-        console.warn("[AI Verification] Dynamic column check failed:", err);
-        setHasAiColumns(false);
-      }
-    }
-    verifyDbSchema();
-  }, [supabase]);
 
   async function fetchProofs() {
     if (!supabase) return;
@@ -181,83 +160,31 @@ function AdminPayments() {
 
   useEffect(() => {
     if (activeProof) {
-      setAiResult(null);
-      setAiError(null);
-      
-      const proofWithAi = activeProof as any;
-      
-      // Only read cached database fields if column existence has been successfully confirmed
-      if (
-        hasAiColumns &&
-        proofWithAi.ai_checked_at &&
-        proofWithAi.ai_score !== undefined &&
-        proofWithAi.ai_score !== null
-      ) {
-        setAiResult({
-          ai_score: proofWithAi.ai_score,
-          ai_risk_label: proofWithAi.ai_risk_label,
-          ai_model_used: proofWithAi.ai_model_used,
-          ai_recommendation: proofWithAi.ai_recommendation,
-          ai_reason: proofWithAi.ai_reason,
-          ai_amount_match: proofWithAi.ai_amount_match,
-          ai_timestamp_match: proofWithAi.ai_timestamp_match,
-          ai_utr: proofWithAi.ai_utr,
-          ai_authenticity_score: proofWithAi.ai_authenticity_score,
-          ai_checked_at: proofWithAi.ai_checked_at,
-          ai_available: true,
-        });
-        return;
-      }
+      setOcrData(null);
+      setOcrError(null);
+      setOcrLoading(true);
 
-      const fallbackPayload = (reason: string) => ({
-        success: true,
-        status: "manual_review",
-        score: 50,
-        risk_label: "Manual Review",
-        recommendation: "Manual Review",
-        reason: reason,
-        metadata_available: false,
-        ai_available: true,
-        ai_score: 50,
-        ai_risk_label: "Manual Review",
-        ai_model_used: "None",
-        ai_recommendation: "Manual Review",
-        ai_reason: reason,
-        ai_amount_match: null,
-        ai_timestamp_match: null,
-        ai_utr: null,
-        ai_authenticity_score: null,
-        ai_checked_at: new Date().toISOString(),
-      });
-
-      const frontendTimeout = new Promise((resolve) => 
-        setTimeout(() => resolve(fallbackPayload("Network timeout: verification took too long")), 3500)
-      );
-
-      Promise.race([
-        analyzePaymentProof({ data: activeProof.id }),
-        frontendTimeout
-      ])
+      extractPaymentDetails({ data: activeProof.id })
         .then((res: any) => {
           if (res) {
-            setAiResult(res);
+            setOcrData(res);
           } else {
-            setAiResult(fallbackPayload("No analysis returned from the payment verification engine."));
+            setOcrError("No OCR data returned.");
           }
         })
         .catch((err: any) => {
-          console.error("[AI Verification] Fetch error:", err);
-          setAiResult(fallbackPayload(err.message || "Failed to analyze screenshot."));
+          console.error("[OCR Verification] Fetch error:", err);
+          setOcrError(err.message || "Failed to extract payment details.");
         })
         .finally(() => {
-          setAiLoading(false);
+          setOcrLoading(false);
         });
     } else {
-      setAiResult(null);
-      setAiLoading(false);
-      setAiError(null);
+      setOcrData(null);
+      setOcrLoading(false);
+      setOcrError(null);
     }
-  }, [activeProof, hasAiColumns]);
+  }, [activeProof]);
 
   // ── Approve Handler ──
   const executeApprove = async () => {
@@ -869,11 +796,11 @@ function AdminPayments() {
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={() => setActiveProof(null)}
           />
-          <div className="relative w-full max-w-xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-5xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
 
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="p-6 flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4 shrink-0">
                 <h2 className="font-display text-lg font-bold flex items-center gap-2">
                   {getTypeIcon(activeProof.payment_type)}
                   Inspect {activeProof.payment_type === "listing" ? "Order" : "Subscription"} Proof
@@ -886,254 +813,170 @@ function AdminPayments() {
                 </button>
               </div>
 
-              {/* Grid details */}
-              <div className="grid grid-cols-2 gap-4 text-xs bg-surface/20 p-4 border border-border rounded-2xl mb-4">
-                <div>
-                  <div className="text-muted-foreground">Buyer</div>
-                  <div className="font-bold text-foreground mt-0.5">
-                    {activeProof.profiles?.display_name ?? activeProof.profiles?.username ?? "Unknown"}
-                  </div>
-                  <div className="text-muted-foreground text-[10px]">{activeProof.profiles?.email}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Payment Type</div>
-                  <div className="font-bold text-foreground mt-0.5 uppercase flex items-center gap-1.5">
-                    {getTypeIcon(activeProof.payment_type)}
-                    {activeProof.payment_type}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">
-                    {activeProof.payment_type === "listing" ? "Product" : "Plan"}
-                  </div>
-                  <div className="font-bold text-gold mt-0.5">
-                    {activeProof.payment_type === "listing"
-                      ? activeProof.listings?.title || "Listing"
-                      : activeProof.payment_reference?.replace("subscription:", "").toUpperCase() ||
-                        "Plan"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Amount Paid</div>
-                  <div className="font-bold text-foreground mt-0.5">
-                    ₹{Number(activeProof.amount).toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Status</div>
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border mt-1 ${getStatusColor(
-                      activeProof.status,
-                    )}`}
-                  >
-                    {activeProof.status}
-                  </span>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Submitted</div>
-                  <div className="text-foreground mt-0.5">
-                    {new Date(activeProof.created_at).toLocaleString()}
-                  </div>
-                </div>
-                {activeProof.payment_reference && (
-                  <div className="col-span-2 border-t border-border/40 pt-2">
-                    <div className="text-muted-foreground">Reference</div>
-                    <div className="text-foreground mt-0.5 font-mono text-[11px]">
-                      {activeProof.payment_reference}
-                    </div>
-                  </div>
-                )}
-                {activeProof.utr_reference && (
-                  <div className="col-span-2 border-t border-border/40 pt-2">
-                    <div className="text-gold font-bold flex items-center gap-1">
-                      UTR / Transaction Reference
-                    </div>
-                    <div className="text-foreground mt-1 font-mono text-sm tracking-wider font-extrabold select-all">
-                      {activeProof.utr_reference}
-                    </div>
-                  </div>
-                )}
-                {activeProof.rejection_reason && (
-                  <div className="col-span-2 p-2.5 rounded-xl bg-red-500/10 border border-red-500/15 text-red-400 font-mono">
-                    <strong>Rejection Reason:</strong> {activeProof.rejection_reason}
-                  </div>
-                )}
-              </div>
-
-              {/* Screenshot */}
-              <div className="mb-6">
-                <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
-                  <span>Uploaded Screenshot</span>
-                  <a
-                    href={activeProof.screenshot_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gold hover:underline inline-flex items-center gap-1"
-                  >
-                    Open in new tab <ExternalLink size={10} />
-                  </a>
-                </div>
-                <div className="rounded-2xl overflow-hidden border border-border/80 bg-black aspect-[9/16] max-h-[360px] flex items-center justify-center">
-                  <img
-                    src={activeProof.screenshot_url}
-                    alt="Payment Screenshot"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
-              </div>
-
-              {/* AI Automated Verification Card */}
-              {(aiLoading || aiResult || aiError) && (
-                <div className="mb-6 p-4 rounded-2xl border border-border/80 bg-surface/30 relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gold/20 via-gold to-gold/20 animate-pulse" />
-                  
-                  <div className="flex items-center justify-between mb-3.5">
+              <div className="flex flex-col md:flex-row gap-6 mb-6">
+                {/* ─── LEFT COLUMN: Screenshot Preview ─── */}
+                <div className="flex-1 space-y-4">
+                  {/* Grid details condensed */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-surface/20 p-4 border border-border rounded-2xl">
                     <div>
+                      <div className="text-muted-foreground">Buyer</div>
+                      <div className="font-bold text-foreground mt-0.5">
+                        {activeProof.profiles?.display_name ?? activeProof.profiles?.username ?? "Unknown"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Amount Paid</div>
+                      <div className="font-bold text-gold mt-0.5">
+                        ₹{Number(activeProof.amount).toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Status</div>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border mt-1 ${getStatusColor(
+                          activeProof.status,
+                        )}`}
+                      >
+                        {activeProof.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Screenshot */}
+                  <div className="rounded-2xl overflow-hidden border border-border/80 bg-black aspect-[3/4] flex items-center justify-center relative group">
+                    <img
+                      src={activeProof.screenshot_url}
+                      alt="Payment Screenshot"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                    <a
+                      href={activeProof.screenshot_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2 font-semibold"
+                    >
+                      Open Full Size <ExternalLink size={16} />
+                    </a>
+                  </div>
+                </div>
+
+                {/* ─── RIGHT COLUMN: OCR Extracted Details ─── */}
+                <div className="w-full md:w-[420px] shrink-0">
+                  <div className="h-full rounded-2xl border border-border/80 bg-surface/30 relative overflow-hidden flex flex-col">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gold/20 via-gold to-gold/20" />
+                    
+                    <div className="p-4 border-b border-border/50 shrink-0">
                       <h4 className="font-display text-xs font-extrabold text-gold uppercase tracking-widest flex items-center gap-1.5">
-                        <Sparkles className="size-4 text-gold" /> Payment Proof Verification
+                        <Sparkles className="size-4 text-gold" /> Extracted OCR Details
                       </h4>
                       <p className="text-[10px] text-muted-foreground mt-1 font-mono">
-                        Verified using file timestamp and image metadata
+                        Powered by Slip Miner
                       </p>
                     </div>
-                    {aiResult?.ai_checked_at && (
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        Scanned {new Date(aiResult.ai_checked_at).toLocaleTimeString()}
-                      </span>
-                    )}
-                  </div>
 
-                  {aiLoading ? (
-                    <div className="py-6 flex flex-col items-center justify-center gap-2">
-                      <Loader2 className="size-5 animate-spin text-gold" />
-                      <span className="text-xs text-muted-foreground font-medium animate-pulse font-mono">
-                        Analyzing metadata…
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Show error/warning banner if manual review is requested or there's an error */}
-                      {(aiError || (aiResult && (aiResult.ai_available === false || aiResult.status === "manual_review" || aiResult.status === "manual_review_required"))) && (
+                    <div className="p-4 flex-1 overflow-y-auto">
+                      {ocrLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center gap-3 py-12">
+                          <Loader2 className="size-6 animate-spin text-gold" />
+                          <span className="text-sm text-muted-foreground font-medium animate-pulse font-mono">
+                            Extracting payment details...
+                          </span>
+                        </div>
+                      ) : ocrError ? (
+                        <div className="h-full flex flex-col items-center justify-center gap-3 py-12 text-center px-4">
+                          <div className="size-10 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 mb-2">
+                            <AlertTriangle className="size-5 text-red-400" />
+                          </div>
+                          <h5 className="font-semibold text-sm text-foreground">
+                            Unable to extract payment details
+                          </h5>
+                          <p className="text-xs text-muted-foreground font-mono leading-relaxed">
+                            {ocrError}
+                          </p>
+                        </div>
+                      ) : ocrData ? (
                         <div className="space-y-3">
-                          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2.5">
-                            <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
-                            <div>
-                              <h5 className="font-semibold text-xs text-foreground uppercase tracking-wider">
-                                Metadata unavailable
-                              </h5>
-                              <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed font-mono">
-                                Manual review recommended
-                              </p>
-                            </div>
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">Amount</span>
+                            <span className="text-xs text-right font-extrabold text-foreground">
+                              {ocrData.currency === "INR" ? "₹" : ocrData.currency}{ocrData.amount}
+                            </span>
                           </div>
-                          {(aiError || aiResult?.ai_reason) && (
-                            <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[10px] leading-relaxed font-mono text-muted-foreground">
-                              <strong className="text-gold block mb-1">Reason:</strong>
-                              {aiError && <div className="text-red-400 mb-1">{aiError}</div>}
-                              {aiResult?.ai_reason && <div>{aiResult.ai_reason}</div>}
-                            </div>
-                          )}
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">Date</span>
+                            <span className="text-xs text-right font-bold text-foreground">
+                              {ocrData.date}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">Time</span>
+                            <span className="text-xs text-right font-bold text-foreground">
+                              {ocrData.time}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">UTR / Transaction ID</span>
+                            <span className="text-xs text-right font-mono font-extrabold text-gold tracking-wider select-all break-all">
+                              {ocrData.transaction_id}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">Sender</span>
+                            <span className="text-xs text-right font-bold text-foreground">
+                              {ocrData.sender_name}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">Receiver</span>
+                            <span className="text-xs text-right font-bold text-foreground">
+                              {ocrData.receiver_name}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                            <span className="text-xs text-muted-foreground font-medium">Payment App</span>
+                            <span className="text-xs text-right font-bold text-foreground">
+                              {ocrData.payment_app}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 py-2">
+                            <span className="text-xs text-muted-foreground font-medium">OCR Status</span>
+                            <span className="text-xs text-right flex justify-end">
+                              <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                ocrData.payment_status?.toLowerCase() === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                ocrData.payment_status?.toLowerCase() === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                              }`}>
+                                {ocrData.payment_status || "Unknown"}
+                              </span>
+                            </span>
+                          </div>
                         </div>
-                      )}
-
-                      {/* Always show the score card if we have a result, even a fallback 50/100 */}
-                      {aiResult && (
-                        <div className="space-y-4">
-                          {/* Scoring Header */}
-                          <div className="flex items-center gap-4 bg-surface/40 p-3 rounded-xl border border-border/50">
-                            <div className="relative size-14 shrink-0 flex items-center justify-center rounded-full bg-black/40 border border-border/60">
-                              <span className="font-display text-lg font-extrabold text-foreground">
-                                {aiResult.ai_score}
-                              </span>
-                              <span className="absolute bottom-0.5 text-[8px] text-muted-foreground uppercase font-bold">
-                                /100
-                              </span>
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
-                                  aiResult.ai_score <= 10 
-                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                                    : aiResult.ai_score <= 35 
-                                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                                    : aiResult.ai_score <= 50
-                                    ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
-                                    : "bg-red-500/10 text-red-400 border border-red-500/20"
-                                }`}>
-                                  {aiResult.ai_risk_label}
-                                </span>
-                                <span className="text-[9px] text-muted-foreground border border-border/60 rounded px-1.5 py-0.5 bg-black/20 font-mono">
-                                  {aiResult.ai_recommendation}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-                                Model: <span className="text-foreground font-medium font-mono text-[9px]">{aiResult.ai_model_used}</span>
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Analytics Grid */}
-                          <div className="grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Amount Match</span>
-                              <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
-                                {aiResult.ai_amount_match ? (
-                                  <span className="text-emerald-400">✅ Match</span>
-                                ) : (
-                                  <span className="text-red-400">❌ Mismatch</span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UTR Detected</span>
-                              <span className="font-mono text-foreground font-extrabold mt-0.5 block truncate select-all">
-                                {aiResult.ai_utr || "N/A"}
-                              </span>
-                            </div>
-                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Timestamp Audit</span>
-                              <span className="text-foreground font-extrabold mt-0.5 block truncate">
-                                {aiResult.ai_timestamp_match || "Unknown"}
-                              </span>
-                            </div>
-                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UI Authenticity</span>
-                              <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
-                                <span className={aiResult.ai_authenticity_score >= 80 ? "text-emerald-400" : aiResult.ai_authenticity_score >= 50 ? "text-yellow-400" : "text-red-400"}>
-                                  {aiResult.ai_authenticity_score}% Reliable
-                                </span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Explanatory summary */}
-                          <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[11px] leading-relaxed font-mono">
-                            <strong className="text-gold block mb-1">Metadata Verification Summary:</strong>
-                            {aiResult.ai_reason}
-                          </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center py-12 text-muted-foreground text-xs font-mono">
+                          No data available
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              )}
+              </div>
 
               {/* Actions */}
               {activeProof.status === "pending" && (
-                <div className="flex gap-3">
+                <div className="flex gap-4 shrink-0 border-t border-border/50 pt-5 mt-auto">
                   <button
                     onClick={() => setShowRejectModal(true)}
                     disabled={actioning}
-                    className="flex-1 h-11 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="flex-1 h-12 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    <X size={14} /> Reject
+                    <X size={16} /> Reject Payment
                   </button>
                   <button
                     onClick={() => setShowApproveModal(true)}
                     disabled={actioning}
-                    className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
+                    className="flex-1 h-12 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
                   >
-                    <Check size={14} /> Approve & Confirm
+                    <Check size={16} /> Approve & Confirm
                   </button>
                 </div>
               )}
