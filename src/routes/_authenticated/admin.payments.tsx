@@ -164,21 +164,41 @@ function AdminPayments() {
       setOcrError(null);
       setOcrLoading(true);
 
-      extractPaymentDetails({ data: activeProof.id })
-        .then((res: any) => {
-          if (res) {
-            setOcrData(res);
-          } else {
-            setOcrError("No OCR data returned.");
+      const processOcr = async () => {
+        try {
+          console.log("[OCR Verification] Fetching screenshot blob directly...");
+          const imageRes = await fetch(activeProof.screenshot_url);
+          if (!imageRes.ok) throw new Error("Failed to download screenshot for OCR");
+          
+          const blob = await imageRes.blob();
+          const formData = new FormData();
+          
+          // Use generic filename and type based on blob
+          const extension = blob.type.split("/")[1] || "jpg";
+          formData.append("image", blob, `screenshot.${extension}`);
+
+          console.log("[OCR Verification] Sending directly to Lovable API...");
+          const ocrRes = await fetch("https://pay-slip-miner.lovable.app/api/extract-payment", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!ocrRes.ok) {
+            const errText = await ocrRes.text().catch(() => "Unknown API error");
+            throw new Error(`OCR API responded with ${ocrRes.status}: ${errText}`);
           }
-        })
-        .catch((err: any) => {
+
+          const resData = await ocrRes.json();
+          setOcrData(resData);
+        } catch (err: any) {
           console.error("[OCR Verification] Fetch error:", err);
           setOcrError(err.message || "Failed to extract payment details.");
-        })
-        .finally(() => {
+        } finally {
           setOcrLoading(false);
-        });
+        }
+      };
+
+      processOcr();
     } else {
       setOcrData(null);
       setOcrLoading(false);
