@@ -65,6 +65,7 @@ function UnifiedPaymentPage() {
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
+  const [utrReference, setUtrReference] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch listing & seller info if listingId is provided
@@ -173,6 +174,11 @@ function UnifiedPaymentPage() {
       return;
     }
 
+    if (!utrReference.trim()) {
+      toast.error("Please enter your UTR / transaction reference number.");
+      return;
+    }
+
     const supabase = getSupabase();
     if (!supabase || !user) {
       toast.error("Database connection not configured.");
@@ -231,8 +237,8 @@ function UnifiedPaymentPage() {
       const filePath = `${user.id}/${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
 
       const { error: uploadErr } = await supabase.storage
-        .from("payment-proofs")
-        .upload(filePath, file, { upsert: true, contentType: file.type });
+          .from("payment-proofs")
+          .upload(filePath, file, { upsert: true, contentType: file.type });
 
       let bucketName = "payment-proofs";
       if (uploadErr) {
@@ -251,10 +257,13 @@ function UnifiedPaymentPage() {
 
       // 4. Create record in public.payment_proofs (New unified schema table)
       const unifiedPayload = {
+        buyer_id: user.id,
         user_id: user.id,
+        order_id: isSubscription ? null : finalOrderId,
         listing_id: isSubscription ? null : listingIdParam,
         payment_type: isSubscription ? "subscription" : "listing",
         amount: checkoutPrice,
+        utr_reference: utrReference.trim(),
         screenshot_url: screenshotUrl,
         payment_reference: isSubscription ? `subscription:${planMeta.id}` : `order:${finalOrderId}`,
         status: "pending",
@@ -297,10 +306,13 @@ function UnifiedPaymentPage() {
             event_type: "proof_uploaded",
             payload: {
               user_id: user.id,
+              buyer_id: user.id,
+              order_id: finalOrderId,
               screenshot_url: screenshotUrl,
               screenshot_hash: `hash_${Date.now()}`,
               amount: checkoutPrice,
               status: "pending",
+              utr_reference: utrReference.trim(),
               payment_reference: `order:${finalOrderId}`,
             },
           })
@@ -551,10 +563,28 @@ function UnifiedPaymentPage() {
                     </div>
                   )}
 
+                  {/* UTR / Transaction Reference Input */}
+                  <div className="space-y-2 text-left bg-surface/10 border border-border p-5 rounded-2xl">
+                    <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Clock size={13} className="text-gold" /> UTR / Transaction Reference <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter 12-digit UPI UTR or Bank Reference No."
+                      value={utrReference}
+                      onChange={(e) => setUtrReference(e.target.value)}
+                      className="w-full h-11 px-4 rounded-xl bg-surface/50 border border-border focus:border-gold/50 text-sm outline-none text-foreground placeholder:text-muted-foreground transition-all duration-300"
+                      required
+                    />
+                    <p className="text-[10px] text-muted-foreground leading-normal">
+                      This is the 12-digit number found in your payment transaction details. Providing it ensures immediate and precise admin approval.
+                    </p>
+                  </div>
+
                   {/* Action submit button */}
                   <button
                     onClick={handleSubmitProof}
-                    disabled={!file || uploading}
+                    disabled={!file || !utrReference.trim() || uploading}
                     className="w-full h-12 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 disabled:opacity-50 active:scale-98 transition-all inline-flex items-center justify-center gap-1.5 shadow-lg shadow-gold/10 cursor-pointer border-none"
                   >
                     {uploading ? (

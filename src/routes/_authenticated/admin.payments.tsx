@@ -34,6 +34,7 @@ interface UnifiedProofRow {
   amount: number;
   screenshot_url: string;
   payment_reference: string | null;
+  utr_reference: string | null;
   status: string;
   rejection_reason: string | null;
   created_at: string;
@@ -66,145 +67,55 @@ function AdminPayments() {
     if (!supabase) return;
     setLoading(true);
     try {
-      let combinedProofs: UnifiedProofRow[] = [];
-
-      // 1. Fetch listing manual proofs from payment_events table
-      const { data: events, error: eventsErr } = await supabase
-        .from("payment_events")
-        .select("*")
-        .eq("provider", "manual")
-        .eq("event_type", "proof_uploaded")
+      // Fetch all proofs directly from the single unified table payment_proofs
+      const { data: proofsData, error: proofsErr } = await supabase
+        .from("payment_proofs")
+        .select(`
+          *,
+          listings:listing_id (
+            title,
+            cover_image_url
+          )
+        `)
         .order("created_at", { ascending: false });
 
-      if (eventsErr) {
-        console.error("[AdminPayments] Error fetching payment_events:", eventsErr);
-      } else if (events && events.length > 0) {
-        // Collect all order IDs to fetch order details
-        const orderIds = events.map(e => e.order_id).filter(Boolean);
+      if (proofsErr) throw proofsErr;
+
+      if (proofsData && proofsData.length > 0) {
+        // Collect all unique user IDs to fetch buyer profiles in batch
+        const userIds = proofsData.map(p => p.user_id).filter(Boolean);
         
-        if (orderIds.length > 0) {
-          const { data: orders, error: ordersErr } = await supabase
-            .from("orders")
-            .select(`
-              id,
-              buyer_id,
-              seller_id,
-              listing_title,
-              amount_inr,
-              status,
-              payment_status,
-              listings:listing_id (
-                id,
-                title,
-                cover_image_url
-              )
-            `)
-            .in("id", orderIds);
-
-          if (ordersErr) {
-            console.error("[AdminPayments] Error fetching associated orders:", ordersErr);
-          } else if (orders) {
-            // Fetch profiles separately to bypass relationship limitations
-            const buyerIds = orders.map(o => o.buyer_id).filter(Boolean);
-            let profiles: any[] = [];
-            
-            if (buyerIds.length > 0) {
-              const { data: profs, error: profsErr } = await supabase
-                .from("profiles")
-                .select("id, display_name, username")
-                .in("id", buyerIds);
-              if (!profsErr && profs) {
-                profiles = profs;
-              } else if (profsErr) {
-                console.error("[AdminPayments] Error fetching profiles for orders:", profsErr);
-              }
-            }
-
-            // Map payment_events to UnifiedProofRow interface
-            const mappedListings: UnifiedProofRow[] = events.map(event => {
-              const orderObj = orders.find(o => o.id === event.order_id);
-              const payload = event.payload || {};
-              const buyerId = payload.user_id || orderObj?.buyer_id || "";
-              const buyerProfile = profiles.find(p => p.id === buyerId);
-              const listingObj = orderObj?.listings || null;
-              
-              return {
-                id: event.id,
-                user_id: buyerId,
-                listing_id: listingObj?.id || null,
-                payment_type: "listing",
-                amount: payload.amount || orderObj?.amount_inr || 0,
-                screenshot_url: payload.screenshot_url || "",
-                payment_reference: `order:${event.order_id}`,
-                status: payload.status || "pending",
-                rejection_reason: payload.rejection_reason || payload.staff_note || null,
-                created_at: event.created_at,
-                profiles: buyerProfile ? {
-                  display_name: buyerProfile.display_name,
-                  username: buyerProfile.username,
-                  email: null // email column does not exist on profiles in production DB
-                } : null,
-                listings: listingObj ? {
-                  title: listingObj.title || orderObj?.listing_title || "Listing",
-                  cover_image_url: listingObj.cover_image_url
-                } : (orderObj?.listing_title ? { title: orderObj.listing_title, cover_image_url: null } : null)
-              };
-            });
-            combinedProofs.push(...mappedListings);
-          }
-        }
-      }
-
-      // 2. Fetch subscription proofs from subscription_payment_proofs table
-      const { data: subs, error: subsErr } = await supabase
-        .from("subscription_payment_proofs")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (subsErr) {
-        console.error("[AdminPayments] Error fetching subscription_payment_proofs:", subsErr);
-      } else if (subs && subs.length > 0) {
-        const userIds = subs.map(s => s.user_id).filter(Boolean);
         if (userIds.length > 0) {
           const { data: profiles, error: profsErr } = await supabase
             .from("profiles")
-            .select("id, display_name, username")
+            .select("id, display_name, username") // Omit email column as it does not exist
             .in("id", userIds);
 
           if (profsErr) {
-            console.error("[AdminPayments] Error fetching profiles for subscriptions:", profsErr);
-          } else {
-            const mappedSubs: UnifiedProofRow[] = subs.map(sub => {
-              const prof = profiles?.find(p => p.id === sub.user_id);
-              return {
-                id: sub.id,
-                user_id: sub.user_id,
-                listing_id: null,
-                payment_type: "subscription",
-                amount: sub.amount,
-                screenshot_url: sub.screenshot_url,
-                payment_reference: `subscription:${(sub.selected_plan || "pro").toLowerCase()}`,
-                status: sub.status,
-                rejection_reason: sub.rejection_reason || null,
-                created_at: sub.created_at || new Date().toISOString(),
-                profiles: prof ? {
-                  display_name: prof.display_name,
-                  username: prof.username,
-                  email: null
-                } : null,
-                listings: null
-              };
-            });
-            combinedProofs.push(...mappedSubs);
+            console.error("[AdminPayments] Error fetching profiles:", profsErr);
           }
-        }
-      }
 
-      // Sort by created_at descending
-      combinedProofs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setProofs(combinedProofs);
+          // Map profiles onto the proofs
+          const mappedProofs = proofsData.map(proof => {
+            const prof = profiles?.find(p => p.id === proof.user_id);
+            return {
+              ...proof,
+              profiles: prof ? {
+                display_name: prof.display_name,
+                username: prof.username,
+                email: null // email column does not exist on profiles in production DB
+              } : null
+            };
+          });
+          setProofs(mappedProofs);
+        } else {
+          setProofs(proofsData as UnifiedProofRow[]);
+        }
+      } else {
+        setProofs([]);
+      }
     } catch (err: any) {
-      console.error("[AdminPayments] Error in combined fetch:", err);
+      console.error("[AdminPayments] Error fetching payment_proofs:", err);
       toast.error(`Failed to load payment proofs: ${err.message}`);
     } finally {
       setLoading(false);
@@ -215,19 +126,12 @@ function AdminPayments() {
     fetchProofs();
 
     if (!supabase) return;
-    // Realtime subscription for live updates on active tables
+    // Realtime subscription for live updates on unified payment_proofs table
     const subscription = supabase
-      .channel("payment_events_admin_changes")
+      .channel("payment_proofs_admin_changes")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "payment_events" },
-        () => {
-          fetchProofs();
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "subscription_payment_proofs" },
+        { event: "*", schema: "public", table: "payment_proofs" },
         () => {
           fetchProofs();
         },
@@ -251,30 +155,43 @@ function AdminPayments() {
 
     setActioning(true);
     try {
-      // 1. Update status in the correct active table
-      if (proof.payment_type === "listing") {
-        const { data: event, error: eventFetchErr } = await supabase
-          .from("payment_events")
-          .select("*")
-          .eq("id", proof.id)
-          .single();
+      // 1. Update payment_proofs row directly
+      const { error: proofErr } = await supabase
+        .from("payment_proofs")
+        .update({ status: "approved", rejection_reason: null, updated_at: new Date().toISOString() })
+        .eq("id", proof.id);
 
-        if (eventFetchErr) throw eventFetchErr;
+      if (proofErr) throw proofErr;
 
-        const newPayload = { ...event.payload, status: "approved", rejection_reason: null };
-        const { error: eventUpdateErr } = await supabase
-          .from("payment_events")
-          .update({ payload: newPayload, processed: true })
-          .eq("id", proof.id);
+      // Safe non-blocking sync to legacy/active tables
+      try {
+        if (proof.payment_type === "listing") {
+          const orderId = proof.payment_reference?.replace("order:", "");
+          if (orderId) {
+            const { data: event } = await supabase
+              .from("payment_events")
+              .select("*")
+              .eq("order_id", orderId)
+              .eq("provider", "manual")
+              .maybeSingle();
 
-        if (eventUpdateErr) throw eventUpdateErr;
-      } else if (proof.payment_type === "subscription") {
-        const { error: subUpdateErr } = await supabase
-          .from("subscription_payment_proofs")
-          .update({ status: "approved", rejection_reason: null })
-          .eq("id", proof.id);
-
-        if (subUpdateErr) throw subUpdateErr;
+            if (event) {
+              const newPayload = { ...event.payload, status: "approved", rejection_reason: null };
+              await supabase
+                .from("payment_events")
+                .update({ payload: newPayload, processed: true })
+                .eq("id", event.id);
+            }
+          }
+        } else if (proof.payment_type === "subscription") {
+          await supabase
+            .from("subscription_payment_proofs")
+            .update({ status: "approved", rejection_reason: null })
+            .eq("user_id", proof.user_id)
+            .eq("status", "pending");
+        }
+      } catch (syncEx) {
+        console.warn("[AdminPayments] Non-blocking legacy sync exception:", syncEx);
       }
 
       // 2. For listing purchases — process order approval flow
@@ -459,34 +376,47 @@ function AdminPayments() {
 
     setActioning(true);
     try {
-      // Update in correct active table
-      if (activeProof.payment_type === "listing") {
-        const { data: event, error: eventFetchErr } = await supabase
-          .from("payment_events")
-          .select("*")
-          .eq("id", activeProof.id)
-          .single();
+      // 1. Update payment_proofs directly
+      const { error } = await supabase
+        .from("payment_proofs")
+        .update({
+          status: "rejected",
+          rejection_reason: rejectionReason.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", activeProof.id);
 
-        if (eventFetchErr) throw eventFetchErr;
+      if (error) throw error;
 
-        const newPayload = { 
-          ...event.payload, 
-          status: "rejected", 
-          rejection_reason: rejectionReason.trim() 
-        };
-        const { error: eventUpdateErr } = await supabase
-          .from("payment_events")
-          .update({ payload: newPayload, processed: false })
-          .eq("id", activeProof.id);
+      // Safe non-blocking sync to legacy/active tables
+      try {
+        if (activeProof.payment_type === "listing") {
+          const orderId = activeProof.payment_reference?.replace("order:", "");
+          if (orderId) {
+            const { data: event } = await supabase
+              .from("payment_events")
+              .select("*")
+              .eq("order_id", orderId)
+              .eq("provider", "manual")
+              .maybeSingle();
 
-        if (eventUpdateErr) throw eventUpdateErr;
-      } else if (activeProof.payment_type === "subscription") {
-        const { error: subUpdateErr } = await supabase
-          .from("subscription_payment_proofs")
-          .update({ status: "rejected", rejection_reason: rejectionReason.trim() })
-          .eq("id", activeProof.id);
-
-        if (subUpdateErr) throw subUpdateErr;
+            if (event) {
+              const newPayload = { ...event.payload, status: "rejected", rejection_reason: rejectionReason.trim() };
+              await supabase
+                .from("payment_events")
+                .update({ payload: newPayload, processed: false })
+                .eq("id", event.id);
+            }
+          }
+        } else if (activeProof.payment_type === "subscription") {
+          await supabase
+            .from("subscription_payment_proofs")
+            .update({ status: "rejected", rejection_reason: rejectionReason.trim() })
+            .eq("user_id", activeProof.user_id)
+            .eq("status", "pending");
+        }
+      } catch (syncEx) {
+        console.warn("[AdminPayments] Non-blocking legacy reject sync exception:", syncEx);
       }
 
       // For listing type — update order status
@@ -557,7 +487,8 @@ function AdminPayments() {
       name.toLowerCase().includes(search.toLowerCase()) ||
       email.toLowerCase().includes(search.toLowerCase()) ||
       listingName.toLowerCase().includes(search.toLowerCase()) ||
-      (p.payment_reference || "").toLowerCase().includes(search.toLowerCase());
+      (p.payment_reference || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.utr_reference || "").toLowerCase().includes(search.toLowerCase());
     return matchesStatus && matchesType && matchesSearch;
   });
 
@@ -836,6 +767,16 @@ function AdminPayments() {
                     <div className="text-muted-foreground">Reference</div>
                     <div className="text-foreground mt-0.5 font-mono text-[11px]">
                       {activeProof.payment_reference}
+                    </div>
+                  </div>
+                )}
+                {activeProof.utr_reference && (
+                  <div className="col-span-2 border-t border-border/40 pt-2">
+                    <div className="text-gold font-bold flex items-center gap-1">
+                      UTR / Transaction Reference
+                    </div>
+                    <div className="text-foreground mt-1 font-mono text-sm tracking-wider font-extrabold select-all">
+                      {activeProof.utr_reference}
                     </div>
                   </div>
                 )}
