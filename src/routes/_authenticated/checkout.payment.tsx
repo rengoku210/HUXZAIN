@@ -281,18 +281,52 @@ function UnifiedPaymentPage() {
             status: "pending"
           });
       } else if (finalOrderId) {
-        // Save to payment_verifications table so order reviews dashboard works
-        const { data: verificationData, error: verErr } = await supabase
-          .from("payment_verifications")
+        console.log("[Unified Checkout] Submitting listing payment proof to payment_events...", {
+          order_id: finalOrderId,
+          user_id: user.id,
+          amount: checkoutPrice,
+          screenshot_url: screenshotUrl,
+        });
+
+        // Save to payment_events table
+        const { data: eventData, error: eventErr } = await supabase
+          .from("payment_events")
           .insert({
             order_id: finalOrderId,
-            user_id: user.id,
-            screenshot_url: screenshotUrl,
-            screenshot_hash: `hash_${Date.now()}`,
-            status: "pending",
+            provider: "manual",
+            event_type: "proof_uploaded",
+            payload: {
+              user_id: user.id,
+              screenshot_url: screenshotUrl,
+              screenshot_hash: `hash_${Date.now()}`,
+              amount: checkoutPrice,
+              status: "pending",
+              payment_reference: `order:${finalOrderId}`,
+            },
           })
-          .select("id")
-          .single();
+          .select("*");
+
+        if (eventErr) {
+          console.error("[Unified Checkout] Error saving to payment_events table:", eventErr);
+          throw eventErr;
+        }
+
+        console.log("[Unified Checkout] Successfully inserted payment_event:", eventData);
+
+        // Try writing to legacy payment_verifications as non-blocking
+        try {
+          await supabase
+            .from("payment_verifications")
+            .insert({
+              order_id: finalOrderId,
+              user_id: user.id,
+              screenshot_url: screenshotUrl,
+              screenshot_hash: `hash_${Date.now()}`,
+              status: "pending",
+            });
+        } catch (e) {
+          console.warn("[Unified Checkout] Non-blocking legacy payment_verifications insert failed:", e);
+        }
 
         // Update transaction status
         await supabase
