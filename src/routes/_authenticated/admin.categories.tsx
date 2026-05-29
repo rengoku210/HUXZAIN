@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Loader2, X, CheckCircle2 } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
@@ -150,6 +150,8 @@ function Page() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState<Partial<Category> | null | undefined>(undefined);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function fetchCategories() {
     const supabase = getSupabase();
@@ -174,15 +176,27 @@ function Page() {
     fetchCategories();
   }, []);
 
-  async function deleteCategory(id: string) {
-    if (!confirm("Delete this category?")) return;
+  async function executeDelete() {
+    if (!deleteTarget) return;
     const supabase = getSupabase();
     if (!supabase) return;
-    const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Category deleted.");
-      fetchCategories();
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("categories").delete().eq("id", deleteTarget);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Category deleted successfully.");
+        // OPTIMISTIC UPDATE: filter out from state immediately
+        setCategories((prev) => prev.filter((c) => c.id !== deleteTarget));
+        setDeleteTarget(null);
+        // Background sync
+        fetchCategories();
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -247,8 +261,8 @@ function Page() {
                           >
                             <Edit size={16} />
                           </button>
-                          <button
-                            onClick={() => deleteCategory(c.id)}
+                           <button
+                            onClick={() => setDeleteTarget(c.id)}
                             className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"
                             title="Delete"
                           >
@@ -264,6 +278,43 @@ function Page() {
           )}
         </PanelCard>
       </div>
+
+      {/* ─── CUSTOM DELETE CONFIRMATION MODAL ─── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-red-400">
+              <AlertCircle size={18} /> Confirm Category Deletion
+            </h3>
+            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
+              Are you sure you want to delete this category? This action cannot be undone and will permanently remove this category from the marketplace.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDelete}
+                disabled={deleting}
+                className="flex-1 h-10 rounded-xl bg-red-500 text-white hover:brightness-110 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer border-none"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  "Delete Category"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
-import { Loader2, Trash2, Eye, EyeOff, Flag } from "lucide-react";
+import { Loader2, Trash2, Eye, EyeOff, Flag, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/listings")({
@@ -22,6 +22,8 @@ type Listing = {
 function Page() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const supabase = getSupabase();
 
   async function fetchListings() {
@@ -46,14 +48,25 @@ function Page() {
     fetchListings();
   }, []);
 
-  async function deleteListing(id: string) {
-    if (!supabase) return;
-    if (!confirm("Delete this listing? This cannot be undone.")) return;
-    const { error } = await supabase.from("listings").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Listing deleted.");
-      fetchListings();
+  async function executeDelete() {
+    if (!supabase || !deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("listings").delete().eq("id", deleteTarget);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Listing deleted successfully.");
+        // OPTIMISTIC UPDATE: instantly remove listing from UI state
+        setListings((prev) => prev.filter((l) => l.id !== deleteTarget));
+        setDeleteTarget(null);
+        // Silent refetch to sync background state
+        fetchListings();
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -156,7 +169,7 @@ function Page() {
                           <Flag className="size-4" />
                         </button>
                         <button
-                          onClick={() => deleteListing(l.id)}
+                          onClick={() => setDeleteTarget(l.id)}
                           className="inline-flex items-center p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"
                           title="Delete"
                         >
@@ -171,6 +184,43 @@ function Page() {
           )}
         </PanelCard>
       </div>
+
+      {/* ─── CUSTOM DELETE CONFIRMATION MODAL ─── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-red-400">
+              <AlertCircle size={18} /> Confirm Listing Deletion
+            </h3>
+            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
+              Are you sure you want to delete this listing? This action cannot be undone and will permanently remove this listing from the marketplace.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDelete}
+                disabled={deleting}
+                className="flex-1 h-10 rounded-xl bg-red-500 text-white hover:brightness-110 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer border-none"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  "Delete Listing"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

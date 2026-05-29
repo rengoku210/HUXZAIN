@@ -12,6 +12,7 @@ import {
   Loader2,
   CheckCircle2,
   ImagePlus,
+  AlertCircle,
 } from "lucide-react";
 import { PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
@@ -540,6 +541,7 @@ function Page() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [editTarget, setEditTarget] = useState<Partial<Listing> | null | undefined>(undefined); // undefined = closed
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showPublishSuccess, setShowPublishSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -609,18 +611,28 @@ function Page() {
     }
   }, [intent]);
 
-  async function deleteListing(id: string) {
-    if (!confirm("Delete this listing? This cannot be undone.")) return;
+  async function executeDelete() {
+    if (!deleteTarget) return;
     const supabase = getSupabase();
     if (!supabase) return;
-    setDeleting(id);
-    const { error } = await supabase.from("listings").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Listing deleted.");
-      fetchListings();
+    setDeleting(deleteTarget);
+    try {
+      const { error } = await supabase.from("listings").delete().eq("id", deleteTarget);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Listing deleted successfully.");
+        // OPTIMISTIC UPDATE: filter out the deleted listing from state immediately
+        setListings((prev) => prev.filter((l) => l.id !== deleteTarget));
+        setDeleteTarget(null);
+        // Background sync
+        fetchListings();
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setDeleting(null);
     }
-    setDeleting(null);
   }
 
   const filtered = listings.filter((l) => l.title.toLowerCase().includes(query.toLowerCase()));
@@ -802,8 +814,8 @@ function Page() {
                             <Edit className="size-4" />
                           </button>
                           <button
-                            onClick={() => deleteListing(l.id)}
-                            disabled={deleting === l.id}
+                            onClick={() => setDeleteTarget(l.id)}
+                            disabled={deleting === l.id || deleting !== null}
                             className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
                             title="Delete"
                           >
@@ -823,6 +835,43 @@ function Page() {
           )}
         </PanelCard>
       </div>
+
+      {/* ─── CUSTOM DELETE CONFIRMATION MODAL ─── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-red-400">
+              <AlertCircle size={18} /> Confirm Listing Deletion
+            </h3>
+            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
+              Are you sure you want to delete this listing? This action cannot be undone and will permanently remove this listing from your store.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting !== null}
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDelete}
+                disabled={deleting !== null}
+                className="flex-1 h-10 rounded-xl bg-red-500 text-white hover:brightness-110 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer border-none"
+              >
+                {deleting !== null ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  "Delete Listing"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
