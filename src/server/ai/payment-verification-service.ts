@@ -76,12 +76,15 @@ function resolveSupabaseAnonKey(): string {
   return (
     getEnvVar("SUPABASE_ANON_KEY") ||
     getEnvVar("VITE_SUPABASE_ANON_KEY") ||
-    ""
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZW9yYWNxeXdnd2J2d2lqd3FxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NDU5ODksImV4cCI6MjA5NDQyMTk4OX0.2a1f8ZaQbhgRsTu3gU2OwnZDsWBmB49MI78tKpPdZvc"
   );
 }
 
 function resolveSupabaseServiceKey(): string {
-  return getEnvVar("SUPABASE_SERVICE_ROLE_KEY") || "";
+  return (
+    getEnvVar("SUPABASE_SERVICE_ROLE_KEY") ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZW9yYWNxeXdnd2J2d2lqd3FxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODg0NTk4OSwiZXhwIjoyMDk0NDIxOTg5fQ.Im5EMmwnG2GZLlnC7uHkhOA_AdpYqDVoGAVtPBPZftE"
+  );
 }
 
 // ── Supabase Clients ─────────────────────────────────────────────────
@@ -482,6 +485,13 @@ function buildFallbackResult(proofId: string, reason: string): VerificationResul
 export async function verifyPaymentProof(proofId: string): Promise<VerificationResult> {
   console.log(`\n${"═".repeat(60)}`);
   console.log(`${LOG_TAG} Pipeline started for proof ID: ${proofId}`);
+  console.log(`${LOG_TAG} Runtime env diagnostics:`);
+  console.log(`${LOG_TAG}   NVIDIA_API_KEY present: ${!!getEnvVar("NVIDIA_API_KEY")} (len=${getEnvVar("NVIDIA_API_KEY").length})`);
+  console.log(`${LOG_TAG}   SUPABASE_URL present: ${!!getEnvVar("SUPABASE_URL")} (len=${getEnvVar("SUPABASE_URL").length})`);
+  console.log(`${LOG_TAG}   SUPABASE_ANON_KEY present: ${!!getEnvVar("SUPABASE_ANON_KEY")} (len=${getEnvVar("SUPABASE_ANON_KEY").length})`);
+  console.log(`${LOG_TAG}   SUPABASE_SERVICE_ROLE_KEY present: ${!!getEnvVar("SUPABASE_SERVICE_ROLE_KEY")} (len=${getEnvVar("SUPABASE_SERVICE_ROLE_KEY").length})`);
+  console.log(`${LOG_TAG}   Resolved Supabase URL: ${resolveSupabaseUrl()}`);
+  console.log(`${LOG_TAG}   Resolved Anon Key (first 20): ${resolveSupabaseAnonKey().substring(0, 20)}...`);
   console.log(`${"═".repeat(60)}`);
 
   // ── Validate API Key ───────────────────────────────────────────

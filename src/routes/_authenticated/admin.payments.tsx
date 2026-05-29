@@ -991,10 +991,11 @@ function AdminPayments() {
                           </p>
                         </div>
                       </div>
-                      {aiResult?.ai_reason && (
+                      {(aiError || aiResult?.ai_reason) && (
                         <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[10px] leading-relaxed font-mono text-muted-foreground">
                           <strong className="text-gold block mb-1">Reason:</strong>
-                          {aiResult.ai_reason}
+                          {aiError && <div className="text-red-400 mb-1">{aiError}</div>}
+                          {aiResult?.ai_reason && <div>{aiResult.ai_reason}</div>}
                         </div>
                       )}
                     </div>
