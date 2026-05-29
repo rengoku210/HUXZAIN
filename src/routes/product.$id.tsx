@@ -111,6 +111,12 @@ function ProductPage() {
   }, [id]);
 
   async function handleBuyNow() {
+    console.log("[BuyNow] Button click triggered", {
+      isAuthenticated,
+      userId: user?.id,
+      listingId: id,
+    });
+
     if (!isAuthenticated || !user) {
       toast.error("Please sign in to purchase.");
       navigate({ to: "/login", search: { redirect: `/product/${id}` } });
@@ -131,49 +137,85 @@ function ProductPage() {
       return;
     }
 
+    console.log("[BuyNow] Starting order creation:", {
+      buyer_id: user.id,
+      seller_id: listing.seller_id,
+      listing_id: listing.id,
+      listing_title: listing.title,
+    });
+
     setOrdering(true);
     try {
       const price = listingPrice(listing);
+
+      // Create order using correct live DB columns
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           buyer_id: user.id,
           seller_id: listing.seller_id,
           listing_id: listing.id,
-          qty: 1,
-          amount_total: price,
-          currency: listing.currency ?? "INR",
-          payment_method: "manual",
-          status: "pending_payment",
+          listing_title: listing.title,
+          amount_inr: price,
+          status: "pending",
+          payment_status: "pending_verification",
+          payment_method: "manual"
         })
         .select("id")
         .single();
-      if (orderError) throw orderError;
 
-      const amountCents = Math.round(price * 100);
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        order_id: order.id,
-        type: "charge",
-        amount_cents: amountCents,
-        currency: listing.currency ?? "INR",
-        ref: `manual:${order.id}`,
-        status: "pending",
-      });
+      if (orderError) {
+        console.error("[BuyNow] Supabase order insertion error object:", orderError);
+        throw orderError;
+      }
 
-      await supabase.from("notifications").insert({
-        user_id: listing.seller_id,
-        kind: "order.created",
-        title: "New order received",
-        body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
+      console.log("[BuyNow] Created order successfully. ID:", order.id);
+
+      // Insert transaction charge tracking
+      try {
+        const amountCents = Math.round(price * 100);
+        const { error: txError } = await supabase.from("transactions").insert({
+          user_id: user.id,
+          order_id: order.id,
+          type: "charge",
+          amount_cents: amountCents,
+          currency: "INR",
+          ref: `manual:${order.id}`,
+          status: "pending",
+        });
+        if (txError) {
+          console.warn("[BuyNow] Transaction insert non-blocking error:", txError);
+        }
+      } catch (txEx) {
+        console.warn("[BuyNow] Transaction insert non-blocking exception:", txEx);
+      }
+
+      // Safe notification insert (do not block checkout if RLS restricts buyer insert)
+      try {
+        await supabase.from("notifications").insert({
+          user_id: listing.seller_id,
+          kind: "order.created",
+          title: "New order received",
+          body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
+        });
+      } catch (notifEx) {
+        console.warn("[BuyNow] Notifications insert non-blocking exception:", notifEx);
+      }
+
+      const redirectPath = "/checkout/payment";
+      const searchParams = { orderId: order.id, listingId: listing.id, price: String(price) };
+      console.log("[BuyNow] Redirecting buyer to checkout payment page:", {
+        path: redirectPath,
+        search: searchParams,
       });
 
       navigate({
-        to: "/checkout/payment",
-        search: { orderId: order.id, listingId: listing.id, price: String(price) },
+        to: redirectPath,
+        search: searchParams,
       });
     } catch (e: any) {
-      toast.error(`Checkout failed: ${e.message}`);
+      console.error("[BuyNow] Unhandled checkout exception:", e);
+      toast.error("Unable to start checkout. Please try again.");
     } finally {
       setOrdering(false);
     }
