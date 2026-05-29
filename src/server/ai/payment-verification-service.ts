@@ -102,6 +102,20 @@ function getAdminClient(): SupabaseClient | null {
   return createClient(url, serviceKey);
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (err: any) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 // ── Step A: Download Image & Convert to Base64 ───────────────────────
 async function downloadImageAsBase64(imageUrl: string): Promise<string> {
   let absoluteUrl = imageUrl;
@@ -113,7 +127,18 @@ async function downloadImageAsBase64(imageUrl: string): Promise<string> {
   }
 
   console.log(`${LOG_TAG} Step A: Fetching screenshot from: ${absoluteUrl}`);
-  const response = await fetch(absoluteUrl);
+  console.log("[AI] Fetching screenshot");
+  
+  let response;
+  try {
+    response = await fetchWithTimeout(absoluteUrl, {}, 8000);
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error("Image download timeout");
+    }
+    throw err;
+  }
+
   console.log(`${LOG_TAG} Step A: Fetch response status: ${response.status} ${response.statusText}`);
 
   if (!response.ok) {
@@ -122,6 +147,7 @@ async function downloadImageAsBase64(imageUrl: string): Promise<string> {
 
   const buffer = await response.arrayBuffer();
   const byteLength = buffer.byteLength;
+  console.log("[AI] Screenshot fetched successfully");
   console.log(`${LOG_TAG} Step A: Downloaded ${byteLength} bytes`);
 
   if (byteLength < 100) {
@@ -139,6 +165,7 @@ async function downloadImageAsBase64(imageUrl: string): Promise<string> {
 // ── Step B: Primary OCR via NVIDIA Llama 3.2 11B Vision ───────────────
 async function runLlama11bOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
   console.log(`${LOG_TAG} Step B: Llama 3.2 11B Vision OCR request starting...`);
+  console.log("[AI] Running Phi-4");
 
   const prompt = `Analyze the provided payment screenshot and extract all visible information.
 Return your findings ONLY as a valid JSON object with these exact keys:
@@ -159,7 +186,7 @@ Important:
 - Return ONLY the JSON. No markdown. No explanation.`;
 
   try {
-    const response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+    const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -179,7 +206,7 @@ Important:
         max_tokens: 512,
         temperature: 0.1,
       }),
-    });
+    }, 20000);
 
     console.log(`${LOG_TAG} Step B: Llama 11B API response: ${response.status} ${response.statusText}`);
 
@@ -202,6 +229,7 @@ Important:
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractionData;
     console.log(`${LOG_TAG} Step B: Llama 11B parsed successfully:`, JSON.stringify(parsed));
+    console.log("[AI] Phi-4 completed");
     return parsed;
   } catch (err: any) {
     console.error(`${LOG_TAG} Step B: Llama 11B exception:`, err.message);
@@ -212,6 +240,7 @@ Important:
 // ── Step C: Fallback OCR via Llama 3.2 90B Vision ────────────────────
 async function runLlama90bOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
   console.log(`${LOG_TAG} Step C: Llama 3.2 90B Vision fallback OCR starting...`);
+  console.log("[AI] Running Llama fallback");
 
   const prompt = `Perform OCR on this payment screenshot. Extract all visible payment information.
 Return ONLY a JSON object with these keys:
@@ -228,7 +257,7 @@ Return ONLY a JSON object with these keys:
 Return ONLY the JSON. No explanation.`;
 
   try {
-    const response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+    const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -248,7 +277,7 @@ Return ONLY the JSON. No explanation.`;
         max_tokens: 512,
         temperature: 0.1,
       }),
-    });
+    }, 15000);
 
     console.log(`${LOG_TAG} Step C: Llama 90B API response: ${response.status} ${response.statusText}`);
 
@@ -296,6 +325,7 @@ async function runLlamaReasoning(
   extractedData: ExtractionData
 ): Promise<NemotronResult | null> {
   console.log(`${LOG_TAG} Step D: Llama 3.3 70B reasoning starting...`);
+  console.log("[AI] Running Nemotron");
 
   const serverTime = new Date().toISOString();
   const prompt = `You are the HUXZAIN marketplace Payment Reasoning Engine.
@@ -325,7 +355,7 @@ Based on this comparison, produce a JSON object:
 Return ONLY the JSON. No markdown. No explanation.`;
 
   try {
-    const response = await fetch(`${NVIDIA_API_BASE}/chat/completions`, {
+    const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -337,7 +367,7 @@ Return ONLY the JSON. No markdown. No explanation.`;
         max_tokens: 512,
         temperature: 0.1,
       }),
-    });
+    }, 15000);
 
     console.log(`${LOG_TAG} Step D: Llama 70B API response: ${response.status} ${response.statusText}`);
 
@@ -381,42 +411,15 @@ function computeHeuristicScore(
     extractedData.transaction_id !== "UNKNOWN" &&
     extractedData.transaction_id.length >= 6;
 
-  let score: number;
-  let riskLabel: string;
-  let recommendation: string;
-  let reason: string;
-
-  if (isAmountMatch && hasUtr) {
-    score = 5;
-    riskLabel = "Verified Safe";
-    recommendation = "Approve";
-    reason = `Amount ₹${detectedAmount} matches expected ₹${expectedAmount}. UTR ${extractedData.transaction_id} detected. Screenshot appears authentic.`;
-  } else if (isAmountMatch) {
-    score = 30;
-    riskLabel = "Low Risk";
-    recommendation = "Manual Review";
-    reason = `Amount matches but no clear UTR/transaction reference was detected. Manual review advised.`;
-  } else if (hasUtr) {
-    score = 50;
-    riskLabel = "Needs Review";
-    recommendation = "Manual Review";
-    reason = `UTR detected but amount ₹${detectedAmount ?? "N/A"} does not match expected ₹${expectedAmount}. Potential partial payment or screenshot mismatch.`;
-  } else {
-    score = 75;
-    riskLabel = "High Risk";
-    recommendation = "Manual Review";
-    reason = `Could not verify amount or transaction reference from the screenshot. Manual review strongly recommended.`;
-  }
-
   return {
-    ai_score: score,
-    ai_risk_label: riskLabel,
-    ai_recommendation: recommendation,
-    ai_reason: reason,
+    ai_score: 0, // We must return a number per interface, using 0 as placeholder
+    ai_risk_label: "Scoring unavailable",
+    ai_recommendation: "Manual Review",
+    ai_reason: "Manual review required",
     ai_amount_match: isAmountMatch,
-    ai_timestamp_match: "Within acceptable limits (heuristic)",
+    ai_timestamp_match: extractedData.timestamp_text || "Unknown",
     ai_utr: extractedData.transaction_id,
-    ai_authenticity_score: isAmountMatch && hasUtr ? 95 : 40,
+    ai_authenticity_score: 0,
   };
 }
 
@@ -482,7 +485,7 @@ function buildFallbackResult(proofId: string, reason: string): VerificationResul
 // ═══════════════════════════════════════════════════════════════════
 // MAIN EXPORTED FUNCTION
 // ═══════════════════════════════════════════════════════════════════
-export async function verifyPaymentProof(proofId: string): Promise<VerificationResult> {
+async function verifyPaymentProofInternal(proofId: string): Promise<VerificationResult> {
   console.log(`\n${"═".repeat(60)}`);
   console.log(`${LOG_TAG} Pipeline started for proof ID: ${proofId}`);
   console.log(`${LOG_TAG} Runtime env diagnostics:`);
@@ -673,4 +676,45 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
   console.log(`${"═".repeat(60)}\n`);
 
   return finalResult;
+}
+
+export async function verifyPaymentProof(proofId: string): Promise<VerificationResult> {
+  console.log("[AI] Starting analysis");
+
+  const timeoutPromise = new Promise<VerificationResult>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error("AI analysis timed out"));
+    }, 35000);
+  });
+
+  try {
+    const result = await Promise.race([
+      verifyPaymentProofInternal(proofId),
+      timeoutPromise
+    ]);
+    console.log("[AI] Final result ready");
+    return result;
+  } catch (err: any) {
+    console.log("[AI] Returning error");
+    
+    if (err.message === "AI analysis timed out") {
+      console.log("[AI] Timeout triggered");
+      return {
+        ai_available: false,
+        status: "timeout",
+        ai_score: null,
+        ai_risk_label: "Timeout",
+        ai_model_used: "None",
+        ai_recommendation: "Manual Review",
+        ai_reason: "AI analysis timed out",
+        ai_amount_match: null,
+        ai_timestamp_match: null,
+        ai_utr: null,
+        ai_authenticity_score: null,
+        ai_checked_at: new Date().toISOString(),
+      };
+    }
+    
+    return buildFallbackResult(proofId, err.message || "Unknown error");
+  }
 }
