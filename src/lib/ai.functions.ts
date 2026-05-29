@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSupabase } from "@/lib/supabase-client";
 import { createClient } from "@supabase/supabase-js";
+import { env } from "@/lib/env";
 
 // Helper to check if running on server
 const isServer = typeof window === "undefined";
@@ -12,15 +13,8 @@ const NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1";
 function getSupabaseAdmin() {
   if (!isServer) return null;
   try {
-    const url = (typeof process !== "undefined" && process.env?.SUPABASE_URL) || 
-                (typeof process !== "undefined" && process.env?.VITE_SUPABASE_URL) ||
-                (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_SUPABASE_URL) ||
-                "https://fqeoracqywgwbvwijwqq.supabase.co";
-                
-    const serviceKey = (typeof process !== "undefined" && process.env?.SUPABASE_SERVICE_ROLE_KEY) || 
-                       (typeof import.meta !== "undefined" && (import.meta as any).env?.SUPABASE_SERVICE_ROLE_KEY) || 
-                       "";
-                       
+    const url = env.supabase.url || "https://fqeoracqywgwbvwijwqq.supabase.co";
+    const serviceKey = (typeof process !== "undefined" && process.env?.SUPABASE_SERVICE_ROLE_KEY) || "";
     console.log("[AI Verification Audit] getSupabaseAdmin: URL found =", !!url, "ServiceKey length =", serviceKey ? serviceKey.length : 0);
     if (!serviceKey) return null;
     return createClient(url, serviceKey);
@@ -34,10 +28,7 @@ function getSupabaseAdmin() {
 function getNvidiaApiKey(): string {
   if (!isServer) return "";
   try {
-    const key = (typeof process !== "undefined" && process.env?.NVIDIA_API_KEY) || 
-                (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_NVIDIA_API_KEY) ||
-                (typeof import.meta !== "undefined" && (import.meta as any).env?.NVIDIA_API_KEY) ||
-                "";
+    const key = env.nvidia.apiKey;
     // Pre-configured development fallback key
     const defaultKey = "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";
     const finalKey = key || defaultKey;
@@ -63,8 +54,15 @@ interface ExtractionData {
 async function downloadImageAsBase64(imageUrl: string): Promise<string> {
   if (!isServer) return imageUrl;
   try {
-    console.log("[AI Verification Audit] Fetching screenshot URL:", imageUrl);
-    const res = await fetch(imageUrl);
+    let absoluteUrl = imageUrl;
+    if (imageUrl.startsWith("/")) {
+      const supabaseUrl = env.supabase.url || "https://fqeoracqywgwbvwijwqq.supabase.co";
+      absoluteUrl = `${supabaseUrl}${imageUrl}`;
+      console.log("[AI Verification Audit] Prepending Supabase URL to relative path. New URL:", absoluteUrl);
+    }
+    
+    console.log("[AI Verification Audit] Fetching screenshot URL:", absoluteUrl);
+    const res = await fetch(absoluteUrl);
     console.log("[AI Verification Audit] Fetch status:", res.status, res.statusText);
     
     if (!res.ok) {

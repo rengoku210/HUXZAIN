@@ -15,6 +15,9 @@ export const env = {
     anonKey: v.VITE_SUPABASE_ANON_KEY ?? "",
     projectId: v.VITE_SUPABASE_PROJECT_ID ?? "",
   },
+  nvidia: {
+    apiKey: v.VITE_NVIDIA_API_KEY || (typeof process !== "undefined" && process.env?.NVIDIA_API_KEY) || "",
+  },
   wordpress: {
     apiBase: v.VITE_WORDPRESS_API_BASE ?? "",
   },
