@@ -209,9 +209,29 @@ function AdminPayments() {
         return;
       }
 
-      setAiLoading(true);
-      const frontendTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Network timeout: verification took too long")), 3500)
+      const fallbackPayload = (reason: string) => ({
+        success: true,
+        status: "manual_review",
+        score: 50,
+        risk_label: "Manual Review",
+        recommendation: "Manual Review",
+        reason: reason,
+        metadata_available: false,
+        ai_available: true,
+        ai_score: 50,
+        ai_risk_label: "Manual Review",
+        ai_model_used: "None",
+        ai_recommendation: "Manual Review",
+        ai_reason: reason,
+        ai_amount_match: null,
+        ai_timestamp_match: null,
+        ai_utr: null,
+        ai_authenticity_score: null,
+        ai_checked_at: new Date().toISOString(),
+      });
+
+      const frontendTimeout = new Promise((resolve) => 
+        setTimeout(() => resolve(fallbackPayload("Network timeout: verification took too long")), 3500)
       );
 
       Promise.race([
@@ -222,12 +242,12 @@ function AdminPayments() {
           if (res) {
             setAiResult(res);
           } else {
-            setAiError("No analysis returned from the payment verification engine.");
+            setAiResult(fallbackPayload("No analysis returned from the payment verification engine."));
           }
         })
         .catch((err: any) => {
           console.error("[AI Verification] Fetch error:", err);
-          setAiError(err.message || "Failed to analyze screenshot.");
+          setAiResult(fallbackPayload(err.message || "Failed to analyze screenshot."));
         })
         .finally(() => {
           setAiLoading(false);
@@ -990,103 +1010,111 @@ function AdminPayments() {
                         Analyzing metadata…
                       </span>
                     </div>
-                  ) : aiError || (aiResult && (aiResult.ai_available === false || aiResult.status === "manual_review_required")) ? (
-                    <div className="space-y-3">
-                      <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2.5">
-                        <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
-                        <div>
-                          <h5 className="font-semibold text-xs text-foreground uppercase tracking-wider">
-                            Metadata unavailable
-                          </h5>
-                          <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed font-mono">
-                            Manual review recommended
-                          </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Show error/warning banner if manual review is requested or there's an error */}
+                      {(aiError || (aiResult && (aiResult.ai_available === false || aiResult.status === "manual_review" || aiResult.status === "manual_review_required"))) && (
+                        <div className="space-y-3">
+                          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2.5">
+                            <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                              <h5 className="font-semibold text-xs text-foreground uppercase tracking-wider">
+                                Metadata unavailable
+                              </h5>
+                              <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed font-mono">
+                                Manual review recommended
+                              </p>
+                            </div>
+                          </div>
+                          {(aiError || aiResult?.ai_reason) && (
+                            <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[10px] leading-relaxed font-mono text-muted-foreground">
+                              <strong className="text-gold block mb-1">Reason:</strong>
+                              {aiError && <div className="text-red-400 mb-1">{aiError}</div>}
+                              {aiResult?.ai_reason && <div>{aiResult.ai_reason}</div>}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      {(aiError || aiResult?.ai_reason) && (
-                        <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[10px] leading-relaxed font-mono text-muted-foreground">
-                          <strong className="text-gold block mb-1">Reason:</strong>
-                          {aiError && <div className="text-red-400 mb-1">{aiError}</div>}
-                          {aiResult?.ai_reason && <div>{aiResult.ai_reason}</div>}
+                      )}
+
+                      {/* Always show the score card if we have a result, even a fallback 50/100 */}
+                      {aiResult && (
+                        <div className="space-y-4">
+                          {/* Scoring Header */}
+                          <div className="flex items-center gap-4 bg-surface/40 p-3 rounded-xl border border-border/50">
+                            <div className="relative size-14 shrink-0 flex items-center justify-center rounded-full bg-black/40 border border-border/60">
+                              <span className="font-display text-lg font-extrabold text-foreground">
+                                {aiResult.ai_score}
+                              </span>
+                              <span className="absolute bottom-0.5 text-[8px] text-muted-foreground uppercase font-bold">
+                                /100
+                              </span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
+                                  aiResult.ai_score <= 10 
+                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                    : aiResult.ai_score <= 35 
+                                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                    : aiResult.ai_score <= 50
+                                    ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                    : "bg-red-500/10 text-red-400 border border-red-500/20"
+                                }`}>
+                                  {aiResult.ai_risk_label}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground border border-border/60 rounded px-1.5 py-0.5 bg-black/20 font-mono">
+                                  {aiResult.ai_recommendation}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                                Model: <span className="text-foreground font-medium font-mono text-[9px]">{aiResult.ai_model_used}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Analytics Grid */}
+                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Amount Match</span>
+                              <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
+                                {aiResult.ai_amount_match ? (
+                                  <span className="text-emerald-400">✅ Match</span>
+                                ) : (
+                                  <span className="text-red-400">❌ Mismatch</span>
+                                )}
+                              </span>
+                            </div>
+                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UTR Detected</span>
+                              <span className="font-mono text-foreground font-extrabold mt-0.5 block truncate select-all">
+                                {aiResult.ai_utr || "N/A"}
+                              </span>
+                            </div>
+                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Timestamp Audit</span>
+                              <span className="text-foreground font-extrabold mt-0.5 block truncate">
+                                {aiResult.ai_timestamp_match || "Unknown"}
+                              </span>
+                            </div>
+                            <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
+                              <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UI Authenticity</span>
+                              <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
+                                <span className={aiResult.ai_authenticity_score >= 80 ? "text-emerald-400" : aiResult.ai_authenticity_score >= 50 ? "text-yellow-400" : "text-red-400"}>
+                                  {aiResult.ai_authenticity_score}% Reliable
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Explanatory summary */}
+                          <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[11px] leading-relaxed font-mono">
+                            <strong className="text-gold block mb-1">Metadata Verification Summary:</strong>
+                            {aiResult.ai_reason}
+                          </div>
                         </div>
                       )}
                     </div>
-                  ) : aiResult ? (
-                    <div className="space-y-4">
-                      {/* Scoring Header */}
-                      <div className="flex items-center gap-4 bg-surface/40 p-3 rounded-xl border border-border/50">
-                        <div className="relative size-14 shrink-0 flex items-center justify-center rounded-full bg-black/40 border border-border/60">
-                          <span className="font-display text-lg font-extrabold text-foreground">
-                            {aiResult.ai_score}
-                          </span>
-                          <span className="absolute bottom-0.5 text-[8px] text-muted-foreground uppercase font-bold">
-                            /100
-                          </span>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
-                              aiResult.ai_score <= 10 
-                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                                : aiResult.ai_score <= 35 
-                                ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                                : aiResult.ai_score <= 50
-                                ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
-                                : "bg-red-500/10 text-red-400 border border-red-500/20"
-                            }`}>
-                              {aiResult.ai_risk_label}
-                            </span>
-                            <span className="text-[9px] text-muted-foreground border border-border/60 rounded px-1.5 py-0.5 bg-black/20 font-mono">
-                              {aiResult.ai_recommendation}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-                            Model: <span className="text-foreground font-medium font-mono text-[9px]">{aiResult.ai_model_used}</span>
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Analytics Grid */}
-                      <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Amount Match</span>
-                          <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
-                            {aiResult.ai_amount_match ? (
-                              <span className="text-emerald-400">✅ Match</span>
-                            ) : (
-                              <span className="text-red-400">❌ Mismatch</span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UTR Detected</span>
-                          <span className="font-mono text-foreground font-extrabold mt-0.5 block truncate select-all">
-                            {aiResult.ai_utr || "N/A"}
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">Timestamp Audit</span>
-                          <span className="text-foreground font-extrabold mt-0.5 block truncate">
-                            {aiResult.ai_timestamp_match || "Unknown"}
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-black/20 border border-border/40">
-                          <span className="text-muted-foreground block text-[9px] uppercase tracking-wider font-semibold">UI Authenticity</span>
-                          <span className="font-extrabold text-foreground flex items-center gap-1 mt-0.5">
-                            <span className={aiResult.ai_authenticity_score >= 80 ? "text-emerald-400" : aiResult.ai_authenticity_score >= 50 ? "text-yellow-400" : "text-red-400"}>
-                              {aiResult.ai_authenticity_score}% Reliable
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Explanatory summary */}
-                      <div className="p-3 rounded-xl bg-black/40 border border-border/50 text-[11px] leading-relaxed font-mono">
-                        <strong className="text-gold block mb-1">Metadata Verification Summary:</strong>
-                        {aiResult.ai_reason}
-                      </div>
-                    </div>
-                  ) : null}
+                  )}
                 </div>
               )}
 
