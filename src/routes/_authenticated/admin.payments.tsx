@@ -38,6 +38,7 @@ interface UnifiedProofRow {
   status: string;
   rejection_reason: string | null;
   created_at: string;
+  order_id?: string | null;
   // Joined
   profiles?: {
     display_name?: string | null;
@@ -172,7 +173,10 @@ function AdminPayments() {
       // Safe non-blocking sync to legacy/active tables
       try {
         if (activeProof.payment_type === "listing") {
-          const orderId = activeProof.payment_reference?.replace("order:", "");
+          let orderId = activeProof.order_id;
+          if (!orderId && activeProof.payment_reference) {
+            orderId = activeProof.payment_reference.replace("order:", "");
+          }
           if (orderId) {
             const { data: event } = await supabase
               .from("payment_events")
@@ -201,11 +205,20 @@ function AdminPayments() {
       }
 
       // 2. For listing purchases — process order approval flow
-      if (activeProof.payment_type === "listing" && activeProof.payment_reference) {
-        const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
-        if (orderIdMatch) {
-          const orderId = orderIdMatch[1];
+      if (activeProof.payment_type === "listing") {
+        let orderId = activeProof.order_id;
+        if (!orderId && activeProof.payment_reference) {
+          const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
+          if (orderIdMatch) {
+            orderId = orderIdMatch[1];
+          } else if (activeProof.payment_reference.length === 36) {
+            orderId = activeProof.payment_reference;
+          }
+        }
+        if (orderId) {
           await processListingOrderApproval(orderId, Number(activeProof.amount), activeProof.user_id);
+        } else {
+          console.warn("[AdminPayments] No valid orderId found for listing proof approval!");
         }
       }
 
@@ -414,7 +427,10 @@ function AdminPayments() {
       // Safe non-blocking sync to legacy/active tables
       try {
         if (activeProof.payment_type === "listing") {
-          const orderId = activeProof.payment_reference?.replace("order:", "");
+          let orderId = activeProof.order_id;
+          if (!orderId && activeProof.payment_reference) {
+            orderId = activeProof.payment_reference.replace("order:", "");
+          }
           if (orderId) {
             const { data: event } = await supabase
               .from("payment_events")
@@ -443,10 +459,17 @@ function AdminPayments() {
       }
 
       // For listing type — update order status
-      if (activeProof.payment_type === "listing" && activeProof.payment_reference) {
-        const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
-        if (orderIdMatch) {
-          const orderId = orderIdMatch[1];
+      if (activeProof.payment_type === "listing") {
+        let orderId = activeProof.order_id;
+        if (!orderId && activeProof.payment_reference) {
+          const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
+          if (orderIdMatch) {
+            orderId = orderIdMatch[1];
+          } else if (activeProof.payment_reference.length === 36) {
+            orderId = activeProof.payment_reference;
+          }
+        }
+        if (orderId) {
           await supabase
             .from("orders")
             .update({ status: "cancelled", payment_status: "failed" })

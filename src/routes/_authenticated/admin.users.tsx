@@ -55,7 +55,7 @@ function Page() {
 
       const { data: profiles, error: pErr } = await sb
         .from("profiles")
-        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified")
+        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
         .order("created_at", { ascending: false });
 
       if (pErr) throw pErr;
