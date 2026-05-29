@@ -5,9 +5,9 @@
 //
 // Pipeline:
 //   Step A → Download screenshot + base64 encode
-//   Step B → Primary OCR via NVIDIA Phi-4 Multimodal
-//   Step C → Fallback OCR via Llama 3.2 Vision (if B fails/incomplete)
-//   Step D → Decision reasoning via NVIDIA Nemotron
+//   Step B → Primary OCR via Llama 3.2 11B Vision
+//   Step C → Fallback OCR via Llama 3.2 90B Vision (if B fails/incomplete)
+//   Step D → Decision reasoning via Llama 3.3 70B Instruct
 //   Step E → Non-blocking DB cache write
 //
 // This module must NEVER be imported in browser code.
@@ -136,9 +136,9 @@ async function downloadImageAsBase64(imageUrl: string): Promise<string> {
   return dataUrl;
 }
 
-// ── Step B: Primary OCR via NVIDIA Phi-4 Multimodal ──────────────────
-async function runPhi4Ocr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
-  console.log(`${LOG_TAG} Step B: Phi-4 Multimodal OCR request starting...`);
+// ── Step B: Primary OCR via NVIDIA Llama 3.2 11B Vision ───────────────
+async function runLlama11bOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
+  console.log(`${LOG_TAG} Step B: Llama 3.2 11B Vision OCR request starting...`);
 
   const prompt = `Analyze the provided payment screenshot and extract all visible information.
 Return your findings ONLY as a valid JSON object with these exact keys:
@@ -166,7 +166,7 @@ Important:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "microsoft/phi-4-multimodal-instruct",
+        model: "meta/llama-3.2-11b-vision-instruct",
         messages: [
           {
             role: "user",
@@ -181,37 +181,37 @@ Important:
       }),
     });
 
-    console.log(`${LOG_TAG} Step B: Phi-4 API response: ${response.status} ${response.statusText}`);
+    console.log(`${LOG_TAG} Step B: Llama 11B API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error(`${LOG_TAG} Step B: Phi-4 API error body:`, errBody);
+      console.error(`${LOG_TAG} Step B: Llama 11B API error body:`, errBody);
       return null;
     }
 
     const json = await response.json();
     const rawContent = json.choices?.[0]?.message?.content || "";
-    console.log(`${LOG_TAG} Step B: Phi-4 raw output:`, rawContent.substring(0, 500));
+    console.log(`${LOG_TAG} Step B: Llama 11B raw output:`, rawContent.substring(0, 500));
 
     // Extract JSON from the response (handle markdown code blocks too)
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`${LOG_TAG} Step B: Could not find JSON in Phi-4 output`);
+      console.warn(`${LOG_TAG} Step B: Could not find JSON in Llama 11B output`);
       return null;
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractionData;
-    console.log(`${LOG_TAG} Step B: Phi-4 parsed successfully:`, JSON.stringify(parsed));
+    console.log(`${LOG_TAG} Step B: Llama 11B parsed successfully:`, JSON.stringify(parsed));
     return parsed;
   } catch (err: any) {
-    console.error(`${LOG_TAG} Step B: Phi-4 exception:`, err.message);
+    console.error(`${LOG_TAG} Step B: Llama 11B exception:`, err.message);
     return null;
   }
 }
 
-// ── Step C: Fallback OCR via Llama 3.2 Vision ────────────────────────
-async function runLlamaOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
-  console.log(`${LOG_TAG} Step C: Llama 3.2 Vision fallback OCR starting...`);
+// ── Step C: Fallback OCR via Llama 3.2 90B Vision ────────────────────
+async function runLlama90bOcr(apiKey: string, base64Image: string): Promise<ExtractionData | null> {
+  console.log(`${LOG_TAG} Step C: Llama 3.2 90B Vision fallback OCR starting...`);
 
   const prompt = `Perform OCR on this payment screenshot. Extract all visible payment information.
 Return ONLY a JSON object with these keys:
@@ -235,7 +235,7 @@ Return ONLY the JSON. No explanation.`;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "meta/llama-3.2-11b-vision-instruct",
+        model: "meta/llama-3.2-90b-vision-instruct",
         messages: [
           {
             role: "user",
@@ -250,29 +250,29 @@ Return ONLY the JSON. No explanation.`;
       }),
     });
 
-    console.log(`${LOG_TAG} Step C: Llama API response: ${response.status} ${response.statusText}`);
+    console.log(`${LOG_TAG} Step C: Llama 90B API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error(`${LOG_TAG} Step C: Llama API error body:`, errBody);
+      console.error(`${LOG_TAG} Step C: Llama 90B API error body:`, errBody);
       return null;
     }
 
     const json = await response.json();
     const rawContent = json.choices?.[0]?.message?.content || "";
-    console.log(`${LOG_TAG} Step C: Llama raw output:`, rawContent.substring(0, 500));
+    console.log(`${LOG_TAG} Step C: Llama 90B raw output:`, rawContent.substring(0, 500));
 
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`${LOG_TAG} Step C: Could not find JSON in Llama output`);
+      console.warn(`${LOG_TAG} Step C: Could not find JSON in Llama 90B output`);
       return null;
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractionData;
-    console.log(`${LOG_TAG} Step C: Llama parsed successfully:`, JSON.stringify(parsed));
+    console.log(`${LOG_TAG} Step C: Llama 90B parsed successfully:`, JSON.stringify(parsed));
     return parsed;
   } catch (err: any) {
-    console.error(`${LOG_TAG} Step C: Llama exception:`, err.message);
+    console.error(`${LOG_TAG} Step C: Llama 90B exception:`, err.message);
     return null;
   }
 }
@@ -289,13 +289,13 @@ interface NemotronResult {
   ai_authenticity_score: number;
 }
 
-async function runNemotronReasoning(
+async function runLlamaReasoning(
   apiKey: string,
   expectedAmount: number,
   orderCreatedTime: string,
   extractedData: ExtractionData
 ): Promise<NemotronResult | null> {
-  console.log(`${LOG_TAG} Step D: Nemotron reasoning starting...`);
+  console.log(`${LOG_TAG} Step D: Llama 3.3 70B reasoning starting...`);
 
   const serverTime = new Date().toISOString();
   const prompt = `You are the HUXZAIN marketplace Payment Reasoning Engine.
@@ -332,36 +332,36 @@ Return ONLY the JSON. No markdown. No explanation.`;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "nvidia/llama-3.1-nemotron-70b-instruct",
+        model: "meta/llama-3.3-70b-instruct",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 512,
         temperature: 0.1,
       }),
     });
 
-    console.log(`${LOG_TAG} Step D: Nemotron API response: ${response.status} ${response.statusText}`);
+    console.log(`${LOG_TAG} Step D: Llama 70B API response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error(`${LOG_TAG} Step D: Nemotron API error body:`, errBody);
+      console.error(`${LOG_TAG} Step D: Llama 70B API error body:`, errBody);
       return null;
     }
 
     const json = await response.json();
     const rawContent = json.choices?.[0]?.message?.content || "";
-    console.log(`${LOG_TAG} Step D: Nemotron raw output:`, rawContent.substring(0, 500));
+    console.log(`${LOG_TAG} Step D: Llama 70B raw output:`, rawContent.substring(0, 500));
 
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`${LOG_TAG} Step D: Could not find JSON in Nemotron output`);
+      console.warn(`${LOG_TAG} Step D: Could not find JSON in Llama 70B output`);
       return null;
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as NemotronResult;
-    console.log(`${LOG_TAG} Step D: Nemotron parsed successfully:`, JSON.stringify(parsed));
+    console.log(`${LOG_TAG} Step D: Llama 70B parsed successfully:`, JSON.stringify(parsed));
     return parsed;
   } catch (err: any) {
-    console.error(`${LOG_TAG} Step D: Nemotron exception:`, err.message);
+    console.error(`${LOG_TAG} Step D: Llama 70B exception:`, err.message);
     return null;
   }
 }
@@ -503,7 +503,7 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
   console.log(`${LOG_TAG} API key resolved. Length: ${apiKey.length}, prefix: ${apiKey.substring(0, 10)}...`);
 
   // ── Fetch Payment Proof from DB ────────────────────────────────
-  const supabase = getAnonClient();
+  const supabase = getAdminClient() || getAnonClient();
   if (!supabase) {
     console.error(`${LOG_TAG} Supabase client initialization failed.`);
     return buildFallbackResult(proofId, "Database client not available.");
@@ -576,13 +576,13 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
     return buildFallbackResult(proofId, `Could not download payment screenshot: ${err.message}`);
   }
 
-  // ── Step B: Primary OCR (Phi-4) ────────────────────────────────
+  // ── Step B: Primary OCR (Llama 11B) ────────────────────────────
   let extractedData: ExtractionData | null = null;
-  let modelUsed = "NVIDIA Phi-4 Multimodal";
+  let modelUsed = "Llama 3.2 11B Vision";
 
-  extractedData = await runPhi4Ocr(apiKey, base64Image);
+  extractedData = await runLlama11bOcr(apiKey, base64Image);
 
-  // ── Step C: Fallback OCR (Llama 3.2) ───────────────────────────
+  // ── Step C: Fallback OCR (Llama 90B) ───────────────────────────
   const needsFallback =
     !extractedData ||
     extractedData.paid_amount === null ||
@@ -591,10 +591,10 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
 
   if (needsFallback) {
     console.log(`${LOG_TAG} Step B incomplete. Triggering Step C fallback...`);
-    modelUsed = "Llama 3.2 Vision (Fallback)";
-    const llamaResult = await runLlamaOcr(apiKey, base64Image);
+    modelUsed = "Llama 3.2 90B Vision (Fallback)";
+    const llamaResult = await runLlama90bOcr(apiKey, base64Image);
     if (llamaResult) {
-      // Merge: prefer Llama results but keep any Phi-4 fields that Llama missed
+      // Merge: prefer Llama results but keep any primary fields that fallback missed
       extractedData = {
         paid_amount: llamaResult.paid_amount ?? extractedData?.paid_amount ?? null,
         currency: llamaResult.currency ?? extractedData?.currency ?? null,
@@ -627,21 +627,21 @@ export async function verifyPaymentProof(proofId: string): Promise<VerificationR
   console.log(`${LOG_TAG} OCR extraction complete. Model used: ${modelUsed}`);
   console.log(`${LOG_TAG} Extracted data:`, JSON.stringify(extractedData));
 
-  // ── Step D: Nemotron Reasoning ─────────────────────────────────
-  let nemotronResult = await runNemotronReasoning(
+  // ── Step D: Llama Reasoning ─────────────────────────────────
+  let nemotronResult = await runLlamaReasoning(
     apiKey,
     expectedAmount,
     orderCreatedTime,
     extractedData
   );
 
-  // If Nemotron fails, use offline heuristic
+  // If reasoning fails, use offline heuristic
   if (!nemotronResult) {
-    console.warn(`${LOG_TAG} Step D Nemotron failed. Using heuristic scoring.`);
+    console.warn(`${LOG_TAG} Step D reasoning failed. Using heuristic scoring.`);
     nemotronResult = computeHeuristicScore(extractedData, expectedAmount);
     modelUsed += " + Heuristic Scoring";
   } else {
-    modelUsed += " + Nemotron Reasoning";
+    modelUsed += " + Llama 3.3 70B Reasoning";
   }
 
   // ── Build Final Result ─────────────────────────────────────────
