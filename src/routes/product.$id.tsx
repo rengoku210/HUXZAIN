@@ -148,7 +148,7 @@ function ProductPage() {
     try {
       const price = listingPrice(listing);
 
-      // Create order using correct live DB columns
+      // Create order using correct live DB columns and enum values
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -157,8 +157,8 @@ function ProductPage() {
           listing_id: listing.id,
           listing_title: listing.title,
           amount_inr: price,
-          status: "pending",
-          payment_status: "pending_verification",
+          status: "pending_payment",
+          payment_status: "created",
           payment_method: "manual"
         })
         .select("id")

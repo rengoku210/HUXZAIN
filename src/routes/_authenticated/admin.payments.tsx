@@ -219,7 +219,7 @@ function AdminPayments() {
       .from("orders")
       .update({
         status: "paid",
-        payment_status: "verified",
+        payment_status: "paid",
         commission_inr: commission,
         seller_payout_inr: sellerPayout,
         updated_at: new Date().toISOString(),
@@ -334,7 +334,7 @@ function AdminPayments() {
           const orderId = orderIdMatch[1];
           await supabase
             .from("orders")
-            .update({ status: "payment_rejected", payment_status: "rejected" })
+            .update({ status: "cancelled", payment_status: "failed" })
             .eq("id", orderId);
 
           // Also update legacy payment_verifications

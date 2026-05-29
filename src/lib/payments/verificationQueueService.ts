@@ -65,7 +65,7 @@ export async function createVerification(params: {
   if (error) throw error;
   
   // Update order payment status
-  await supabase.from("orders").update({ payment_status: "pending_verification" }).eq("id", orderId);
+  await supabase.from("orders").update({ status: "admin_review", payment_status: "attempted" }).eq("id", orderId);
   
   return data?.[0];
 }
@@ -100,7 +100,7 @@ export async function updateVerificationStatus(params: {
     if (status === "approved" && event.order_id) {
       await processOrderApproval(event.order_id, newPayload.amount);
     } else if (status === "rejected" && event.order_id) {
-      await supabase.from("orders").update({ payment_status: "rejected" }).eq("id", event.order_id);
+      await supabase.from("orders").update({ status: "cancelled", payment_status: "failed" }).eq("id", event.order_id);
     }
   } else {
     // Try payment_verifications just in case it was created later
@@ -144,7 +144,7 @@ async function processOrderApproval(orderId: string, amount: number | null): Pro
     .from("orders")
     .update({ 
       status: "paid", 
-      payment_status: "verified",
+      payment_status: "paid",
       commission_inr: commission,
       seller_payout_inr: sellerPayout,
       updated_at: new Date().toISOString() 
