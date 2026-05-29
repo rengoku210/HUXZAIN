@@ -210,7 +210,14 @@ function AdminPayments() {
       }
 
       setAiLoading(true);
-      analyzePaymentProof({ data: activeProof.id })
+      const frontendTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Network timeout: verification took too long")), 3500)
+      );
+
+      Promise.race([
+        analyzePaymentProof({ data: activeProof.id }),
+        frontendTimeout
+      ])
         .then((res: any) => {
           if (res) {
             setAiResult(res);
