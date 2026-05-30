@@ -430,8 +430,8 @@ function AdminPayments() {
         await supabase.from("messages").insert({
           conversation_id: conv.id,
           sender_id: sellerId,
-          body: `Chat unlocked. "${listingTitle}" payment has been verified. Delivery can now begin.`,
-          is_system: true,
+          body: "Thank you for your purchase. Your payment has been confirmed. You can collect your item here or message me anytime if you need help.",
+          is_system: false,
         });
       }
     } catch (e) {

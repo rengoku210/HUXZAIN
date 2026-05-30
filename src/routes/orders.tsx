@@ -44,8 +44,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     icon: Clock,
   },
   paid: {
-    label: "Paid",
-    color: "text-green-400 bg-green-500/10 border-green-500/20",
+    label: "Completed",
+    color: "text-gold bg-gold/10 border-gold/20",
     icon: CheckCircle2,
   },
   delivering: {
@@ -240,7 +240,7 @@ export function OrdersPage() {
                             to="/seller/messages"
                             className="text-xs text-gold hover:underline inline-flex items-center gap-1"
                           >
-                            <MessageSquare className="size-3" /> Chat with Seller
+                            <MessageSquare className="size-3" /> Contact Seller
                           </Link>
                         )}
                       </div>
