@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
-import { extractPaymentDetails } from "@/lib/ai.functions";
 import {
   CreditCard,
   CheckCircle,
@@ -169,10 +168,9 @@ function AdminPayments() {
     setOcrError(null);
 
     if (activeProof.ai_reason) {
-      // OCR data was already captured at checkout time — parse and use it
+      // OCR data already cached at checkout time — parse and use it
       try {
         const parsed = JSON.parse(activeProof.ai_reason);
-        // Normalize to confirmed Lovable API field names
         const normalized = {
           amount: parsed?.amount ?? null,
           currency: parsed?.currency ?? "INR",
@@ -184,7 +182,7 @@ function AdminPayments() {
           receiver_name: parsed?.receiver_name ?? null,
           payment_app: parsed?.payment_app ?? null,
         };
-        console.log("[AdminPayments] Parsed OCR from ai_reason:", normalized);
+        console.log("[AdminPayments] OCR from ai_reason:", normalized);
         setOcrData(normalized);
         setOcrLoading(false);
       } catch (err) {
@@ -192,39 +190,81 @@ function AdminPayments() {
         setOcrData(null);
         setOcrLoading(false);
       }
-    } else {
-      // No cached OCR — run it live now using the screenshot URL
-      if (!activeProof.screenshot_url) {
-        setOcrData(null);
-        setOcrLoading(false);
-        return;
-      }
-      setOcrLoading(true);
-      console.log("[AdminPayments] No cached OCR — running live extraction for:", activeProof.screenshot_url);
-      extractPaymentDetails({ data: activeProof.screenshot_url })
-        .then((raw: any) => {
-          const normalized = {
-            amount: raw?.amount ?? null,
-            currency: raw?.currency ?? "INR",
-            date: raw?.date ?? null,
-            time: raw?.time ?? null,
-            transaction_id: raw?.transaction_id ?? null,
-            payment_status: raw?.payment_status ?? null,
-            sender_name: raw?.sender_name ?? null,
-            receiver_name: raw?.receiver_name ?? null,
-            payment_app: raw?.payment_app ?? null,
-          };
-          console.log("[AdminPayments] Live OCR result:", normalized);
-          setOcrData(normalized);
-          setOcrLoading(false);
-        })
-        .catch((err: any) => {
-          console.warn("[AdminPayments] Live OCR failed:", err?.message);
-          setOcrData(null);
-          setOcrError("OCR extraction failed — please review the screenshot manually.");
-          setOcrLoading(false);
-        });
+      return;
     }
+
+    // No cached OCR — call Lovable API directly from browser (same as Hoppscotch test)
+    if (!activeProof.screenshot_url) {
+      setOcrData(null);
+      setOcrLoading(false);
+      return;
+    }
+
+    setOcrLoading(true);
+    console.log("[AdminPayments] Running direct browser OCR for:", activeProof.screenshot_url);
+
+    const proofId = activeProof.id;
+    const screenshotUrl = activeProof.screenshot_url;
+
+    (async () => {
+      try {
+        // Step 1: Fetch the screenshot image as a blob
+        const imgRes = await fetch(screenshotUrl);
+        if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
+        const imgBlob = await imgRes.blob();
+
+        // Step 2: Build FormData with field name "image" (confirmed from API test)
+        const formData = new FormData();
+        formData.append("image", imgBlob, "screenshot.jpg");
+
+        // Step 3: POST directly to Lovable OCR API (no server proxy needed)
+        const ocrRes = await fetch("https://pay-slip-miner.lovable.app/api/extract-payment", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!ocrRes.ok) {
+          const errText = await ocrRes.text().catch(() => "");
+          throw new Error(`OCR API ${ocrRes.status}: ${errText}`);
+        }
+
+        const raw = await ocrRes.json();
+        console.log("[AdminPayments] Direct OCR result:", raw);
+
+        // Step 4: Normalize to confirmed field names
+        const normalized = {
+          amount: raw?.amount ?? null,
+          currency: raw?.currency ?? "INR",
+          date: raw?.date ?? null,
+          time: raw?.time ?? null,
+          transaction_id: raw?.transaction_id ?? null,
+          payment_status: raw?.payment_status ?? null,
+          sender_name: raw?.sender_name ?? null,
+          receiver_name: raw?.receiver_name ?? null,
+          payment_app: raw?.payment_app ?? null,
+        };
+
+        setOcrData(normalized);
+        setOcrLoading(false);
+
+        // Step 5: Cache result back to ai_reason so future opens are instant
+        if (supabase) {
+          supabase
+            .from("payment_proofs")
+            .update({ ai_reason: JSON.stringify(normalized) })
+            .eq("id", proofId)
+            .then(({ error }) => {
+              if (error) console.warn("[AdminPayments] Non-blocking ai_reason cache failed:", error.message);
+              else console.log("[AdminPayments] OCR result cached to ai_reason for proof:", proofId);
+            });
+        }
+      } catch (err: any) {
+        console.warn("[AdminPayments] Direct browser OCR failed:", err?.message);
+        setOcrData(null);
+        setOcrError("OCR extraction failed — please review the screenshot manually.");
+        setOcrLoading(false);
+      }
+    })();
   }, [activeProof?.id]);
 
 
