@@ -15,6 +15,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { TIERS, type SellerTier } from "@/lib/seller/tier-context";
 import { toast } from "sonner";
+import { extractPaymentDetails } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/_authenticated/seller/subscription/payment")({
   validateSearch: (s: Record<string, unknown>): { plan?: string } => ({
@@ -93,13 +94,26 @@ function CheckoutPage() {
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
       const screenshotUrl = urlData.publicUrl;
 
+      // Run OCR extraction via backend to avoid browser CORS issues
+      let ocrDataString = null;
+      try {
+        console.log("[Subscription Checkout] Running OCR extraction...");
+        const ocrData = await extractPaymentDetails({ data: screenshotUrl });
+        if (ocrData) {
+          ocrDataString = JSON.stringify(ocrData);
+        }
+      } catch (err) {
+        console.warn("[Subscription Checkout] OCR extraction failed non-fatally:", err);
+      }
+
       // 2. Insert record into subscription_payment_proofs
       const payload = {
         user_id: user.id,
         selected_plan: planMeta.label,
         amount: planMeta.monthly,
         screenshot_url: screenshotUrl,
-        status: "pending"
+        status: "pending",
+        ai_reason: ocrDataString,
       };
 
       const { error: insertErr } = await supabase

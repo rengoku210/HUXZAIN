@@ -160,51 +160,31 @@ function AdminPayments() {
 
   useEffect(() => {
     if (activeProof) {
-      setOcrData(null);
       setOcrError(null);
-      setOcrLoading(true);
-
-      const processOcr = async () => {
+      
+      if (activeProof.ai_reason) {
         try {
-          console.log("[OCR Verification] Fetching screenshot blob directly...");
-          const imageRes = await fetch(activeProof.screenshot_url);
-          if (!imageRes.ok) throw new Error("Failed to download screenshot for OCR");
-          
-          const blob = await imageRes.blob();
-          const formData = new FormData();
-          
-          // Use generic filename and type based on blob
-          const extension = blob.type.split("/")[1] || "jpg";
-          formData.append("image", blob, `screenshot.${extension}`);
-
-          console.log("[OCR Verification] Sending directly to Lovable API...");
-          const ocrRes = await fetch("https://pay-slip-miner.lovable.app/api/extract-payment", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!ocrRes.ok) {
-            const errText = await ocrRes.text().catch(() => "Unknown API error");
-            throw new Error(`OCR API responded with ${ocrRes.status}: ${errText}`);
-          }
-
-          const resData = await ocrRes.json();
-          setOcrData(resData);
-        } catch (err: any) {
-          console.error("[OCR Verification] Fetch error:", err);
-          setOcrError(err.message || "Failed to extract payment details.");
-        } finally {
+          // the ai_reason field is repurposed to store the stringified OCR json
+          const parsed = JSON.parse(activeProof.ai_reason);
+          setOcrData(parsed);
+          setOcrLoading(false);
+        } catch (err) {
+          console.error("[AdminPayments] Failed to parse ai_reason for OCR data:", err);
+          setOcrData(null);
           setOcrLoading(false);
         }
-      };
-
-      processOcr();
+      } else {
+        // Fallback for proofs that don't have OCR data yet
+        setOcrData(null);
+        setOcrLoading(false);
+      }
     } else {
       setOcrData(null);
       setOcrLoading(false);
       setOcrError(null);
     }
   }, [activeProof]);
+
 
   // ── Approve Handler ──
   const executeApprove = async () => {

@@ -23,6 +23,7 @@ import { Footer } from "@/components/site/Footer";
 import { TIERS, type SellerTier } from "@/lib/seller/tier-context";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
+import { extractPaymentDetails } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout/payment")({
   validateSearch: (s: Record<string, unknown>): { plan?: string; listingId?: string; price?: string; orderId?: string } => ({
@@ -255,7 +256,19 @@ function UnifiedPaymentPage() {
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
       const screenshotUrl = urlData.publicUrl;
 
-      // 4. Create record in public.payment_proofs (New unified schema table)
+      // 4. Run OCR extraction via backend to avoid browser CORS issues
+      let ocrDataString = null;
+      try {
+        console.log("[Unified Checkout] Running OCR extraction...");
+        const ocrData = await extractPaymentDetails({ data: screenshotUrl });
+        if (ocrData) {
+          ocrDataString = JSON.stringify(ocrData);
+        }
+      } catch (err) {
+        console.warn("[Unified Checkout] OCR extraction failed non-fatally:", err);
+      }
+
+      // 5. Create record in public.payment_proofs (New unified schema table)
       const unifiedPayload = {
         buyer_id: user.id,
         user_id: user.id,
@@ -267,6 +280,7 @@ function UnifiedPaymentPage() {
         screenshot_url: screenshotUrl,
         payment_reference: isSubscription ? `subscription:${planMeta.id}` : `order:${finalOrderId}`,
         status: "pending",
+        ai_reason: ocrDataString,
       };
 
       const { error: proofErr } = await supabase

@@ -411,29 +411,13 @@ export async function verifyPaymentProof(proofId: string): Promise<any> {
 // ═══════════════════════════════════════════════════════════════════
 // NEW EXTERNAL OCR INTEGRATION (Lovable API)
 // ═══════════════════════════════════════════════════════════════════
-export async function extractPaymentOCR(proofId: string): Promise<any> {
-  console.log(`${LOG_TAG} Starting OCR extraction for proof ID: ${proofId}`);
-  
-  // 1. Fetch Payment Proof from DB
-  const supabase = getAdminClient() || getAnonClient();
-  if (!supabase) {
-    throw new Error("Database client not available.");
-  }
-
-  const { data: proof, error: proofErr } = await supabase
-    .from("payment_proofs")
-    .select("screenshot_url")
-    .eq("id", proofId)
-    .single();
-
-  if (proofErr || !proof || !proof.screenshot_url) {
-    throw new Error(`Database query failed or no screenshot found.`);
-  }
+export async function extractPaymentOCR(screenshotUrl: string): Promise<any> {
+  console.log(`${LOG_TAG} Starting OCR extraction for URL: ${screenshotUrl}`);
 
   // 2. Download Image Buffer
   let downloadedImage;
   try {
-    downloadedImage = await downloadImageBuffer(proof.screenshot_url);
+    downloadedImage = await downloadImageBuffer(screenshotUrl);
   } catch (err: any) {
     throw new Error(`Could not download payment screenshot: ${err.message}`);
   }
