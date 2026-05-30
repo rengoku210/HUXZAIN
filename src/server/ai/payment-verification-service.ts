@@ -433,7 +433,7 @@ export async function extractPaymentOCR(screenshotUrl: string): Promise<any> {
     formData.append("image", blob, `screenshot.${extension}`);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second max timeout
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout - Lovable API can be slow
 
     let ocrResponse;
     try {

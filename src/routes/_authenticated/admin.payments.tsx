@@ -159,31 +159,73 @@ function AdminPayments() {
   }, [supabase]);
 
   useEffect(() => {
-    if (activeProof) {
+    if (!activeProof) {
+      setOcrData(null);
+      setOcrLoading(false);
       setOcrError(null);
-      
-      if (activeProof.ai_reason) {
-        try {
-          // the ai_reason field is repurposed to store the stringified OCR json
-          const parsed = JSON.parse(activeProof.ai_reason);
-          setOcrData(parsed);
-          setOcrLoading(false);
-        } catch (err) {
-          console.error("[AdminPayments] Failed to parse ai_reason for OCR data:", err);
-          setOcrData(null);
-          setOcrLoading(false);
-        }
-      } else {
-        // Fallback for proofs that don't have OCR data yet
+      return;
+    }
+
+    setOcrError(null);
+
+    if (activeProof.ai_reason) {
+      // OCR data was already captured at checkout time — parse and use it
+      try {
+        const parsed = JSON.parse(activeProof.ai_reason);
+        // Normalize to confirmed Lovable API field names
+        const normalized = {
+          amount: parsed?.amount ?? null,
+          currency: parsed?.currency ?? "INR",
+          date: parsed?.date ?? null,
+          time: parsed?.time ?? null,
+          transaction_id: parsed?.transaction_id ?? null,
+          payment_status: parsed?.payment_status ?? null,
+          sender_name: parsed?.sender_name ?? null,
+          receiver_name: parsed?.receiver_name ?? null,
+          payment_app: parsed?.payment_app ?? null,
+        };
+        console.log("[AdminPayments] Parsed OCR from ai_reason:", normalized);
+        setOcrData(normalized);
+        setOcrLoading(false);
+      } catch (err) {
+        console.error("[AdminPayments] Failed to parse ai_reason:", err);
         setOcrData(null);
         setOcrLoading(false);
       }
     } else {
-      setOcrData(null);
-      setOcrLoading(false);
-      setOcrError(null);
+      // No cached OCR — run it live now using the screenshot URL
+      if (!activeProof.screenshot_url) {
+        setOcrData(null);
+        setOcrLoading(false);
+        return;
+      }
+      setOcrLoading(true);
+      console.log("[AdminPayments] No cached OCR — running live extraction for:", activeProof.screenshot_url);
+      extractPaymentDetails({ data: activeProof.screenshot_url })
+        .then((raw: any) => {
+          const normalized = {
+            amount: raw?.amount ?? null,
+            currency: raw?.currency ?? "INR",
+            date: raw?.date ?? null,
+            time: raw?.time ?? null,
+            transaction_id: raw?.transaction_id ?? null,
+            payment_status: raw?.payment_status ?? null,
+            sender_name: raw?.sender_name ?? null,
+            receiver_name: raw?.receiver_name ?? null,
+            payment_app: raw?.payment_app ?? null,
+          };
+          console.log("[AdminPayments] Live OCR result:", normalized);
+          setOcrData(normalized);
+          setOcrLoading(false);
+        })
+        .catch((err: any) => {
+          console.warn("[AdminPayments] Live OCR failed:", err?.message);
+          setOcrData(null);
+          setOcrError("OCR extraction failed — please review the screenshot manually.");
+          setOcrLoading(false);
+        });
     }
-  }, [activeProof]);
+  }, [activeProof?.id]);
 
 
   // ── Approve Handler ──
@@ -943,10 +985,9 @@ function AdminPayments() {
                         const dateField = ocrData.date ?? null;
                         const statusField = ocrData.payment_status ?? null;
 
-                        const isInvalid = (
-                          (!amountField && !ocrData.transaction_id && !ocrData.sender_name && !ocrData.receiver_name && !dateField) ||
-                          Boolean(JSON.stringify(ocrData).toLowerCase().match(/balance fetched|account balance|sponsored links/))
-                        );
+                        // Only flag as invalid if BOTH amount AND transaction_id are missing.
+                        // If either exists, the receipt is real enough to display.
+                        const isInvalid = !amountField && !ocrData.transaction_id;
 
                         if (isInvalid) {
                           return (
