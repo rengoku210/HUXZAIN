@@ -796,24 +796,26 @@ function AdminPayments() {
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={() => setActiveProof(null)}
           />
-          <div className="relative w-full max-w-5xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-5xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
 
-            <div className="p-6 flex flex-col h-full">
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <h2 className="font-display text-lg font-bold flex items-center gap-2">
-                  {getTypeIcon(activeProof.payment_type)}
-                  Inspect {activeProof.payment_type === "listing" ? "Order" : "Subscription"} Proof
-                </h2>
-                <button
-                  onClick={() => setActiveProof(null)}
-                  className="size-8 rounded-full border border-border flex items-center justify-center hover:border-gold/40 transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
+            {/* ─── MODAL HEADER (Fixed) ─── */}
+            <div className="p-6 pb-4 flex items-center justify-between shrink-0 border-b border-border/50">
+              <h2 className="font-display text-lg font-bold flex items-center gap-2">
+                {getTypeIcon(activeProof.payment_type)}
+                Inspect {activeProof.payment_type === "listing" ? "Order" : "Subscription"} Proof
+              </h2>
+              <button
+                onClick={() => setActiveProof(null)}
+                className="size-8 rounded-full border border-border flex items-center justify-center hover:border-gold/40 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div className="flex flex-col md:flex-row gap-6 mb-6">
+            {/* ─── MODAL BODY (Scrollable) ─── */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex flex-col md:flex-row gap-6">
                 {/* ─── LEFT COLUMN: Screenshot Preview ─── */}
                 <div className="flex-1 space-y-4">
                   {/* Grid details condensed */}
@@ -843,7 +845,7 @@ function AdminPayments() {
                   </div>
 
                   {/* Screenshot */}
-                  <div className="rounded-2xl overflow-hidden border border-border/80 bg-black aspect-[3/4] flex items-center justify-center relative group">
+                  <div className="rounded-2xl overflow-hidden border border-border/80 bg-black h-[400px] md:h-[500px] flex items-center justify-center relative group">
                     <img
                       src={activeProof.screenshot_url}
                       alt="Payment Screenshot"
@@ -986,27 +988,27 @@ function AdminPayments() {
                   </div>
                 </div>
               </div>
-
-              {/* Actions */}
-              {activeProof.status === "pending" && (
-                <div className="flex gap-4 shrink-0 border-t border-border/50 pt-5 mt-auto">
-                  <button
-                    onClick={() => setShowRejectModal(true)}
-                    disabled={actioning}
-                    className="flex-1 h-12 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    <X size={16} /> Reject Payment
-                  </button>
-                  <button
-                    onClick={() => setShowApproveModal(true)}
-                    disabled={actioning}
-                    className="flex-1 h-12 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
-                  >
-                    <Check size={16} /> Approve & Confirm
-                  </button>
-                </div>
-              )}
             </div>
+
+            {/* ─── MODAL FOOTER ACTIONS (Fixed) ─── */}
+            {activeProof.status === "pending" && (
+              <div className="p-6 pt-4 border-t border-border/50 bg-background shrink-0 flex gap-4">
+                <button
+                  onClick={() => setShowRejectModal(true)}
+                  disabled={actioning}
+                  className="flex-1 h-12 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <X size={16} /> Reject Payment
+                </button>
+                <button
+                  onClick={() => setShowApproveModal(true)}
+                  disabled={actioning}
+                  className="flex-1 h-12 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
+                >
+                  <Check size={16} /> Approve & Confirm
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
