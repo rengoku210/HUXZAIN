@@ -79,6 +79,21 @@ export const updateUserRole = createServerFn({ method: "POST" })
       if (insErr) throw new Error(`Failed to assign roles: ${insErr.message}`);
     }
 
+    // 6. Defensive, non-blocking compatibility write to profiles.role
+    try {
+      const primaryRole = newRoles.includes("super_admin") ? "super_admin" :
+                          newRoles.includes("admin") ? "admin" :
+                          newRoles.includes("moderator") ? "moderator" :
+                          newRoles.includes("staff") ? "staff" : "buyer";
+
+      await adminClient
+        .from("profiles")
+        .update({ role: primaryRole })
+        .eq("id", targetUserId);
+    } catch (err) {
+      console.warn("[RoleFunctions] Non-blocking profiles.role compatibility update failed:", err);
+    }
+
     console.log(`[RoleFunctions] Successfully updated roles for ${targetUserId} to:`, newRoles);
     return { success: true };
   });

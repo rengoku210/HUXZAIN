@@ -123,23 +123,34 @@ function Page() {
       }
     }
 
-    try {
-      // Build new roles array
-      const newRoles: Role[] = ["buyer"];
-      if (newPrimaryRole !== "buyer") {
-        newRoles.push(newPrimaryRole as Role);
-      }
-      if (user.is_seller || user.roles.includes("seller")) {
-        newRoles.push("seller");
-      }
+    // Keep track of the original roles for rollback
+    const originalRoles = [...user.roles];
 
-      const uniqueNewRoles = Array.from(new Set(newRoles));
+    // Build new roles array
+    const newRoles: Role[] = ["buyer"];
+    if (newPrimaryRole !== "buyer") {
+      newRoles.push(newPrimaryRole as Role);
+    }
+    if (user.is_seller || user.roles.includes("seller")) {
+      newRoles.push("seller");
+    }
+
+    const uniqueNewRoles = Array.from(new Set(newRoles));
+
+    try {
+      // 1. Optimistic UI update: change state immediately for instant responsiveness
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, roles: uniqueNewRoles } : u
+        )
+      );
 
       const sb = getSupabase();
       if (!sb) throw new Error("Database client not configured");
       const { data: { session } } = await sb.auth.getSession();
       if (!session?.access_token) throw new Error("Not authenticated");
 
+      // 2. Await the primary backend database save
       await updateUserRole({
         data: {
           targetUserId: userId,
@@ -148,11 +159,15 @@ function Page() {
         },
       });
 
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === userId ? { ...u, roles: uniqueNewRoles } : u
-        )
-      );
+      // 3. Compatibility fallback write: non-blocking, client-side update to profiles.role
+      try {
+        await sb
+          .from("profiles")
+          .update({ role: newPrimaryRole })
+          .eq("id", userId);
+      } catch (profilesErr) {
+        console.warn("[AdminUsers] Non-blocking client profiles.role compatibility update failed:", profilesErr);
+      }
 
       toast.success("User role updated successfully!");
 
@@ -162,7 +177,15 @@ function Page() {
         toast.info("Your administrative privileges have been refreshed.");
       }
     } catch (e: any) {
-      console.error(e);
+      console.error("[AdminUsers] Role update failed, rolling back:", e);
+      
+      // 4. Rollback: revert UI state to original roles on error
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, roles: originalRoles } : u
+        )
+      );
+
       toast.error("Failed to update role: " + e.message);
     }
   };
