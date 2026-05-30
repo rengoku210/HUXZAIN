@@ -895,7 +895,8 @@ function AdminPayments() {
                           </p>
                         </div>
                       ) : (() => {
-                        const isInvalid = ocrData && (
+                        // Stricter check: missing data or missing all key fields or containing non-receipt text is flagged as invalid
+                        const isInvalid = !ocrData || (
                           (!ocrData.amount && !ocrData.transaction_id && !ocrData.sender_name && !ocrData.receiver_name && !ocrData.date) ||
                           JSON.stringify(ocrData).toLowerCase().match(/balance fetched|account balance|sponsored links|done/)
                         );
@@ -911,7 +912,7 @@ function AdminPayments() {
                                   OCR Could Not Verify Payment Receipt
                                 </h5>
                                 <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-xs mx-auto">
-                                  This image does not appear to contain a valid payment receipt or transaction details. Please review manually before approval.
+                                  This image does not appear to be a valid payment receipt. Manual review required.
                                 </p>
                               </div>
                               <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 font-bold text-[11px] uppercase tracking-wider mt-2">
@@ -921,70 +922,63 @@ function AdminPayments() {
                           );
                         }
                         
-                        if (ocrData) {
-                          return (
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">Amount</span>
-                                <span className="text-xs text-right font-extrabold text-foreground">
-                                  {ocrData.currency === "INR" ? "₹" : ocrData.currency}{ocrData.amount}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">Date</span>
-                                <span className="text-xs text-right font-bold text-foreground">
-                                  {ocrData.date}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">Time</span>
-                                <span className="text-xs text-right font-bold text-foreground">
-                                  {ocrData.time}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">UTR / Transaction ID</span>
-                                <span className="text-xs text-right font-mono font-extrabold text-gold tracking-wider select-all break-all">
-                                  {ocrData.transaction_id}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">Sender</span>
-                                <span className="text-xs text-right font-bold text-foreground">
-                                  {ocrData.sender_name}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">Receiver</span>
-                                <span className="text-xs text-right font-bold text-foreground">
-                                  {ocrData.receiver_name}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                                <span className="text-xs text-muted-foreground font-medium">Payment App</span>
-                                <span className="text-xs text-right font-bold text-foreground">
-                                  {ocrData.payment_app}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 py-2">
-                                <span className="text-xs text-muted-foreground font-medium">OCR Status</span>
-                                <span className="text-xs text-right flex justify-end">
-                                  <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                    ocrData.payment_status?.toLowerCase() === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                    ocrData.payment_status?.toLowerCase() === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                    'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                                  }`}>
-                                    {ocrData.payment_status || "Unknown"}
-                                  </span>
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
-                        
+                        // If it gets here, ocrData exists and has at least some valid fields
                         return (
-                          <div className="h-full flex items-center justify-center py-12 text-muted-foreground text-xs font-mono">
-                            No data available
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Amount</span>
+                              <span className="text-xs text-right font-extrabold text-foreground">
+                                {ocrData.currency === "INR" ? "₹" : ocrData.currency}{ocrData.amount}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Date</span>
+                              <span className="text-xs text-right font-bold text-foreground">
+                                {ocrData.date}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Time</span>
+                              <span className="text-xs text-right font-bold text-foreground">
+                                {ocrData.time}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">UTR / Transaction ID</span>
+                              <span className="text-xs text-right font-mono font-extrabold text-gold tracking-wider select-all break-all">
+                                {ocrData.transaction_id}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Sender</span>
+                              <span className="text-xs text-right font-bold text-foreground">
+                                {ocrData.sender_name}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Receiver</span>
+                              <span className="text-xs text-right font-bold text-foreground">
+                                {ocrData.receiver_name}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Payment App</span>
+                              <span className="text-xs text-right font-bold text-foreground">
+                                {ocrData.payment_app}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2">
+                              <span className="text-xs text-muted-foreground font-medium">OCR Status</span>
+                              <span className="text-xs text-right flex justify-end">
+                                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  ocrData.payment_status?.toLowerCase() === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  ocrData.payment_status?.toLowerCase() === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                  'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                                }`}>
+                                  {ocrData.payment_status || "Unknown"}
+                                </span>
+                              </span>
+                            </div>
                           </div>
                         );
                       })()}
