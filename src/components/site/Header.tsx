@@ -368,11 +368,11 @@ export function Header() {
           buyer_id: user.id,
           seller_id: item.seller_id,
           listing_id: item.id,
-          qty: 1,
-          amount_total: price,
-          currency: item.currency ?? "INR",
-          payment_method: "manual",
+          listing_title: item.title,
+          amount_inr: price,
           status: "pending_payment",
+          payment_status: "created",
+          payment_method: "manual",
         })
         .select("id")
         .single();
@@ -384,7 +384,7 @@ export function Header() {
         order_id: order.id,
         type: "charge",
         amount_cents: amountCents,
-        currency: item.currency ?? "INR",
+        currency: "INR",
         ref: `manual:${order.id}`,
         status: "pending",
       });
