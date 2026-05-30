@@ -53,7 +53,7 @@ function AdminLayout() {
   const allowed = isStaff || isModerator || isAdminOrSuper || isEmailWhitelist;
   const isStrictStaff = isStaff && !isModerator && !isAdminOrSuper && !isEmailWhitelist;
   
-  const staffAllowedPaths = ["/admin/payments", "/admin/subscriptions"];
+  const staffAllowedPaths = ["/admin/payments", "/admin/subscriptions", "/admin/tickets"];
 
   useEffect(() => {
     if (auth.ready && auth.isAuthenticated) {

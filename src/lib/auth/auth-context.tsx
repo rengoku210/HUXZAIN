@@ -166,6 +166,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // 3. Ensure roles exist in DB
       const dbRoles = uniqueRoles((r ?? []) as { role: Role }[]);
+
+      // Supplement with granular role from user_metadata if they are an admin in DB
+      const metaRole = fallbackUser?.user_metadata?.role as Role | undefined;
+      if (metaRole && ["staff", "moderator", "super_admin", "owner"].includes(metaRole) && dbRoles.includes("admin")) {
+        if (!dbRoles.includes(metaRole)) {
+          dbRoles.push(metaRole);
+        }
+      }
       
       try {
         // Always ensure "buyer" role for every user
@@ -337,7 +345,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       roles,
       isAuthenticated: !!user,
-      hasRole: (r) => roles.includes(r),
+      hasRole: (r) => {
+        // Role hierarchy: super_admin/owner > admin > moderator > staff > seller > buyer
+        if (roles.includes(r)) return true;
+        // Elevated roles implicitly satisfy lower-level checks
+        if (r === "admin" && roles.some(x => ["super_admin", "owner"].includes(x))) return true;
+        if (r === "moderator" && roles.some(x => ["admin", "super_admin", "owner"].includes(x))) return true;
+        return false;
+      },
       hasAnyRole: (rs) => hasAnyRole(roles, rs),
       can: (p) => hasPermission(roles, p),
       async signInWithPassword(email, password) {

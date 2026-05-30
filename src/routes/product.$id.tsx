@@ -52,7 +52,7 @@ const TABS = ["Description", "Reviews", "FAQs", "Support"];
 function ProductPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, ready } = useAuth();
   const [listing, setListing] = useState<DbListing | null>(null);
   const [sellerProfile, setSellerProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -378,11 +378,11 @@ function ProductPage() {
               </button>
               <button
                 onClick={handleBuyNow}
-                disabled={ordering}
+                disabled={!ready || ordering}
                 className="flex-1 h-12 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2"
               >
-                {ordering && <Loader2 className="size-4 animate-spin" />}
-                {ordering ? "Creating order..." : "Buy Now"}
+                {(!ready || ordering) && <Loader2 className="size-4 animate-spin" />}
+                {!ready ? "Loading auth..." : ordering ? "Creating order..." : "Buy Now"}
               </button>
               <button
                 className={`size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center transition-colors ${isWishlisted ? 'text-gold border-gold/40 bg-gold/5' : 'text-muted-foreground hover:text-gold'}`}

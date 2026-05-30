@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { useEffect, useState } from "react";
-import { updateUserRole } from "@/lib/admin/role.functions";
+import { updateUserRole, listAdminUsers } from "@/lib/admin/role.functions";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
@@ -35,9 +35,9 @@ const ADMIN_ROLE_OPTIONS = [
 
 function getPrimaryRole(roles: Role[]): string {
   if (roles.includes("super_admin")) return "super_admin";
-  if (roles.includes("admin")) return "admin";
   if (roles.includes("moderator")) return "moderator";
   if (roles.includes("staff")) return "staff";
+  if (roles.includes("admin")) return "admin";
   return "buyer";
 }
 
@@ -53,53 +53,14 @@ function Page() {
       const sb = getSupabase();
       if (!sb) return;
 
-      const { data: profiles, error: pErr } = await sb
-        .from("profiles")
-        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
-        .order("created_at", { ascending: false });
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
 
-      if (pErr) throw pErr;
-
-      const { data: roleRows, error: rErr } = await sb
-        .from("user_roles")
-        .select("user_id, role");
-
-      if (rErr) throw rErr;
-
-      const roleMap: Record<string, Role[]> = {};
-      roleRows?.forEach((row) => {
-        const uid = row.user_id;
-        const r = row.role as Role;
-        if (!roleMap[uid]) roleMap[uid] = [];
-        roleMap[uid].push(r);
+      const combined = await listAdminUsers({
+        data: { token: session.access_token }
       });
 
-      const combined: ManagedUser[] = (profiles ?? []).map((p) => {
-        let roles = roleMap[p.id] ?? [];
-        if (typeof window !== "undefined") {
-          const override = localStorage.getItem(`user-role-override-${p.id}`);
-          if (override) {
-            try {
-              roles = JSON.parse(override) as Role[];
-            } catch (e) {
-              console.warn(e);
-            }
-          }
-        }
-        return {
-          id: p.id,
-          email: p.email,
-          display_name: p.display_name,
-          username: p.username,
-          created_at: p.created_at,
-          suspended_at: p.suspended_at,
-          is_seller: p.is_seller,
-          is_verified: p.is_verified,
-          roles: roles,
-        };
-      });
-
-      setUsers(combined);
+      setUsers(combined as ManagedUser[]);
     } catch (e: any) {
       console.error(e);
       toast.error("Failed to fetch users: " + e.message);
@@ -158,11 +119,6 @@ function Page() {
         )
       );
 
-      // Save to localStorage so that the specific role (e.g. staff, super_admin) is persisted in browser across refreshes
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`user-role-override-${userId}`, JSON.stringify(uniqueNewRoles));
-      }
-
       const sb = getSupabase();
       if (!sb) throw new Error("Database client not configured");
       const { data: { session } } = await sb.auth.getSession();
@@ -197,11 +153,6 @@ function Page() {
     } catch (e: any) {
       console.error("[AdminUsers] Role update failed, rolling back:", e);
       
-      // Revert localStorage on rollback
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`user-role-override-${userId}`, JSON.stringify(originalRoles));
-      }
-
       // 4. Rollback: revert UI state to original roles on error
       setUsers((prev) =>
         prev.map((u) =>

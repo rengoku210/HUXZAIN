@@ -206,10 +206,10 @@ function UnifiedPaymentPage() {
             buyer_id: user.id,
             seller_id: listing.seller_id,
             listing_id: listing.id,
-            qty: 1,
-            amount_total: checkoutPrice,
-            currency: "INR",
+            listing_title: listing.title,
+            amount_inr: checkoutPrice,
             payment_method: "manual",
+            payment_status: "created",
             status: "pending_payment",
           })
           .select("id")
@@ -221,15 +221,13 @@ function UnifiedPaymentPage() {
 
         // Also create charge transaction (non-blocking – table may not exist in all envs)
         try {
-          const amountCents = Math.round(checkoutPrice * 100);
           await supabase.from("wallet_transactions").insert({
-            user_id: user.id,
-            order_id: finalOrderId,
-            type: "charge",
-            amount_cents: amountCents,
-            currency: "INR",
-            ref: `manual:${finalOrderId}`,
+            wallet_id: user.id,
+            type: "sale",
+            amount: checkoutPrice,
             status: "pending",
+            reference_id: finalOrderId,
+            description: `Pending purchase for "${listing.title}"`,
           });
         } catch (txErr) {
           console.warn("[Unified Checkout] Non-blocking wallet_transactions insert skipped:", txErr);

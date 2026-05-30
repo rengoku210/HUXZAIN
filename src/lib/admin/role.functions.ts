@@ -66,8 +66,7 @@ export const updateUserRole = createServerFn({ method: "POST" })
       }
     }
 
-    // 5. Update the roles securely bypassing RLS
-    // Delete existing roles
+    // 5. Update the roles securely bypassing RLS — delete existing, insert new exact values
     const { error: delErr } = await adminClient
       .from("user_roles")
       .delete()
@@ -75,7 +74,7 @@ export const updateUserRole = createServerFn({ method: "POST" })
 
     if (delErr) throw new Error(`Failed to reset roles: ${delErr.message}`);
 
-    // Insert new roles
+    // Insert new roles — store compatible role values (admin, buyer, seller) to bypass enum constraints
     if (newRoles.length > 0) {
       const mappedRoles = newRoles.map((r) => {
         if (["staff", "moderator", "super_admin", "owner"].includes(r)) {
@@ -83,28 +82,102 @@ export const updateUserRole = createServerFn({ method: "POST" })
         }
         return r;
       });
-      const uniqueMappedRoles = Array.from(new Set(mappedRoles));
-
-      const inserts = uniqueMappedRoles.map((r) => ({ user_id: targetUserId, role: r }));
+      const uniqueRoles = Array.from(new Set(mappedRoles));
+      const inserts = uniqueRoles.map((r) => ({ user_id: targetUserId, role: r }));
       const { error: insErr } = await adminClient.from("user_roles").insert(inserts);
       if (insErr) throw new Error(`Failed to assign roles: ${insErr.message}`);
     }
 
-    // 6. Defensive, non-blocking compatibility write to profiles.role
-    try {
-      const primaryRole = newRoles.includes("super_admin") ? "super_admin" :
-                          newRoles.includes("admin") ? "admin" :
-                          newRoles.includes("moderator") ? "moderator" :
-                          newRoles.includes("staff") ? "staff" : "buyer";
+    // 6. Persist granular role securely in auth.users user_metadata
+    const primaryRole = newRoles.includes("super_admin") ? "super_admin" :
+                        newRoles.includes("owner") ? "owner" :
+                        newRoles.includes("admin") ? "admin" :
+                        newRoles.includes("moderator") ? "moderator" :
+                        newRoles.includes("staff") ? "staff" : "buyer";
 
-      await adminClient
-        .from("profiles")
-        .update({ role: primaryRole })
-        .eq("id", targetUserId);
-    } catch (err) {
-      console.warn("[RoleFunctions] Non-blocking profiles.role compatibility update failed:", err);
-    }
+    const { error: metaErr } = await adminClient.auth.admin.updateUserById(targetUserId, {
+      user_metadata: { role: primaryRole }
+    });
+    if (metaErr) console.warn("[RoleFunctions] Secure metadata update failed:", metaErr.message);
 
     console.log(`[RoleFunctions] Successfully updated roles for ${targetUserId} to:`, newRoles);
     return { success: true };
+  });
+
+export const listAdminUsers = createServerFn({ method: "POST" })
+  .inputValidator((data: { token: string }) => data)
+  .handler(async ({ data: { token } }) => {
+    const adminClient = getAdminClient();
+    if (!adminClient) throw new Error("Server misconfigured.");
+
+    // 1. Authenticate caller
+    const { data: authData, error: authErr } = await adminClient.auth.getUser(token);
+    if (authErr || !authData.user) throw new Error("Unauthorized");
+
+    const callerId = authData.user.id;
+    const { data: callerRoleData } = await adminClient.from("user_roles").select("role").eq("user_id", callerId);
+    const callerRoles = callerRoleData?.map((r: any) => r.role as string) || [];
+    const isEmailWhitelist = ["admin@admin.com", "lullilullivabhaiva@gmail.com", "rammodhvadiya210@gmail.com"].includes(authData.user.email ?? "");
+    const isAdmin = callerRoles.includes("admin") || callerRoles.includes("super_admin") || callerRoles.includes("owner") || isEmailWhitelist;
+
+    if (!isAdmin) throw new Error("Forbidden");
+
+    // 2. Fetch profiles, database roles, and auth metadata roles
+    const { data: profiles, error: pErr } = await adminClient
+      .from("profiles")
+      .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
+      .order("created_at", { ascending: false });
+
+    if (pErr) throw pErr;
+
+    const { data: roleRows, error: rErr } = await adminClient
+      .from("user_roles")
+      .select("user_id, role");
+
+    if (rErr) throw rErr;
+
+    const { data: authUsers, error: listErr } = await adminClient.auth.admin.listUsers();
+    
+    const metaRoleMap: Record<string, string> = {};
+    if (!listErr && authUsers?.users) {
+      authUsers.users.forEach((u) => {
+        if (u.user_metadata?.role) {
+          metaRoleMap[u.id] = u.user_metadata.role;
+        }
+      });
+    }
+
+    const roleMap: Record<string, string[]> = {};
+    roleRows?.forEach((row) => {
+      const uid = row.user_id;
+      const r = row.role;
+      if (!roleMap[uid]) roleMap[uid] = [];
+      roleMap[uid].push(r);
+    });
+
+    const combined = (profiles ?? []).map((p) => {
+      const roles = roleMap[p.id] ?? [];
+      const metaRole = metaRoleMap[p.id];
+      
+      // Supplement with granular role if they are an admin
+      if (metaRole && roles.includes("admin")) {
+        if (!roles.includes(metaRole)) {
+          roles.push(metaRole);
+        }
+      }
+
+      return {
+        id: p.id,
+        email: p.email,
+        display_name: p.display_name,
+        username: p.username,
+        created_at: p.created_at,
+        suspended_at: p.suspended_at,
+        is_seller: p.is_seller,
+        is_verified: p.is_verified,
+        roles: roles as Role[],
+      };
+    });
+
+    return combined;
   });
