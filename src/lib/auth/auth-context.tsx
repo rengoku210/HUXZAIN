@@ -170,8 +170,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Supplement with granular role from user_metadata if they are an admin in DB
       const metaRole = fallbackUser?.user_metadata?.role as Role | undefined;
       if (metaRole && ["staff", "moderator", "super_admin", "owner"].includes(metaRole) && dbRoles.includes("admin")) {
-        if (!dbRoles.includes(metaRole)) {
-          dbRoles.push(metaRole);
+        if (metaRole === "staff") {
+          const adminIdx = dbRoles.indexOf("admin");
+          if (adminIdx !== -1) {
+            dbRoles[adminIdx] = "staff"; // Replace 'admin' with 'staff' so they are not treated as full admins
+          }
+        } else {
+          if (!dbRoles.includes(metaRole)) {
+            dbRoles.push(metaRole);
+          }
         }
       }
       
@@ -285,6 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         finalProfile ? ({ ...(finalProfile as Profile), email, is_seller: hasSeller } as Profile) : null,
       );
       setRoles(dbRoles);
+      setReady(true);
     },
     [supabase],
   );
@@ -308,6 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null);
         setRoles([]);
+        setReady(true);
       }
     });
 
@@ -320,8 +329,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (error) console.error("[AuthContext] getSession error:", error);
       setSession(data?.session ?? null);
-      if (data?.session?.user) loadUserMeta(data.session.user.id, data.session.user);
-      setReady(true);
+      if (data?.session?.user) {
+        loadUserMeta(data.session.user.id, data.session.user);
+      } else {
+        setReady(true);
+      }
     }).catch(err => {
       console.error("[AuthContext] getSession exception:", err);
       if (mounted) setReady(true);
