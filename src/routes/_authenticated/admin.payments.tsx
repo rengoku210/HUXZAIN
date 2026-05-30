@@ -914,16 +914,38 @@ function AdminPayments() {
                           </p>
                         </div>
                       ) : (() => {
-                        // Stricter check: missing data or missing all key fields or containing non-receipt text is flagged as invalid
-                        const amountField = ocrData.paid_amount ?? ocrData.amount;
-                        const dateField = ocrData.timestamp_text ?? ocrData.date;
-                        const statusField = ocrData.status ?? ocrData.payment_status;
-                        
-                        const isInvalid = !ocrData || (
+                        // ── Hard null guard: if ocrData is null/undefined, show invalid immediately ──
+                        if (!ocrData) {
+                          return (
+                            <div className="h-full flex flex-col items-center justify-center gap-4 py-10 px-6 text-center">
+                              <div className="size-12 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 mb-2 shadow-lg shadow-orange-500/5">
+                                <AlertTriangle className="size-6 text-orange-400" />
+                              </div>
+                              <div>
+                                <h5 className="font-display font-bold text-base text-foreground">
+                                  OCR Could Not Verify Payment Receipt
+                                </h5>
+                                <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-xs mx-auto">
+                                  This image does not appear to be a valid payment receipt. Manual review required.
+                                </p>
+                              </div>
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 font-bold text-[11px] uppercase tracking-wider mt-2">
+                                <AlertTriangle size={12} /> Manual Review Required
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // ocrData is now guaranteed non-null — safe to read fields
+                        const amountField = ocrData.paid_amount ?? ocrData.amount ?? null;
+                        const dateField = ocrData.timestamp_text ?? ocrData.date ?? null;
+                        const statusField = ocrData.status ?? ocrData.payment_status ?? null;
+
+                        const isInvalid = (
                           (!amountField && !ocrData.transaction_id && !ocrData.sender_name && !ocrData.receiver_name && !dateField) ||
-                          JSON.stringify(ocrData).toLowerCase().match(/balance fetched|account balance|sponsored links/)
+                          Boolean(JSON.stringify(ocrData).toLowerCase().match(/balance fetched|account balance|sponsored links/))
                         );
-                        
+
                         if (isInvalid) {
                           return (
                             <div className="h-full flex flex-col items-center justify-center gap-4 py-10 px-6 text-center">
@@ -944,44 +966,44 @@ function AdminPayments() {
                             </div>
                           );
                         }
-                        
-                        // If it gets here, ocrData exists and has at least some valid fields
+
+                        // Valid OCR data — render the details table
                         return (
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Amount</span>
                               <span className="text-xs text-right font-extrabold text-foreground">
-                                {ocrData.currency === "INR" ? "₹" : (ocrData.currency || "₹")}{amountField || "N/A"}
+                                {ocrData.currency === "INR" ? "₹" : (ocrData.currency || "₹")}{amountField ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Date / Time</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {dateField || "N/A"} {ocrData.time ? `| ${ocrData.time}` : ""}
+                                {dateField ?? "N/A"} {ocrData.time ? `| ${ocrData.time}` : ""}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">UTR / Transaction ID</span>
                               <span className="text-xs text-right font-mono font-extrabold text-gold tracking-wider select-all break-all">
-                                {ocrData.transaction_id || "N/A"}
+                                {ocrData.transaction_id ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Sender</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.sender_name || "N/A"}
+                                {ocrData.sender_name ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Receiver</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.receiver_name || "N/A"}
+                                {ocrData.receiver_name ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Payment App</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.payment_app || "N/A"}
+                                {ocrData.payment_app ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2">
@@ -992,7 +1014,7 @@ function AdminPayments() {
                                   statusField?.toLowerCase() === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
                                   'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                                 }`}>
-                                  {statusField || "Unknown"}
+                                  {statusField ?? "Unknown"}
                                 </span>
                               </span>
                             </div>
