@@ -365,15 +365,15 @@ function AdminPayments() {
       })
       .eq("id", orderId);
 
-    // Update transactions
+    // Update transactions (non-blocking – table may not exist in all envs)
     try {
       await supabase
-        .from("transactions")
+        .from("wallet_transactions")
         .update({ status: "completed", ref: `manual:${orderId}` })
         .eq("order_id", orderId)
         .eq("user_id", buyerId);
     } catch (e) {
-      console.warn("[AdminPayments] Transaction update skipped:", e);
+      console.warn("[AdminPayments] wallet_transactions update skipped:", e);
     }
 
     // Also update legacy payment_verifications
@@ -585,7 +585,8 @@ function AdminPayments() {
 
   // ── Filtered list ──
   const filtered = proofs.filter((p) => {
-    const matchesStatus = filter === "all" || p.status === filter;
+    if (!p) return false;
+    const matchesStatus = filter === "all" || (p.status ?? "pending") === filter;
     const matchesType = typeFilter === "all" || p.payment_type === typeFilter;
     const name = p.profiles?.display_name || p.profiles?.username || "";
     const email = p.profiles?.email || "";
@@ -742,7 +743,9 @@ function AdminPayments() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => (
+                {filtered.map((p) => {
+                  if (!p?.id) return null;
+                  return (
                   <tr
                     key={p.id}
                     className="border-b border-border/50 hover:bg-surface/40 transition-colors"
@@ -751,12 +754,12 @@ function AdminPayments() {
                       <div className="font-semibold text-foreground">
                         {p.profiles?.display_name ?? p.profiles?.username ?? "Unknown"}
                       </div>
-                      <div className="text-xs text-muted-foreground">{p.profiles?.email}</div>
+                      <div className="text-xs text-muted-foreground">{p.profiles?.email ?? ""}</div>
                     </td>
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase">
-                        {getTypeIcon(p.payment_type)}
-                        {p.payment_type}
+                        {getTypeIcon(p.payment_type ?? "listing")}
+                        {p.payment_type ?? "listing"}
                       </span>
                     </td>
                     <td className="py-3 px-4 max-w-[200px] truncate">
@@ -766,19 +769,19 @@ function AdminPayments() {
                           "Subscription"}
                     </td>
                     <td className="py-3 px-4 text-right font-bold">
-                      ₹{Number(p.amount).toFixed(2)}
+                      ₹{Number(p.amount ?? 0).toFixed(2)}
                     </td>
                     <td className="py-3 px-4">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusColor(
-                          p.status,
+                          p.status ?? "pending",
                         )}`}
                       >
-                        {p.status}
+                        {p.status ?? "pending"}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(p.created_at).toLocaleString()}
+                      {p.created_at ? new Date(p.created_at).toLocaleString() : "—"}
                     </td>
                     <td className="py-3 text-right pr-4">
                       <button
@@ -789,7 +792,8 @@ function AdminPayments() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -809,7 +813,7 @@ function AdminPayments() {
             {/* ─── MODAL HEADER (Fixed) ─── */}
             <div className="p-6 pb-4 flex items-center justify-between shrink-0 border-b border-border/50">
               <h2 className="font-display text-lg font-bold flex items-center gap-2">
-                {getTypeIcon(activeProof.payment_type)}
+                {getTypeIcon(activeProof.payment_type ?? "listing")}
                 Inspect {activeProof.payment_type === "listing" ? "Order" : "Subscription"} Proof
               </h2>
               <button
@@ -836,36 +840,42 @@ function AdminPayments() {
                     <div>
                       <div className="text-muted-foreground">Amount Paid</div>
                       <div className="font-bold text-gold mt-0.5">
-                        ₹{Number(activeProof.amount).toFixed(2)}
+                        ₹{Number(activeProof.amount ?? 0).toFixed(2)}
                       </div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Status</div>
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border mt-1 ${getStatusColor(
-                          activeProof.status,
+                          activeProof.status ?? "pending",
                         )}`}
                       >
-                        {activeProof.status}
+                        {activeProof.status ?? "pending"}
                       </span>
                     </div>
                   </div>
 
                   {/* Screenshot */}
                   <div className="rounded-2xl overflow-hidden border border-border/80 bg-black h-[400px] md:h-[500px] flex items-center justify-center relative group">
-                    <img
-                      src={activeProof.screenshot_url}
-                      alt="Payment Screenshot"
-                      className="max-w-full max-h-full object-contain"
-                    />
-                    <a
-                      href={activeProof.screenshot_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2 font-semibold"
-                    >
-                      Open Full Size <ExternalLink size={16} />
-                    </a>
+                    {activeProof.screenshot_url ? (
+                      <>
+                        <img
+                          src={activeProof.screenshot_url}
+                          alt="Payment Screenshot"
+                          className="max-w-full max-h-full object-contain"
+                        />
+                        <a
+                          href={activeProof.screenshot_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2 font-semibold"
+                        >
+                          Open Full Size <ExternalLink size={16} />
+                        </a>
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground text-sm">No screenshot available</div>
+                    )}
                   </div>
                 </div>
 

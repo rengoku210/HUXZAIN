@@ -219,25 +219,33 @@ function UnifiedPaymentPage() {
         finalOrderId = newOrder.id;
         setOrderId(finalOrderId);
 
-        // Also create charge transaction
-        const amountCents = Math.round(checkoutPrice * 100);
-        await supabase.from("transactions").insert({
-          user_id: user.id,
-          order_id: finalOrderId,
-          type: "charge",
-          amount_cents: amountCents,
-          currency: "INR",
-          ref: `manual:${finalOrderId}`,
-          status: "pending",
-        });
+        // Also create charge transaction (non-blocking – table may not exist in all envs)
+        try {
+          const amountCents = Math.round(checkoutPrice * 100);
+          await supabase.from("wallet_transactions").insert({
+            user_id: user.id,
+            order_id: finalOrderId,
+            type: "charge",
+            amount_cents: amountCents,
+            currency: "INR",
+            ref: `manual:${finalOrderId}`,
+            status: "pending",
+          });
+        } catch (txErr) {
+          console.warn("[Unified Checkout] Non-blocking wallet_transactions insert skipped:", txErr);
+        }
 
         // Insert notification
-        await supabase.from("notifications").insert({
-          user_id: listing.seller_id,
-          kind: "order.created",
-          title: "New order received",
-          body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
-        });
+        try {
+          await supabase.from("notifications").insert({
+            user_id: listing.seller_id,
+            kind: "order.created",
+            title: "New order received",
+            body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
+          });
+        } catch (notifErr) {
+          console.warn("[Unified Checkout] Non-blocking notification insert skipped:", notifErr);
+        }
       }
 
       // 2. Upload screenshot file to storage
@@ -348,17 +356,25 @@ function UnifiedPaymentPage() {
               console.warn("[Unified Checkout] Non-blocking legacy payment_verifications insert failed:", e);
             }
 
-            // Update transaction status
-            await supabase.from("transactions").update({ ref: `manual:${finalOrderId}`, status: "submitted" }).eq("order_id", finalOrderId).eq("user_id", user.id);
+            // Update transaction status (non-blocking – table may not exist in all envs)
+            try {
+              await supabase.from("wallet_transactions").update({ ref: `manual:${finalOrderId}`, status: "submitted" }).eq("order_id", finalOrderId).eq("user_id", user.id);
+            } catch (txErr) {
+              console.warn("[Unified Checkout] Non-blocking wallet_transactions update skipped:", txErr);
+            }
 
             // Notify Seller
             if (listing?.seller_id) {
-              await supabase.from("notifications").insert({
-                user_id: listing.seller_id,
-                kind: "payment.submitted",
-                title: "Payment proof submitted",
-                body: `Order ${finalOrderId.slice(0, 8)} is awaiting admin verification.`,
-              });
+              try {
+                await supabase.from("notifications").insert({
+                  user_id: listing.seller_id,
+                  kind: "payment.submitted",
+                  title: "Payment proof submitted",
+                  body: `Order ${finalOrderId.slice(0, 8)} is awaiting admin verification.`,
+                });
+              } catch (notifErr) {
+                console.warn("[Unified Checkout] Non-blocking seller notification skipped:", notifErr);
+              }
             }
           }
         } catch (bgErr) {
