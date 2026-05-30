@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
+import { scorePayment, type PaymentScore } from "@/lib/payment-scoring";
 import {
   CreditCard,
   CheckCircle,
@@ -74,6 +75,7 @@ function AdminPayments() {
   const [ocrData, setOcrData] = useState<any | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [paymentScore, setPaymentScore] = useState<PaymentScore | null>(null);
 
   const supabase = getSupabase();
 
@@ -266,6 +268,18 @@ function AdminPayments() {
       }
     })();
   }, [activeProof?.id]);
+
+  // ── Compute fraud score whenever OCR data is ready ──
+  useEffect(() => {
+    if (ocrData && !ocrLoading) {
+      const expectedAmount = activeProof?.amount ? Number(activeProof.amount) : null;
+      const score = scorePayment(ocrData, expectedAmount);
+      console.log("[AdminPayments] Payment score:", score);
+      setPaymentScore(score);
+    } else {
+      setPaymentScore(null);
+    }
+  }, [ocrData, ocrLoading]);
 
 
   // ── Approve Handler ──
@@ -975,6 +989,59 @@ function AdminPayments() {
                       </p>
                     </div>
 
+                    {/* ── Fraud Score Banner (shows when OCR is ready) ── */}
+                    {paymentScore && !ocrLoading && (
+                      <div className={`mx-4 mt-4 rounded-2xl border p-4 ${
+                        paymentScore.score >= 80
+                          ? "bg-emerald-500/8 border-emerald-500/25"
+                          : paymentScore.score >= 50
+                          ? "bg-amber-500/8 border-amber-500/25"
+                          : "bg-red-500/8 border-red-500/25"
+                      }`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Fraud Confidence Score</span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            paymentScore.score >= 80
+                              ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+                              : paymentScore.score >= 50
+                              ? "text-amber-400 bg-amber-500/10 border-amber-500/25"
+                              : "text-red-400 bg-red-500/10 border-red-500/25"
+                          }`}>{paymentScore.risk_level}</span>
+                        </div>
+
+                        {/* Score Gauge */}
+                        <div className="flex items-end gap-3 mb-3">
+                          <span className={`text-4xl font-display font-extrabold leading-none ${
+                            paymentScore.score >= 80 ? "text-emerald-400" : paymentScore.score >= 50 ? "text-amber-400" : "text-red-400"
+                          }`}>{paymentScore.score}</span>
+                          <span className="text-muted-foreground text-sm mb-1">/100</span>
+                          <div className="flex-1 mb-2">
+                            <div className="h-2 rounded-full bg-border/40 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-700 ${
+                                  paymentScore.score >= 80 ? "bg-emerald-400" : paymentScore.score >= 50 ? "bg-amber-400" : "bg-red-400"
+                                }`}
+                                style={{ width: `${paymentScore.score}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Recommendation Badge */}
+                        <div className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${
+                          paymentScore.score >= 80 ? "text-emerald-400" : paymentScore.score >= 50 ? "text-amber-400" : "text-red-400"
+                        }`}>
+                          {paymentScore.score >= 80 ? <Check size={12} /> : <AlertTriangle size={12} />}
+                          {paymentScore.recommendation}
+                        </div>
+
+                        {/* Reason summary */}
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed font-mono">
+                          {paymentScore.reason}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="p-4 flex-1 overflow-y-auto">
                       {ocrLoading ? (
                         <div className="h-full flex flex-col items-center justify-center gap-3 py-12">
@@ -1107,7 +1174,28 @@ function AdminPayments() {
                                 </span>
                               </span>
                             </div>
-                          </div>
+                          {/* ── Score Breakdown Table (after OCR fields) ── */}
+                          {paymentScore && (
+                            <div className="mt-4 pt-4 border-t border-border/30">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Score Breakdown</div>
+                              <div className="space-y-2">
+                                {paymentScore.breakdown.map((item) => (
+                                  <div key={item.label} className="flex items-center gap-2">
+                                    <span className={`size-4 shrink-0 rounded-full flex items-center justify-center ${
+                                      item.passed ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"
+                                    }`}>
+                                      {item.passed ? <Check size={9} /> : <X size={9} />}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground flex-1 truncate" title={item.detail}>{item.label}</span>
+                                    <span className={`text-[11px] font-bold tabular-nums shrink-0 ${
+                                      item.passed ? "text-emerald-400" : "text-muted-foreground/50"
+                                    }`}>+{item.points}<span className="text-muted-foreground/40">/{item.max}</span></span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         );
                       })()}
                     </div>
