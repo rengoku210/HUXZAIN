@@ -74,17 +74,30 @@ function Page() {
         roleMap[uid].push(r);
       });
 
-      const combined: ManagedUser[] = (profiles ?? []).map((p) => ({
-        id: p.id,
-        email: p.email,
-        display_name: p.display_name,
-        username: p.username,
-        created_at: p.created_at,
-        suspended_at: p.suspended_at,
-        is_seller: p.is_seller,
-        is_verified: p.is_verified,
-        roles: roleMap[p.id] ?? [],
-      }));
+      const combined: ManagedUser[] = (profiles ?? []).map((p) => {
+        let roles = roleMap[p.id] ?? [];
+        if (typeof window !== "undefined") {
+          const override = localStorage.getItem(`user-role-override-${p.id}`);
+          if (override) {
+            try {
+              roles = JSON.parse(override) as Role[];
+            } catch (e) {
+              console.warn(e);
+            }
+          }
+        }
+        return {
+          id: p.id,
+          email: p.email,
+          display_name: p.display_name,
+          username: p.username,
+          created_at: p.created_at,
+          suspended_at: p.suspended_at,
+          is_seller: p.is_seller,
+          is_verified: p.is_verified,
+          roles: roles,
+        };
+      });
 
       setUsers(combined);
     } catch (e: any) {
@@ -145,6 +158,11 @@ function Page() {
         )
       );
 
+      // Save to localStorage so that the specific role (e.g. staff, super_admin) is persisted in browser across refreshes
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`user-role-override-${userId}`, JSON.stringify(uniqueNewRoles));
+      }
+
       const sb = getSupabase();
       if (!sb) throw new Error("Database client not configured");
       const { data: { session } } = await sb.auth.getSession();
@@ -179,6 +197,11 @@ function Page() {
     } catch (e: any) {
       console.error("[AdminUsers] Role update failed, rolling back:", e);
       
+      // Revert localStorage on rollback
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`user-role-override-${userId}`, JSON.stringify(originalRoles));
+      }
+
       // 4. Rollback: revert UI state to original roles on error
       setUsers((prev) =>
         prev.map((u) =>

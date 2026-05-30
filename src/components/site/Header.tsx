@@ -18,6 +18,8 @@ import {
   X,
   Package,
   ArrowRight,
+  Volume2,
+  MessageSquare,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import logo from "@/assets/huxzain-logo.png";
@@ -84,6 +86,126 @@ export function Header() {
   const [listingsCounts, setListingsCounts] = useState<Record<string, number>>({});
   const [cartItems, setCartItems] = useState(cartStore.getItems());
 
+  // Real-time Notifications & Sound (unlocked dynamically via user interaction)
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (audioCtxRef.current) return;
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const ctx = new AudioContextClass();
+          ctx.resume().then(() => {
+            audioCtxRef.current = ctx;
+            console.log("[Header] Shared AudioContext unlocked & active");
+            document.removeEventListener("click", unlockAudio);
+            document.removeEventListener("keydown", unlockAudio);
+          });
+        }
+      } catch (err) {
+        console.warn("[Header] Silent AudioContext unlock bypassed:", err);
+      }
+    };
+
+    document.addEventListener("click", unlockAudio);
+    document.addEventListener("keydown", unlockAudio);
+
+    return () => {
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  function playNotificationSound() {
+    if (!soundEnabled) return;
+    try {
+      let ctx = audioCtxRef.current;
+      if (!ctx) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+        ctx = new AudioContextClass();
+      }
+
+      if (ctx.state === "suspended") {
+        void ctx.resume();
+      }
+      
+      const playTone = (freq: number, start: number, duration: number) => {
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.15, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration - 0.05);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+      
+      const now = ctx.currentTime;
+      playTone(523.25, now, 0.15); // C5
+      playTone(659.25, now + 0.1, 0.25); // E5
+    } catch (err) {
+      console.warn("[Header] AudioContext chime failed:", err);
+    }
+  }
+
+  async function fetchNotifications() {
+    if (!isAuthenticated || !user) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    try {
+      const { data } = await sb
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (data) setNotifications(data);
+    } catch (err) {
+      console.error("[Header] Error fetching notifications:", err);
+    }
+  }
+
+  async function markAsRead(id: string) {
+    const sb = getSupabase();
+    if (!sb) return;
+    try {
+      await sb
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
+      );
+    } catch (err) {
+      console.error("[Header] Error marking notification as read:", err);
+    }
+  }
+
+  async function markAllAsRead() {
+    if (!isAuthenticated || !user) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    try {
+      await sb
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .is("read_at", null);
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }))
+      );
+      toast.success("All notifications marked as read.");
+    } catch (err) {
+      console.error("[Header] Error marking all notifications as read:", err);
+    }
+  }
+
   useEffect(() => {
     const handleCartUpdate = () => {
       setCartItems(cartStore.getItems());
@@ -91,6 +213,40 @@ export function Header() {
     window.addEventListener("cart-updated", handleCartUpdate);
     return () => window.removeEventListener("cart-updated", handleCartUpdate);
   }, []);
+
+  // Notifications Realtime Subscription
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    void fetchNotifications();
+
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const channel = sb
+      .channel(`user_notifications_${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log("[Header] New notification arrived in real-time:", payload.new);
+          setNotifications((prev) => [payload.new, ...prev]);
+          playNotificationSound();
+          toast.info(`${payload.new.title}: ${payload.new.body || ""}`, {
+            duration: 5000,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [isAuthenticated, user, soundEnabled]);
 
   useEffect(() => {
     async function loadNavData() {
@@ -379,34 +535,88 @@ export function Header() {
                   setCartOpen(false);
                   setAccountOpen(false);
                 }}
-                className="hidden sm:inline-flex items-center justify-center size-9 rounded-full hover:bg-surface text-muted-foreground hover:text-foreground transition-colors"
+                className="hidden sm:inline-flex items-center justify-center size-9 rounded-full hover:bg-surface text-muted-foreground hover:text-foreground transition-colors relative border-none bg-transparent cursor-pointer"
                 aria-label="Notifications"
               >
                 <Bell className="size-4" />
+                {notifications.filter(n => !n.read_at).length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 size-4 rounded-full bg-red-500 text-white text-[8px] font-extrabold flex items-center justify-center border-2 border-background">
+                    {notifications.filter(n => !n.read_at).length}
+                  </span>
+                )}
               </button>
 
               {notifOpen && (
                 <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
+                  <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between bg-surface/30">
                     <span className="font-semibold text-sm">Notifications</span>
-                    <button onClick={() => setNotifOpen(false)}>
-                      <X className="size-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                  <div className="py-10 flex flex-col items-center gap-3 text-center px-6">
-                    <Bell className="size-10 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium text-sm">No notifications yet</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        You'll see order updates and alerts here
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setSoundEnabled(!soundEnabled)} 
+                        title={soundEnabled ? "Mute notification sound" : "Unmute notification sound"}
+                        className="text-xs text-muted-foreground hover:text-gold flex items-center gap-1 border-none bg-transparent cursor-pointer"
+                      >
+                        <Volume2 className={`size-3.5 ${soundEnabled ? "text-gold" : "text-muted-foreground/60"}`} />
+                        <span className="text-[10px] font-medium">{soundEnabled ? "Sound" : "Mute"}</span>
+                      </button>
+                      {notifications.some(n => !n.read_at) && (
+                        <button 
+                          onClick={markAllAsRead} 
+                          className="text-[10px] text-gold hover:underline font-semibold border-none bg-transparent cursor-pointer"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                      <button onClick={() => setNotifOpen(false)} className="border-none bg-transparent cursor-pointer text-muted-foreground hover:text-foreground">
+                        <X className="size-4" />
+                      </button>
                     </div>
                   </div>
+                  
+                  {notifications.length === 0 ? (
+                    <div className="py-10 flex flex-col items-center gap-3 text-center px-6">
+                      <Bell className="size-10 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-sm">No notifications yet</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          You'll see order updates and alerts here
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto divide-y divide-border/40 scrollbar-thin">
+                      {notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => {
+                            if (!n.read_at) markAsRead(n.id);
+                          }}
+                          className={`w-full text-left px-4 py-3 hover:bg-surface/50 transition-colors flex gap-3 relative border-none bg-transparent cursor-pointer ${!n.read_at ? "bg-gold/5" : ""}`}
+                        >
+                          <div className="size-8 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0 mt-0.5">
+                            <Bell className="size-3.5 text-gold" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-0.5">
+                              <span className="font-bold text-xs truncate text-foreground/90">{n.title}</span>
+                              <span className="text-[8px] text-muted-foreground font-mono shrink-0">
+                                {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">{n.body}</p>
+                          </div>
+                          {!n.read_at && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-gold shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* â”€â”€ AUTH STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* ── AUTH STATE ──────────────────────────────────────────────────────── */}
             {!ready ? (
               <div className="size-9 rounded-full bg-surface/60 animate-pulse" />
             ) : isAuthenticated ? (
@@ -417,7 +627,7 @@ export function Header() {
                     setCartOpen(false);
                     setNotifOpen(false);
                   }}
-                  className="flex items-center gap-2 h-9 pl-1 pr-3 rounded-full border border-border hover:border-gold/50 bg-surface/40 hover:bg-surface transition-all"
+                  className="flex items-center gap-2 h-9 pl-1 pr-3 rounded-full border border-border hover:border-gold/50 bg-surface/40 hover:bg-surface transition-all border-none"
                   aria-expanded={accountOpen}
                 >
                   <div className="size-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center overflow-hidden shrink-0">
@@ -483,6 +693,12 @@ export function Header() {
                         to="/orders"
                         icon={Package}
                         label="My Orders"
+                        close={() => setAccountOpen(false)}
+                      />
+                      <DropLink
+                        to="/messages"
+                        icon={MessageSquare}
+                        label="Messages / Chat"
                         close={() => setAccountOpen(false)}
                       />
                       <DropLink

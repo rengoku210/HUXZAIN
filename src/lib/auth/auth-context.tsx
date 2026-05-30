@@ -23,8 +23,12 @@ export type Profile = {
   email_visibility?: string | null;
   is_seller: boolean;
   is_verified: boolean;
+  email_verified?: boolean | null;
+  phone_verified?: boolean | null;
   seller_approved?: boolean;
   subscription_tier?: string | null;
+  subscription_expires_at?: string | null;
+  updated_at?: string | null;
 };
 
 type AuthState = {
@@ -226,6 +230,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.warn("[Auth] Profile sync exception:", err);
+      }
+
+      // Check for subscription plan/coupon expiration
+      try {
+        if (
+          finalProfile && 
+          finalProfile.subscription_tier && 
+          finalProfile.subscription_tier !== "standard" && 
+          finalProfile.subscription_expires_at && 
+          new Date().getTime() > new Date(finalProfile.subscription_expires_at).getTime()
+        ) {
+          console.log("[Auth] Subscription/Coupon expired! Reverting user to standard plan...");
+          const { data: revertedProfile, error: revertErr } = await supabase
+            .from("profiles")
+            .update({
+              subscription_tier: "standard",
+              subscription_expires_at: null,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", userId)
+            .select()
+            .maybeSingle();
+          if (revertErr) {
+            console.error("[Auth] Revert error:", revertErr);
+          } else if (revertedProfile) {
+            finalProfile = revertedProfile;
+            
+            // Notify user
+            try {
+              await supabase.from("notifications").insert({
+                user_id: userId,
+                kind: "subscription.expired",
+                title: "Subscription Plan Expired",
+                body: "Your premium Pro/Elite/Enterprise trial or plan has expired. Your store customization has been reverted to the Standard plan."
+              });
+            } catch (e) { console.error("Notification trigger error:", e); }
+          }
+        }
+      } catch (err) {
+        console.warn("[Auth] Expiration check exception:", err);
       }
 
       console.log(`[Auth] User meta loaded for ${userId}. Roles: ${dbRoles.join(", ")}`);

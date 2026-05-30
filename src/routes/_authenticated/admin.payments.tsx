@@ -445,9 +445,9 @@ function AdminPayments() {
     const sellerId = order.seller_id;
     const listingTitle = order.listings?.title || "Order";
 
-    // Commission split: 96% seller, 4% platform
-    const commission = Math.round(finalAmount * 0.04 * 100) / 100;
-    const sellerPayout = finalAmount - commission;
+    // Commission split: 96% seller, 4% platform (rounded to integers for database compatibility)
+    const commission = Math.round(finalAmount * 0.04);
+    const sellerPayout = Math.round(finalAmount - commission);
 
     // Update order status → paid
     await supabase

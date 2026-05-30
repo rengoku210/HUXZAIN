@@ -115,6 +115,7 @@ function LoginPage() {
             )}
             <div className="flex flex-col gap-3">
               <button
+                type="submit"
                 disabled={busy}
                 className="w-full h-11 rounded-lg bg-gold text-primary-foreground font-semibold text-sm hover:brightness-110 disabled:opacity-60"
               >

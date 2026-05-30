@@ -44,8 +44,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     icon: Clock,
   },
   paid: {
-    label: "Completed",
-    color: "text-gold bg-gold/10 border-gold/20",
+    label: "Payment Completed",
+    color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
     icon: CheckCircle2,
   },
   delivering: {
@@ -230,18 +230,27 @@ export function OrdersPage() {
                               listingId: o.listing_id,
                               price: String(o.amount_inr ?? o.amount_total ?? 0),
                             }}
-                            className="text-xs text-gold hover:underline inline-flex items-center gap-1"
+                            className="text-xs text-gold hover:underline inline-flex items-center gap-1 font-semibold"
                           >
                             Complete payment
                           </Link>
                         )}
                         {["paid", "delivering", "delivered", "completed", "approved"].includes(o.status) && (
-                          <Link
-                            to="/seller/messages"
-                            className="text-xs text-gold hover:underline inline-flex items-center gap-1"
-                          >
-                            <MessageSquare className="size-3" /> Contact Seller
-                          </Link>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              Payment Completed
+                            </span>
+                            <span className="text-muted-foreground/30 text-xs">|</span>
+                            <Link
+                              to="/messages"
+                              search={{
+                                orderId: o.id,
+                              }}
+                              className="text-xs text-gold hover:underline inline-flex items-center gap-1 font-semibold"
+                            >
+                              <MessageSquare className="size-3" /> Contact Seller / Chat With Seller
+                            </Link>
+                          </div>
                         )}
                       </div>
                     </div>

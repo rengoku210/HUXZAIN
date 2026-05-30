@@ -1,0 +1,515 @@
+import { getSupabase } from "@/lib/supabase-client";
+
+// Ensure a wallet row exists for the user and return it
+export async function getOrCreateWallet(userId: string) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  const { data: wallet, error } = await supabase
+    .from("wallets")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[WalletFunctions] Error fetching wallet:", error);
+    throw error;
+  }
+
+  if (wallet) return wallet;
+
+  // Wallet doesn't exist, create it
+  console.log("[WalletFunctions] Creating new wallet for user:", userId);
+  const { data: newWallet, error: createError } = await supabase
+    .from("wallets")
+    .insert({
+      id: userId,
+      available_balance: 0,
+      pending_balance: 0,
+      total_earnings: 0,
+      withdrawn_amount: 0
+    })
+    .select("*")
+    .single();
+
+  if (createError) {
+    console.error("[WalletFunctions] Error creating wallet:", createError);
+    throw createError;
+  }
+
+  return newWallet;
+}
+
+// Complete order and credit the seller with net earnings (deducting tier platform fee)
+export async function completeOrderAndCreditSeller(orderId: string) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  // 1. Fetch order details
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .select("*, listings:listing_id(title, seller_id)")
+    .eq("id", orderId)
+    .single();
+
+  if (orderErr || !order) {
+    throw new Error("Order not found: " + orderErr?.message);
+  }
+
+  if (order.status === "completed") {
+    console.log("[WalletFunctions] Order already completed:", orderId);
+    return order;
+  }
+
+  const sellerId = order.seller_id || order.listings?.seller_id;
+  if (!sellerId) {
+    throw new Error("Seller information missing on order: " + orderId);
+  }
+
+  const amount = Number(order.amount_inr || order.amount_total || 0);
+
+  // 2. Fetch seller profile to determine subscription plan fee
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", sellerId)
+    .single();
+
+  const tier = profile?.subscription_tier || "standard";
+
+  // Tier fee mappings: Standard = 1.9%, Pro = 1.5%, Elite = 1.0%, Enterprise = 0.5%
+  let feePercent = 0.019;
+  if (tier === "pro") feePercent = 0.015;
+  else if (tier === "elite") feePercent = 0.010;
+  else if (tier === "enterprise") feePercent = 0.005;
+
+  const commission = Math.round(amount * feePercent);
+  const sellerPayout = Math.round(amount - commission);
+
+  console.log(`[WalletFunctions] Order #${orderId} complete. Tier: ${tier}, Fee: ${feePercent * 100}%, Gross: ₹${amount}, Comm: ₹${commission}, Net: ₹${sellerPayout}`);
+
+  // 3. Update order status -> completed
+  const { error: updErr } = await supabase
+    .from("orders")
+    .update({
+      status: "completed",
+      commission_inr: commission,
+      seller_payout_inr: sellerPayout,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", orderId);
+
+  if (updErr) throw updErr;
+
+  // 4. Load or create seller wallet
+  const wallet = await getOrCreateWallet(sellerId);
+
+  // 5. Credit seller wallet available balance and total earnings
+  const { error: walletErr } = await supabase
+    .from("wallets")
+    .update({
+      available_balance: wallet.available_balance + sellerPayout,
+      total_earnings: wallet.total_earnings + sellerPayout,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", sellerId);
+
+  if (walletErr) throw walletErr;
+
+  // 6. Log transaction
+  const { error: txnErr } = await supabase
+    .from("wallet_transactions")
+    .insert({
+      wallet_id: sellerId,
+      type: "sale",
+      amount: sellerPayout,
+      status: "completed",
+      reference_id: orderId,
+      description: `Sales revenue from order #${orderId.slice(0, 8)} (${order.listing_title || "Marketplace listing"})`
+    });
+
+  if (txnErr) console.error("[WalletFunctions] Transaction log error:", txnErr);
+
+  // 7. Trigger seller notification
+  try {
+    await supabase.from("notifications").insert({
+      user_id: sellerId,
+      kind: "order.completed",
+      title: "Order Completed — Funds Credited",
+      body: `Order for "${order.listing_title || "Listing"}" is completed. ₹${sellerPayout} has been added to your wallet available balance.`
+    });
+  } catch (e) { console.error("Notification trigger error:", e); }
+
+  return order;
+}
+
+// Request withdrawal from available wallet balance
+export async function requestWithdrawal(userId: string, amount: number, method: "upi" | "bank_transfer", details: any) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  if (amount <= 0) throw new Error("Withdrawal amount must be greater than zero");
+
+  const wallet = await getOrCreateWallet(userId);
+
+  if (wallet.available_balance < amount) {
+    throw new Error("Insufficient available balance");
+  }
+
+  console.log(`[WalletFunctions] Withdrawal requested: user=${userId}, amount=₹${amount}, method=${method}`);
+
+  // 1. Deduct from available, transfer to pending
+  const { error: walletErr } = await supabase
+    .from("wallets")
+    .update({
+      available_balance: wallet.available_balance - amount,
+      pending_balance: wallet.pending_balance + amount,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", userId);
+
+  if (walletErr) throw walletErr;
+
+  // 2. Insert withdrawal request record
+  const { data: withdrawal, error: wErr } = await supabase
+    .from("withdrawals")
+    .insert({
+      user_id: userId,
+      amount,
+      method,
+      upi_id: details.upi_id || null,
+      upi_qr_url: details.upi_qr_url || null,
+      account_holder: details.account_holder || null,
+      account_number: details.account_number || null,
+      ifsc_code: details.ifsc_code || null,
+      status: "pending"
+    })
+    .select("*")
+    .single();
+
+  if (wErr) throw wErr;
+
+  // 3. Log a pending transaction
+  const { error: txnErr } = await supabase
+    .from("wallet_transactions")
+    .insert({
+      wallet_id: userId,
+      type: "withdrawal",
+      amount: -amount,
+      status: "pending",
+      reference_id: withdrawal.id,
+      description: `Withdrawal request (${method === "upi" ? "UPI ID: " + details.upi_id : "Bank Transfer"})`
+    });
+
+  if (txnErr) console.error("[WalletFunctions] Transaction log error:", txnErr);
+
+  // 4. Create support ticket for Admin/Staff review automatically!
+  try {
+    await supabase.from("support_tickets").insert({
+      user_id: userId,
+      title: `Payout Withdrawal Request — ₹${amount}`,
+      category: "billing",
+      status: "open"
+    });
+  } catch (e) { console.error("[WalletFunctions] Auto-ticket creation failed:", e); }
+
+  return withdrawal;
+}
+
+// Process withdrawal status changes (Approve / Reject)
+export async function processWithdrawalStatus(withdrawalId: string, status: "completed" | "rejected") {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  const { data: w, error: wErr } = await supabase
+    .from("withdrawals")
+    .select("*")
+    .eq("id", withdrawalId)
+    .single();
+
+  if (wErr || !w) throw new Error("Withdrawal request not found: " + wErr?.message);
+  if (w.status !== "pending") throw new Error("Withdrawal request is already processed");
+
+  const userId = w.user_id;
+  const amount = Number(w.amount);
+  const wallet = await getOrCreateWallet(userId);
+
+  console.log(`[WalletFunctions] Payout status update: id=${withdrawalId}, amount=₹${amount}, status=${status}`);
+
+  if (status === "completed") {
+    // 1. Deduct from pending_balance and increment withdrawn_amount
+    const { error: walletErr } = await supabase
+      .from("wallets")
+      .update({
+        pending_balance: Math.max(0, wallet.pending_balance - amount),
+        withdrawn_amount: wallet.withdrawn_amount + amount,
+        last_payout_date: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", userId);
+
+    if (walletErr) throw walletErr;
+
+    // 2. Mark withdrawal as completed
+    await supabase.from("withdrawals").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", withdrawalId);
+
+    // 3. Mark transaction as completed
+    await supabase.from("wallet_transactions").update({ status: "completed" }).eq("reference_id", withdrawalId).eq("type", "withdrawal");
+
+    // 4. Notify user
+    try {
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        kind: "wallet.withdrawal",
+        title: "Withdrawal Completed",
+        body: `Your withdrawal request for ₹${amount} has been successfully paid out.`
+      });
+    } catch (e) { console.error("Notification error:", e); }
+
+  } else if (status === "rejected") {
+    // 1. Deduct from pending_balance and refund back to available_balance
+    const { error: walletErr } = await supabase
+      .from("wallets")
+      .update({
+        pending_balance: Math.max(0, wallet.pending_balance - amount),
+        available_balance: wallet.available_balance + amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", userId);
+
+    if (walletErr) throw walletErr;
+
+    // 2. Mark withdrawal as rejected
+    await supabase.from("withdrawals").update({ status: "rejected", updated_at: new Date().toISOString() }).eq("id", withdrawalId);
+
+    // 3. Mark transaction as failed/rejected
+    await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("reference_id", withdrawalId).eq("type", "withdrawal");
+
+    // 4. Notify user
+    try {
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        kind: "wallet.withdrawal",
+        title: "Withdrawal Rejected",
+        body: `Your withdrawal request for ₹${amount} was rejected and the funds have been returned to your balance.`
+      });
+    } catch (e) { console.error("Notification error:", e); }
+  }
+}
+
+// Apply coupon code (e.g. WELCOME)
+export async function applyCoupon(userId: string, code: string) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  const cleanCode = code.trim().toUpperCase();
+
+  // 1. Check if user already used this coupon
+  const { data: alreadyUsed } = await supabase
+    .from("user_coupons")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("coupon_code", cleanCode)
+    .maybeSingle();
+
+  if (alreadyUsed) {
+    throw new Error("You have already used this coupon code.");
+  }
+
+  // 2. Fetch coupon rules
+  const { data: coupon, error: cErr } = await supabase
+    .from("coupons")
+    .select("*")
+    .eq("code", cleanCode)
+    .maybeSingle();
+
+  if (cErr || !coupon) {
+    throw new Error("Invalid coupon code.");
+  }
+
+  console.log(`[WalletFunctions] Applying coupon: code=${cleanCode}, user=${userId}, duration=${coupon.reward_duration_days} days`);
+
+  // 3. Prevent duplicate usage by recording in user_coupons
+  const { error: useErr } = await supabase
+    .from("user_coupons")
+    .insert({
+      user_id: userId,
+      coupon_code: cleanCode
+    });
+
+  if (useErr) throw useErr;
+
+  // 4. Update profile subscription tier & expiry
+  const durationMs = Number(coupon.reward_duration_days) * 24 * 60 * 60 * 1000;
+  const expiry = new Date(Date.now() + durationMs).toISOString();
+
+  const { error: profErr } = await supabase
+    .from("profiles")
+    .update({
+      subscription_tier: "pro",
+      subscription_expires_at: expiry,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", userId);
+
+  if (profErr) throw profErr;
+
+  // 5. Notify user
+  try {
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      kind: "coupon.welcome",
+      title: "Coupon Activated — Pro Plan Unlocked!",
+      body: `You have successfully applied the coupon "${cleanCode}". Enjoy 3 days of Pro Plan customization, lower fees, and boost access!`
+    });
+  } catch (e) { console.error("Notification trigger error:", e); }
+
+  return coupon;
+}
+
+// Add balance directly to a user's wallet (admin top-up approval, refunds, etc.)
+export async function addWalletBalance(
+  userId: string,
+  amount: number,
+  type: "topup" | "refund" | "bonus",
+  referenceId?: string
+) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+  if (amount <= 0) throw new Error("Amount must be greater than zero");
+
+  const wallet = await getOrCreateWallet(userId);
+
+  const { error: walletErr } = await supabase
+    .from("wallets")
+    .update({
+      available_balance: wallet.available_balance + amount,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (walletErr) throw walletErr;
+
+  // Log transaction
+  await supabase.from("wallet_transactions").insert({
+    wallet_id: userId,
+    type,
+    amount,
+    status: "completed",
+    reference_id: referenceId || null,
+    description:
+      type === "topup"
+        ? `Wallet top-up of ₹${amount} approved by admin.`
+        : type === "refund"
+          ? `Refund of ₹${amount} credited to wallet.`
+          : `Bonus credit of ₹${amount} added to wallet.`,
+  });
+
+  // Notify user
+  try {
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      kind: "wallet.topup",
+      title: "Wallet Balance Updated",
+      body: `₹${amount} has been credited to your wallet ${type === "topup" ? "top-up" : type} by admin.`,
+    });
+  } catch (e) { console.error("Notification error:", e); }
+}
+
+// Purchase boost (Homepage Spotlight, Category Banner, etc.) in INR
+export async function purchaseBoost(userId: string, listingId: string, type: string, price: number, payMethod: "wallet" | "manual", screenshotUrl?: string) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  console.log(`[WalletFunctions] Purchase boost: user=${userId}, listing=${listingId}, type=${type}, price=₹${price}, method=${payMethod}`);
+
+  if (payMethod === "wallet") {
+    // 1. Get user wallet balance
+    const wallet = await getOrCreateWallet(userId);
+    if (wallet.available_balance < price) {
+      throw new Error("Insufficient wallet balance. Top up your wallet or pay via screenshot QR proof.");
+    }
+
+    // 2. Deduct amount from available balance
+    const { error: wErr } = await supabase
+      .from("wallets")
+      .update({
+        available_balance: wallet.available_balance - price,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", userId);
+
+    if (wErr) throw wErr;
+
+    // 3. Log transaction
+    await supabase.from("wallet_transactions").insert({
+      wallet_id: userId,
+      type: "withdrawal",
+      amount: -price,
+      status: "completed",
+      description: `Purchased listing boost: "${type.replace(/_/g, ' ').toUpperCase()}"`
+    });
+
+    // 4. Create active boost record in listing_boosts
+    const startsAt = new Date().toISOString();
+    const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days default duration
+
+    const { error: bErr } = await supabase
+      .from("listing_boosts")
+      .insert({
+        listing_id: listingId,
+        seller_id: userId,
+        boost_type: type as any,
+        amount_inr: price,
+        duration_days: 7,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        status: "active" as any
+      });
+
+    if (bErr) throw bErr;
+
+    // 5. Notify user
+    try {
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        kind: "boost.active",
+        title: "Listing Boost Activated!",
+        body: `Your listing boost "${type.replace(/_/g, ' ').toUpperCase()}" is now live for 7 days!`
+      });
+    } catch (e) { console.error("Notification error:", e); }
+
+  } else if (payMethod === "manual") {
+    if (!screenshotUrl) throw new Error("Screenshot url is required for manual QR code payment");
+
+    // Create a pending top-up/boost payment proof in unified payment_proofs
+    const { data: proof, error: pErr } = await supabase
+      .from("payment_proofs")
+      .insert({
+        user_id: userId,
+        buyer_id: userId,
+        listing_id: listingId,
+        amount: price,
+        screenshot_url: screenshotUrl,
+        status: "pending",
+        payment_type: "listing", // Use listing so it maps in the inspection view cleanly
+        payment_reference: `boost:${type}:${listingId}`
+      })
+      .select("*")
+      .single();
+
+    if (pErr) throw pErr;
+
+    // Create support ticket automatically
+    try {
+      await supabase.from("support_tickets").insert({
+        user_id: userId,
+        title: `Boost Promotion Payment Review — ₹${price}`,
+        category: "top_up",
+        status: "open"
+      });
+    } catch (e) { console.error("Auto ticket creation failed:", e); }
+
+    return proof;
+  }
+}

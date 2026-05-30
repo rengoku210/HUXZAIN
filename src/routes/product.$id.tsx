@@ -98,7 +98,16 @@ function ProductPage() {
             .select("display_name, username")
             .eq("id", data.seller_id)
             .maybeSingle();
-          if (active) setSellerProfile(prof);
+            
+          const { data: cust } = await supabase
+            .from("seller_customizations")
+            .select("*")
+            .eq("id", data.seller_id)
+            .maybeSingle();
+            
+          if (active) {
+            setSellerProfile({ ...prof, customizations: cust });
+          }
         }
       }
       setLoading(false);
@@ -326,9 +335,15 @@ function ProductPage() {
             <h1 className="font-display text-3xl font-bold leading-tight">{title}</h1>
 
             <div className="mt-4 flex items-center gap-3">
-              <div className="size-10 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-sm font-bold text-gold">
-                {seller[0]}
-              </div>
+              {sellerProfile?.customizations?.logo_url ? (
+                <div className="size-10 rounded-full border border-border overflow-hidden bg-background">
+                  <img src={sellerProfile.customizations.logo_url} className="w-full h-full object-cover" alt={seller} />
+                </div>
+              ) : (
+                <div className="size-10 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-sm font-bold text-gold">
+                  {seller[0]}
+                </div>
+              )}
               <div>
                 <div className="text-sm font-medium">{seller}</div>
                 <div className="text-[11px] text-gold inline-flex items-center gap-1">

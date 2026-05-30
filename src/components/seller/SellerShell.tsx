@@ -58,7 +58,7 @@ const navGroups: NavGroup[] = [
       { to: "/seller/delivery", label: "Delivery", icon: Truck },
       { to: "/seller/disputes", label: "Disputes", icon: AlertCircle },
       { to: "/seller/reviews", label: "Reviews", icon: Star },
-      { to: "/seller/messages", label: "Messages", icon: MessageSquare },
+      { to: "/messages", label: "Messages / Chat", icon: MessageSquare },
     ],
   },
   {
@@ -174,17 +174,6 @@ function SellerSidebar({
             </ul>
           </div>
         ))}
-
-        {/* Admin Request Button */}
-        <button
-          onClick={() => {
-            if (onLinkClick) onLinkClick();
-            requestAdminAccess();
-          }}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gold bg-gold/10 hover:bg-gold/20"
-        >
-          <Shield className="size-4" /> Request Admin Access
-        </button>
 
         {/* Admin Panel Link */}
         {auth.roles.includes("admin") && (
