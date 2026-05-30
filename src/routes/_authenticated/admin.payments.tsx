@@ -937,9 +937,11 @@ function AdminPayments() {
                         }
 
                         // ocrData is now guaranteed non-null — safe to read fields
-                        const amountField = ocrData.paid_amount ?? ocrData.amount ?? null;
-                        const dateField = ocrData.timestamp_text ?? ocrData.date ?? null;
-                        const statusField = ocrData.status ?? ocrData.payment_status ?? null;
+                        // Field names confirmed from Lovable OCR API response:
+                        // { amount, currency, date, time, transaction_id, payment_status, sender_name, receiver_name, payment_app }
+                        const amountField = ocrData.amount ?? null;
+                        const dateField = ocrData.date ?? null;
+                        const statusField = ocrData.payment_status ?? null;
 
                         const isInvalid = (
                           (!amountField && !ocrData.transaction_id && !ocrData.sender_name && !ocrData.receiver_name && !dateField) ||
@@ -973,13 +975,19 @@ function AdminPayments() {
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Amount</span>
                               <span className="text-xs text-right font-extrabold text-foreground">
-                                {ocrData.currency === "INR" ? "₹" : (ocrData.currency || "₹")}{amountField ?? "N/A"}
+                                {ocrData.currency === "INR" ? "₹" : (ocrData.currency ? `${ocrData.currency} ` : "₹")}{amountField ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                              <span className="text-xs text-muted-foreground font-medium">Date / Time</span>
+                              <span className="text-xs text-muted-foreground font-medium">Date</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {dateField ?? "N/A"} {ocrData.time ? `| ${ocrData.time}` : ""}
+                                {dateField ?? "N/A"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
+                              <span className="text-xs text-muted-foreground font-medium">Time</span>
+                              <span className="text-xs text-right font-bold text-foreground">
+                                {ocrData.time ?? "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
