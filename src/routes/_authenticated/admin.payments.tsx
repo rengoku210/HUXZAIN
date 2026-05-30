@@ -219,14 +219,17 @@ function AdminPayments() {
             orderId = activeProof.payment_reference.replace("order:", "");
           }
           if (orderId) {
-            const { data: event } = await supabase
+            const { data: eventData, error } = await supabase
               .from("payment_events")
               .select("*")
               .eq("order_id", orderId)
               .eq("provider", "manual")
-              .maybeSingle();
+              .limit(1);
 
-            if (event) {
+            const event = eventData?.[0];
+            if (!event || error) {
+              console.warn("Non-blocking fetch:", error?.message);
+            } else {
               const newPayload = { ...event.payload, status: "approved", rejection_reason: null };
               await supabase
                 .from("payment_events")
@@ -330,14 +333,15 @@ function AdminPayments() {
     if (!supabase) return;
 
     // Fetch order + listing details
-    const { data: order, error: orderError } = await supabase
+    const { data: orderData, error: orderError } = await supabase
       .from("orders")
       .select("*, listings:listing_id(title, seller_id)")
       .eq("id", orderId)
-      .single();
+      .limit(1);
 
-    if (orderError) {
-      console.warn("[AdminPayments] Could not fetch order:", orderError.message);
+    const order = orderData?.[0];
+    if (!order || orderError) {
+      console.warn("Non-blocking fetch:", orderError?.message);
       return;
     }
 
@@ -413,7 +417,7 @@ function AdminPayments() {
 
     // Unlock chat / conversation
     try {
-      const { data: conv } = await supabase
+      const { data: convData } = await supabase
         .from("conversations")
         .insert({
           order_id: orderId,
@@ -423,9 +427,9 @@ function AdminPayments() {
           last_message_preview: "Chat unlocked. Order payment verified.",
           last_message_at: new Date().toISOString(),
         })
-        .select("id")
-        .maybeSingle();
+        .select("id");
 
+      const conv = convData?.[0];
       if (conv) {
         await supabase.from("messages").insert({
           conversation_id: conv.id,
@@ -473,14 +477,17 @@ function AdminPayments() {
             orderId = activeProof.payment_reference.replace("order:", "");
           }
           if (orderId) {
-            const { data: event } = await supabase
+            const { data: eventData, error } = await supabase
               .from("payment_events")
               .select("*")
               .eq("order_id", orderId)
               .eq("provider", "manual")
-              .maybeSingle();
+              .limit(1);
 
-            if (event) {
+            const event = eventData?.[0];
+            if (!event || error) {
+              console.warn("Non-blocking fetch:", error?.message);
+            } else {
               const newPayload = { ...event.payload, status: "rejected", rejection_reason: trimmedReason };
               await supabase
                 .from("payment_events")
