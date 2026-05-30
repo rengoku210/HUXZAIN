@@ -905,9 +905,13 @@ function AdminPayments() {
                         </div>
                       ) : (() => {
                         // Stricter check: missing data or missing all key fields or containing non-receipt text is flagged as invalid
+                        const amountField = ocrData.paid_amount ?? ocrData.amount;
+                        const dateField = ocrData.timestamp_text ?? ocrData.date;
+                        const statusField = ocrData.status ?? ocrData.payment_status;
+                        
                         const isInvalid = !ocrData || (
-                          (!ocrData.amount && !ocrData.transaction_id && !ocrData.sender_name && !ocrData.receiver_name && !ocrData.date) ||
-                          JSON.stringify(ocrData).toLowerCase().match(/balance fetched|account balance|sponsored links|done/)
+                          (!amountField && !ocrData.transaction_id && !ocrData.sender_name && !ocrData.receiver_name && !dateField) ||
+                          JSON.stringify(ocrData).toLowerCase().match(/balance fetched|account balance|sponsored links/)
                         );
                         
                         if (isInvalid) {
@@ -937,54 +941,48 @@ function AdminPayments() {
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Amount</span>
                               <span className="text-xs text-right font-extrabold text-foreground">
-                                {ocrData.currency === "INR" ? "₹" : ocrData.currency}{ocrData.amount}
+                                {ocrData.currency === "INR" ? "₹" : (ocrData.currency || "₹")}{amountField || "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                              <span className="text-xs text-muted-foreground font-medium">Date</span>
+                              <span className="text-xs text-muted-foreground font-medium">Date / Time</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.date}
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 py-2 border-b border-border/30">
-                              <span className="text-xs text-muted-foreground font-medium">Time</span>
-                              <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.time}
+                                {dateField || "N/A"} {ocrData.time ? `| ${ocrData.time}` : ""}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">UTR / Transaction ID</span>
                               <span className="text-xs text-right font-mono font-extrabold text-gold tracking-wider select-all break-all">
-                                {ocrData.transaction_id}
+                                {ocrData.transaction_id || "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Sender</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.sender_name}
+                                {ocrData.sender_name || "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Receiver</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.receiver_name}
+                                {ocrData.receiver_name || "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2 border-b border-border/30">
                               <span className="text-xs text-muted-foreground font-medium">Payment App</span>
                               <span className="text-xs text-right font-bold text-foreground">
-                                {ocrData.payment_app}
+                                {ocrData.payment_app || "N/A"}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 py-2">
                               <span className="text-xs text-muted-foreground font-medium">OCR Status</span>
                               <span className="text-xs text-right flex justify-end">
                                 <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  ocrData.payment_status?.toLowerCase() === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                  ocrData.payment_status?.toLowerCase() === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                  statusField?.toLowerCase() === 'success' || statusField?.toLowerCase() === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  statusField?.toLowerCase() === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
                                   'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                                 }`}>
-                                  {ocrData.payment_status || "Unknown"}
+                                  {statusField || "Unknown"}
                                 </span>
                               </span>
                             </div>
