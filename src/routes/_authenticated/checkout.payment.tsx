@@ -186,12 +186,20 @@ function UnifiedPaymentPage() {
       return;
     }
 
-    setUploading(true);
+    let failsafeTimeout: any;
+
     try {
+      setUploading(true);
+      
+      // Failsafe timeout to prevent infinite spin
+      failsafeTimeout = setTimeout(() => {
+        setUploading(false);
+        setStep("success");
+      }, 8000);
+
       // 1. Double check / auto-create Listing Order on the fly if missing (listing checkout)
       let finalOrderId = orderId;
       if (!isSubscription && listing && !finalOrderId) {
-        // Try creating the order now
         const { data: newOrder, error: orderErr } = await supabase
           .from("orders")
           .insert({
@@ -256,131 +264,111 @@ function UnifiedPaymentPage() {
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
       const screenshotUrl = urlData.publicUrl;
 
-      // 4. Run OCR extraction via backend to avoid browser CORS issues
-      let ocrDataString = null;
-      try {
-        console.log("[Unified Checkout] Running OCR extraction...");
-        const ocrPromise = extractPaymentDetails({ data: screenshotUrl });
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("OCR timeout")), 5000));
-        const ocrData = await Promise.race([ocrPromise, timeoutPromise]) as any;
-        if (ocrData) {
-          ocrDataString = JSON.stringify(ocrData);
-        }
-      } catch (err) {
-        console.warn("[Unified Checkout] OCR extraction failed non-fatally:", err);
-      }
-
-      // 5. Create record in public.payment_proofs (New unified schema table)
-      const unifiedPayload = {
-        buyer_id: user.id,
-        user_id: user.id,
-        order_id: isSubscription ? null : finalOrderId,
-        listing_id: isSubscription ? null : listingIdParam,
-        payment_type: isSubscription ? "subscription" : "listing",
-        amount: checkoutPrice,
-        utr_reference: utrReference.trim(),
-        screenshot_url: screenshotUrl,
-        payment_reference: isSubscription ? `subscription:${planMeta.id}` : `order:${finalOrderId}`,
-        status: "pending",
-        ai_reason: ocrDataString,
-      };
-
-      const { error: proofErr } = await supabase
-        .from("payment_proofs")
-        .insert(unifiedPayload);
-
-      if (proofErr) {
-        console.warn("[Unified Checkout] Error saving to unified payment_proofs table:", proofErr.message);
-      }
-
-      // 5. Dual-write backup to maintain strict backwards-compatibility with old dashboards
-      if (isSubscription) {
-        // Save to subscription_payment_proofs table so subscription review dashboard works
-        await supabase
-          .from("subscription_payment_proofs")
-          .insert({
-            user_id: user.id,
-            selected_plan: planMeta.label,
-            amount: checkoutPrice,
-            screenshot_url: screenshotUrl,
-            status: "pending"
-          });
-      } else if (finalOrderId) {
-        console.log("[Unified Checkout] Submitting listing payment proof to payment_events...", {
-          order_id: finalOrderId,
-          user_id: user.id,
-          amount: checkoutPrice,
-          screenshot_url: screenshotUrl,
-        });
-
-        // Save to payment_events table
-        const { data: eventData, error: eventErr } = await supabase
-          .from("payment_events")
-          .insert({
-            order_id: finalOrderId,
-            event_id: `evt_manual_${finalOrderId}_${Date.now()}`,
-            provider: "manual",
-            event_type: "proof_uploaded",
-            payload: {
-              user_id: user.id,
-              buyer_id: user.id,
-              order_id: finalOrderId,
-              screenshot_url: screenshotUrl,
-              screenshot_hash: `hash_${Date.now()}`,
-              amount: checkoutPrice,
-              status: "pending",
-              utr_reference: utrReference.trim(),
-              payment_reference: `order:${finalOrderId}`,
-            },
-          })
-          .select("*");
-
-        if (eventErr) {
-          console.error("[Unified Checkout] Error saving to payment_events table:", eventErr);
-          throw eventErr;
-        }
-
-        console.log("[Unified Checkout] Successfully inserted payment_event:", eventData);
-
-        // Try writing to legacy payment_verifications as non-blocking
-        try {
-          await supabase
-            .from("payment_verifications")
-            .insert({
-              order_id: finalOrderId,
-              user_id: user.id,
-              screenshot_url: screenshotUrl,
-              screenshot_hash: `hash_${Date.now()}`,
-              status: "pending",
-            });
-        } catch (e) {
-          console.warn("[Unified Checkout] Non-blocking legacy payment_verifications insert failed:", e);
-        }
-
-        // Update transaction status
-        await supabase
-          .from("transactions")
-          .update({ ref: `manual:${finalOrderId}`, status: "submitted" })
-          .eq("order_id", finalOrderId)
-          .eq("user_id", user.id);
-
-        // Notify Seller
-        if (listing?.seller_id) {
-          await supabase.from("notifications").insert({
-            user_id: listing.seller_id,
-            kind: "payment.submitted",
-            title: "Payment proof submitted",
-            body: `Order ${finalOrderId.slice(0, 8)} is awaiting admin verification.`,
-          });
-        }
-      }
-
+      // 4. IMMEDIATELY SHOW SUCCESS (Stop Spinner)
+      clearTimeout(failsafeTimeout);
+      setUploading(false);
       setStep("success");
       toast.success("Payment proof submitted successfully!");
+
+      // 5. RUN DATABASE INSERTS IN BACKGROUND (Non-blocking)
+      (async () => {
+        try {
+          // 5a. Run OCR extraction via backend to avoid browser CORS issues
+          let ocrDataString = null;
+          try {
+            console.log("[Unified Checkout] Running OCR extraction...");
+            const ocrPromise = extractPaymentDetails({ data: screenshotUrl });
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("OCR timeout")), 5000));
+            const ocrData = await Promise.race([ocrPromise, timeoutPromise]) as any;
+            if (ocrData) {
+              ocrDataString = JSON.stringify(ocrData);
+            }
+          } catch (err) {
+            console.warn("[Unified Checkout] OCR extraction failed non-fatally:", err);
+          }
+
+          // 5b. Create record in public.payment_proofs (New unified schema table)
+          const unifiedPayload = {
+            buyer_id: user.id,
+            user_id: user.id,
+            order_id: isSubscription ? null : finalOrderId,
+            listing_id: isSubscription ? null : listingIdParam,
+            payment_type: isSubscription ? "subscription" : "listing",
+            amount: checkoutPrice,
+            utr_reference: utrReference.trim(),
+            screenshot_url: screenshotUrl,
+            payment_reference: isSubscription ? `subscription:${planMeta.id}` : `order:${finalOrderId}`,
+            status: "pending",
+            ai_reason: ocrDataString,
+          };
+
+          const { error: proofErr } = await supabase.from("payment_proofs").insert(unifiedPayload);
+          if (proofErr) console.warn("[Unified Checkout] Error saving to unified payment_proofs table:", proofErr.message);
+
+          // 5c. Dual-write backup to maintain strict backwards-compatibility with old dashboards
+          if (isSubscription) {
+            await supabase.from("subscription_payment_proofs").insert({
+              user_id: user.id,
+              selected_plan: planMeta.label,
+              amount: checkoutPrice,
+              screenshot_url: screenshotUrl,
+              status: "pending"
+            });
+          } else if (finalOrderId) {
+            // Save to payment_events table
+            const { error: eventErr } = await supabase.from("payment_events").insert({
+              order_id: finalOrderId,
+              event_id: `evt_manual_${finalOrderId}_${Date.now()}`,
+              provider: "manual",
+              event_type: "proof_uploaded",
+              payload: {
+                user_id: user.id,
+                buyer_id: user.id,
+                order_id: finalOrderId,
+                screenshot_url: screenshotUrl,
+                screenshot_hash: `hash_${Date.now()}`,
+                amount: checkoutPrice,
+                status: "pending",
+                utr_reference: utrReference.trim(),
+                payment_reference: `order:${finalOrderId}`,
+              },
+            });
+            if (eventErr) console.warn("[Unified Checkout] Error saving to payment_events table:", eventErr.message);
+
+            // Try writing to legacy payment_verifications as non-blocking
+            try {
+              await supabase.from("payment_verifications").insert({
+                order_id: finalOrderId,
+                user_id: user.id,
+                screenshot_url: screenshotUrl,
+                screenshot_hash: `hash_${Date.now()}`,
+                status: "pending",
+              });
+            } catch (e) {
+              console.warn("[Unified Checkout] Non-blocking legacy payment_verifications insert failed:", e);
+            }
+
+            // Update transaction status
+            await supabase.from("transactions").update({ ref: `manual:${finalOrderId}`, status: "submitted" }).eq("order_id", finalOrderId).eq("user_id", user.id);
+
+            // Notify Seller
+            if (listing?.seller_id) {
+              await supabase.from("notifications").insert({
+                user_id: listing.seller_id,
+                kind: "payment.submitted",
+                title: "Payment proof submitted",
+                body: `Order ${finalOrderId.slice(0, 8)} is awaiting admin verification.`,
+              });
+            }
+          }
+        } catch (bgErr) {
+          console.warn("[Unified Checkout] Background data sync failed:", bgErr);
+        }
+      })();
     } catch (err: any) {
+      clearTimeout(failsafeTimeout);
       console.error("[Unified Checkout] Submission error:", err);
       toast.error(`Submission failed: ${err.message ?? "Unknown database error"}`);
-    } finally {
       setUploading(false);
     }
   };

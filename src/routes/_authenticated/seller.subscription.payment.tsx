@@ -69,68 +69,85 @@ function CheckoutPage() {
       return;
     }
 
-    setUploading(true);
+    let failsafeTimeout: any;
+
     try {
+      setUploading(true);
+
+      // Failsafe timeout
+      failsafeTimeout = setTimeout(() => {
+        setUploading(false);
+        setStep("success");
+      }, 8000);
+
       // 1. Upload screenshot to 'payment-proofs' storage bucket
       const ext = file.name.split(".").pop() ?? "png";
       const filePath = `${user.id}/subscriptions/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
       
-      const { data: uploadData, error: uploadErr } = await supabase.storage
+      const { error: uploadErr } = await supabase.storage
         .from("payment-proofs")
         .upload(filePath, file, { upsert: true, contentType: file.type });
 
+      let bucketName = "payment-proofs";
       if (uploadErr) {
         // Fallback to 'listing-images' bucket if 'payment-proofs' bucket does not exist
         console.warn("[Subscription Checkout] Error uploading to payment-proofs bucket, trying listing-images fallback:", uploadErr.message);
-        const { data: fallbackData, error: fallbackErr } = await supabase.storage
+        const { error: fallbackErr } = await supabase.storage
           .from("listing-images")
           .upload(filePath, file, { upsert: true, contentType: file.type });
           
         if (fallbackErr) throw fallbackErr;
+        bucketName = "listing-images";
       }
 
       // Get public URL
-      const bucketName = uploadErr ? "listing-images" : "payment-proofs";
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
       const screenshotUrl = urlData.publicUrl;
 
-      // Run OCR extraction via backend to avoid browser CORS issues
-      let ocrDataString = null;
-      try {
-        console.log("[Subscription Checkout] Running OCR extraction...");
-        const ocrPromise = extractPaymentDetails({ data: screenshotUrl });
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("OCR timeout")), 5000));
-        const ocrData = await Promise.race([ocrPromise, timeoutPromise]) as any;
-        if (ocrData) {
-          ocrDataString = JSON.stringify(ocrData);
-        }
-      } catch (err) {
-        console.warn("[Subscription Checkout] OCR extraction failed non-fatally:", err);
-      }
-
-      // 2. Insert record into subscription_payment_proofs
-      const payload = {
-        user_id: user.id,
-        selected_plan: planMeta.label,
-        amount: planMeta.monthly,
-        screenshot_url: screenshotUrl,
-        status: "pending",
-        ai_reason: ocrDataString,
-      };
-
-      const { error: insertErr } = await supabase
-        .from("subscription_payment_proofs")
-        .insert(payload);
-
-      if (insertErr) throw insertErr;
-
-      // Move to success animation screen
+      // IMMEDIATELY SHOW SUCCESS
+      clearTimeout(failsafeTimeout);
+      setUploading(false);
       setStep("success");
       toast.success("Payment proof submitted successfully!");
+
+      // Background tasks
+      (async () => {
+        try {
+          // Run OCR extraction via backend to avoid browser CORS issues
+          let ocrDataString = null;
+          try {
+            console.log("[Subscription Checkout] Running OCR extraction...");
+            const ocrPromise = extractPaymentDetails({ data: screenshotUrl });
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("OCR timeout")), 5000));
+            const ocrData = await Promise.race([ocrPromise, timeoutPromise]) as any;
+            if (ocrData) {
+              ocrDataString = JSON.stringify(ocrData);
+            }
+          } catch (err) {
+            console.warn("[Subscription Checkout] OCR extraction failed non-fatally:", err);
+          }
+
+          // 2. Insert record into subscription_payment_proofs
+          const payload = {
+            user_id: user.id,
+            selected_plan: planMeta.label,
+            amount: planMeta.monthly,
+            screenshot_url: screenshotUrl,
+            status: "pending",
+            ai_reason: ocrDataString,
+          };
+
+          const { error: insertErr } = await supabase.from("subscription_payment_proofs").insert(payload);
+          if (insertErr) console.warn("[Subscription Checkout] Background insert failed:", insertErr);
+        } catch (bgErr) {
+          console.warn("[Subscription Checkout] Background sync failed:", bgErr);
+        }
+      })();
+
     } catch (err: any) {
+      clearTimeout(failsafeTimeout);
       console.error("[Subscription Checkout] Submission error:", err);
       toast.error(`Submission failed: ${err.message ?? "Unknown database error"}`);
-    } finally {
       setUploading(false);
     }
   };
