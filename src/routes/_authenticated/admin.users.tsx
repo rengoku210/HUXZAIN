@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { useEffect, useState } from "react";
-import { roleService } from "@/lib/marketplace/roleService";
+import { updateUserRole } from "@/lib/admin/role.functions";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
@@ -135,7 +135,18 @@ function Page() {
 
       const uniqueNewRoles = Array.from(new Set(newRoles));
 
-      await roleService.setRoles(userId, uniqueNewRoles);
+      const sb = getSupabase();
+      if (!sb) throw new Error("Database client not configured");
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      await updateUserRole({
+        data: {
+          targetUserId: userId,
+          newRoles: uniqueNewRoles,
+          token: session.access_token,
+        },
+      });
 
       setUsers((prev) =>
         prev.map((u) =>

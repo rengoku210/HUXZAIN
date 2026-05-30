@@ -41,15 +41,40 @@ function AdminLayout() {
   const auth = useAuth();
   const nav2 = useNavigate();
   const { location } = useRouterState();
-  const allowed =
-    auth.hasAnyRole(["admin", "super_admin", "owner"]) ||
-    ADMIN_EMAILS.includes(auth.user?.email ?? "");
+  
+  const isStaff = auth.hasRole("staff");
+  const isModerator = auth.hasRole("moderator");
+  const isAdminOrSuper = auth.hasAnyRole(["admin", "super_admin", "owner"]);
+  const isEmailWhitelist = ADMIN_EMAILS.includes(auth.user?.email ?? "");
+  
+  const allowed = isStaff || isModerator || isAdminOrSuper || isEmailWhitelist;
+  const isStrictStaff = isStaff && !isModerator && !isAdminOrSuper && !isEmailWhitelist;
+  
+  const staffAllowedPaths = ["/admin/payments", "/admin/subscriptions"];
 
   useEffect(() => {
-    if (auth.ready && auth.isAuthenticated && !allowed) nav2({ to: "/dashboard" });
-  }, [auth.ready, auth.isAuthenticated, allowed, nav2]);
+    if (auth.ready && auth.isAuthenticated) {
+      if (!allowed) {
+        nav2({ to: "/dashboard" });
+      } else if (isStrictStaff) {
+        // Redirect staff if they try to access non-payment/subscription routes
+        const currentPath = location.pathname;
+        const isPathAllowed = staffAllowedPaths.some(p => currentPath === p || currentPath.startsWith(p + "/"));
+        if (!isPathAllowed) {
+          nav2({ to: "/admin/payments" });
+        }
+      }
+    }
+  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2]);
 
   if (!allowed) return null;
+
+  const filteredNav = nav.filter(n => {
+    if (isStrictStaff) {
+      return staffAllowedPaths.includes(n.to);
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -63,7 +88,7 @@ function AdminLayout() {
             </div>
           </div>
           <ul className="space-y-1">
-            {nav.map((n) => {
+            {filteredNav.map((n) => {
               const active = n.end
                 ? location.pathname === n.to
                 : location.pathname.startsWith(n.to);
