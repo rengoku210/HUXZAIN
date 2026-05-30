@@ -260,7 +260,9 @@ function UnifiedPaymentPage() {
       let ocrDataString = null;
       try {
         console.log("[Unified Checkout] Running OCR extraction...");
-        const ocrData = await extractPaymentDetails({ data: screenshotUrl });
+        const ocrPromise = extractPaymentDetails({ data: screenshotUrl });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("OCR timeout")), 5000));
+        const ocrData = await Promise.race([ocrPromise, timeoutPromise]) as any;
         if (ocrData) {
           ocrDataString = JSON.stringify(ocrData);
         }

@@ -432,10 +432,19 @@ export async function extractPaymentOCR(screenshotUrl: string): Promise<any> {
     const extension = downloadedImage.contentType.split("/")[1] || "jpg";
     formData.append("image", blob, `screenshot.${extension}`);
 
-    const ocrResponse = await fetch("https://pay-slip-miner.lovable.app/api/extract-payment", {
-      method: "POST",
-      body: formData,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second max timeout
+
+    let ocrResponse;
+    try {
+      ocrResponse = await fetch("https://pay-slip-miner.lovable.app/api/extract-payment", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!ocrResponse.ok) {
       const errorText = await ocrResponse.text().catch(() => "Unknown error");
