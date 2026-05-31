@@ -71,26 +71,49 @@ function Page() {
       const supabase = getSupabase();
       if (!supabase) return;
 
-      let query = supabase
-        .from("support_tickets")
-        .select(
-          "*, user:user_id(display_name, email), assigned:assigned_to(display_name)"
-        )
-        .order("updated_at", { ascending: false });
+      const [ticketsRes, withdrawalsRes] = await Promise.all([
+        supabase
+          .from("support_tickets")
+          .select("*, user:user_id(display_name, email), assigned:assigned_to(display_name)")
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("withdrawals")
+          .select("*")
+      ]);
 
+      if (ticketsRes.error) throw ticketsRes.error;
+
+      const mapped = (ticketsRes.data ?? []).map((t: any) => {
+        const match = t.title.match(/Payout Withdrawal Request — ₹(\d+(?:\.\d+)?)/);
+        if (match) {
+          const amt = parseFloat(match[1]);
+          const w = withdrawalsRes.data?.find((x: any) => 
+            x.user_id === t.user_id &&
+            x.amount === amt &&
+            Math.abs(new Date(t.created_at).getTime() - new Date(x.created_at).getTime()) < 30000
+          );
+          if (w) {
+            const syncedStatus = w.status === "pending" ? "open" : w.status === "completed" ? "resolved" : "closed";
+            return { ...t, status: syncedStatus, withdrawalStatus: w.status };
+          }
+        }
+        return t;
+      });
+
+      // Filter tickets if filterStatus is active
+      let filtered = mapped;
       if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus);
+        filtered = mapped.filter((t: any) => t.status === filterStatus);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      if (data) setTickets(data as Ticket[]);
+      setTickets(filtered as Ticket[]);
     } catch (e: any) {
       toast.error("Failed to load tickets: " + e.message);
     } finally {
       setLoading(false);
     }
   }
+
 
   async function loadMessages(ticketId: string) {
     try {
@@ -405,12 +428,25 @@ function Page() {
                             {t.title}
                           </td>
                           <td className="py-3">
-                            <span
-                              className={`text-xs font-bold uppercase ${statusColor[t.status]}`}
-                            >
-                              {t.status}
-                            </span>
+                            {(t as any).withdrawalStatus ? (
+                              <span
+                                className={`text-xs font-bold uppercase ${
+                                  (t as any).withdrawalStatus === "pending" ? "text-amber-400" :
+                                  (t as any).withdrawalStatus === "completed" ? "text-emerald-400" : "text-red-400"
+                                }`}
+                              >
+                                {(t as any).withdrawalStatus === "pending" ? "PENDING" :
+                                 (t as any).withdrawalStatus === "completed" ? "COMPLETED" : "REJECTED"}
+                              </span>
+                            ) : (
+                              <span
+                                className={`text-xs font-bold uppercase ${statusColor[t.status]}`}
+                              >
+                                {t.status}
+                              </span>
+                            )}
                           </td>
+
                           <td
                             className="py-3 text-right"
                             onClick={(e) => e.stopPropagation()}
@@ -590,10 +626,23 @@ function Page() {
                     [
                       "Status",
                       <span
-                        className={`font-bold uppercase ${statusColor[activeTicket.status]}`}
+                        className={`font-bold uppercase ${
+                          (activeTicket as any).withdrawalStatus ? (
+                            (activeTicket as any).withdrawalStatus === "pending" ? "text-amber-400" :
+                            (activeTicket as any).withdrawalStatus === "completed" ? "text-emerald-400" : "text-red-400"
+                          ) : (
+                            statusColor[activeTicket.status]
+                          )
+                        }`}
                       >
-                        {activeTicket.status}
+                        {(activeTicket as any).withdrawalStatus ? (
+                          (activeTicket as any).withdrawalStatus === "pending" ? "PENDING" :
+                          (activeTicket as any).withdrawalStatus === "completed" ? "COMPLETED" : "REJECTED"
+                        ) : (
+                          activeTicket.status
+                        )}
                       </span>,
+
                     ],
                     [
                       "Category",

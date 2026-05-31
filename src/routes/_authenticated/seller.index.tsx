@@ -6,6 +6,8 @@ import { TierBadge } from "@/components/seller/TierBadge";
 import { useSellerTier } from "@/lib/seller/tier-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
+import { getOrCreateWallet } from "@/lib/wallet.functions";
+
 
 export const Route = createFileRoute("/_authenticated/seller/")({
   head: () => ({ meta: [{ title: "Seller Dashboard — HUXZAIN" }] }),
@@ -65,16 +67,12 @@ function Overview() {
       setLoading(true);
 
       try {
-        const [ordersRes, earningsRes, listingsRes, recentRes] = await Promise.all([
+        const [ordersRes, walletRes, listingsRes, recentRes] = await Promise.all([
           supabase
             .from("orders")
             .select("id", { count: "exact", head: true })
             .eq("seller_id", user.id),
-          supabase
-            .from("orders")
-            .select("amount_total")
-            .eq("seller_id", user.id)
-            .in("status", ["paid", "delivering", "delivered", "completed"]),
+          getOrCreateWallet(user.id),
           supabase
             .from("listings")
             .select("id", { count: "exact", head: true })
@@ -90,11 +88,7 @@ function Overview() {
         setTotalOrders(ordersRes.count ?? 0);
         setActiveListings(listingsRes.count ?? 0);
 
-        const earnings = (earningsRes.data ?? []).reduce(
-          (sum, row) => sum + Number(row.amount_total),
-          0,
-        );
-        setTotalEarnings(earnings);
+        setTotalEarnings(walletRes?.total_earnings || 0);
 
         const fetchedOrders = (recentRes.data ?? []) as any[];
 
@@ -211,7 +205,9 @@ function Overview() {
         />
         <StatCard
           label="Avg. Rating"
-          value="No reviews yet"
+          value={profile?.rating_count && profile.rating_count > 0 
+            ? `${profile.rating_avg.toFixed(1)} ★ (${profile.rating_count} reviews)` 
+            : "No reviews yet"}
           icon={Star}
         />
       </div>

@@ -186,3 +186,11 @@
 .input-wrapper {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Mobile responsive layout hardening to prevent horizontal overflow */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+  position: relative;
+}

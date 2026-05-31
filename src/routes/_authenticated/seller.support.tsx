@@ -37,14 +37,37 @@ function Page() {
       setLoading(true);
       const supabase = getSupabase();
       if (supabase) {
-        const { data, error } = await supabase
-          .from("support_tickets")
-          .select("*, assigned:assigned_to(display_name)")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false });
+        const [ticketsRes, withdrawalsRes] = await Promise.all([
+          supabase
+            .from("support_tickets")
+            .select("*, assigned:assigned_to(display_name)")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false }),
+          supabase
+            .from("withdrawals")
+            .select("*")
+            .eq("user_id", user.id)
+        ]);
 
-        if (error) throw error;
-        if (data) setTickets(data);
+        if (ticketsRes.error) throw ticketsRes.error;
+
+        const mappedTickets = (ticketsRes.data ?? []).map((t: any) => {
+          const match = t.title.match(/Payout Withdrawal Request — ₹(\d+(?:\.\d+)?)/);
+          if (match) {
+            const amt = parseFloat(match[1]);
+            const w = withdrawalsRes.data?.find((x: any) => 
+              x.amount === amt && 
+              Math.abs(new Date(t.created_at).getTime() - new Date(x.created_at).getTime()) < 30000
+            );
+            if (w) {
+              const syncedStatus = w.status === "pending" ? "open" : w.status === "completed" ? "resolved" : "closed";
+              return { ...t, status: syncedStatus, withdrawalStatus: w.status };
+            }
+          }
+          return t;
+        });
+
+        setTickets(mappedTickets);
       }
     } catch (e: any) {
       toast.error("Failed to load tickets: " + e.message);
@@ -52,6 +75,7 @@ function Page() {
       setLoading(false);
     }
   }
+
 
   async function loadMessages(ticketId: string) {
     try {
@@ -272,8 +296,18 @@ function Page() {
                         </td>
                         <td className="py-3 font-medium text-foreground max-w-[250px] truncate">{t.title}</td>
                         <td className="py-3 pl-4">
-                          <StatusPill status={t.status === "open" ? "Pending" : "Completed"} />
+                          {t.withdrawalStatus ? (
+                            <StatusPill 
+                              status={
+                                t.withdrawalStatus === "pending" ? "Pending" : 
+                                t.withdrawalStatus === "completed" ? "Completed" : "Rejected"
+                              } 
+                            />
+                          ) : (
+                            <StatusPill status={t.status === "open" ? "Pending" : "Completed"} />
+                          )}
                         </td>
+
                         <td className="py-3 text-xs text-muted-foreground">
                           {t.assigned?.display_name || "Unassigned"}
                         </td>
@@ -389,8 +423,16 @@ function Page() {
                 <div className="space-y-3 text-xs leading-relaxed">
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span>Status</span>
-                    <span className="font-bold text-gold uppercase">{activeTicket.status}</span>
+                    <span className="font-bold text-gold uppercase">
+                      {activeTicket.withdrawalStatus ? (
+                        activeTicket.withdrawalStatus === "pending" ? "PENDING" :
+                        activeTicket.withdrawalStatus === "completed" ? "COMPLETED" : "REJECTED"
+                      ) : (
+                        activeTicket.status === "open" ? "PENDING" : "COMPLETED"
+                      )}
+                    </span>
                   </div>
+
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span>Handler</span>
                     <span className="font-bold text-foreground">

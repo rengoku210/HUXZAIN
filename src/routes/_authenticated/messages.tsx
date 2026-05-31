@@ -17,9 +17,12 @@ import {
   MessageCircle,
   Sparkles,
   Volume2,
+  X,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
+
 
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({ meta: [{ title: "Messages — HUXZAIN" }] }),
@@ -82,6 +85,14 @@ function MessagesPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingChat, setLoadingChat] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Review states
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -440,6 +451,99 @@ function MessagesPage() {
     }
   }
 
+  async function handleRequestReview() {
+    if (!activeConv || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      // Send a system message that triggers the review card for the buyer
+      const { data: systemMsg, error } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: activeConv.id,
+          sender_id: user.id,
+          body: "[SYSTEM_REQUEST_REVIEW]",
+          is_system: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update conversation preview
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_preview: "Review requested by seller.",
+          last_message_at: new Date().toISOString()
+        })
+        .eq("id", activeConv.id);
+
+      setMessages(prev => [...prev, systemMsg]);
+      toast.success("Review request sent successfully!");
+    } catch (e: any) {
+      toast.error("Failed to request review: " + e.message);
+    }
+  }
+
+  async function handleSubmitReview() {
+    if (!activeConv || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      setSubmittingReview(true);
+      
+      // 1. Insert review record
+      const { error: revErr } = await supabase
+        .from("reviews")
+        .insert({
+          order_id: activeConv.order_id,
+          buyer_id: activeConv.buyer_id,
+          seller_id: activeConv.seller_id,
+          listing_id: activeConv.listing_id,
+          rating: selectedRating,
+          comment: reviewComment || null
+        });
+
+      if (revErr) throw revErr;
+
+      // 2. Insert notification message in chat
+      const { data: systemMsg, error: msgErr } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: activeConv.id,
+          sender_id: user.id,
+          body: `[SYSTEM_REVIEW_SUBMITTED]: ${selectedRating}`,
+          is_system: true
+        })
+        .select()
+        .single();
+
+      if (msgErr) throw msgErr;
+
+      // 3. Update conversation last message preview
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_preview: `Buyer submitted a ${selectedRating}★ review.`,
+          last_message_at: new Date().toISOString()
+        })
+        .eq("id", activeConv.id);
+
+      setMessages(prev => [...prev, systemMsg]);
+      toast.success("Thank you for your review!");
+      setReviewModalOpen(false);
+      setReviewComment("");
+    } catch (e: any) {
+      toast.error("Failed to submit review: " + e.message);
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
+
+
   const activeOtherName = activeConv?.otherUser?.display_name || activeConv?.otherUser?.username || "Participant";
   const activeOtherInitials = activeOtherName.slice(0, 2).toUpperCase();
 
@@ -571,17 +675,31 @@ function MessagesPage() {
                   </div>
 
                   {activeConv.order && (
-                    <div className="rounded-xl border border-border/80 bg-surface/50 px-2.5 py-1 lg:px-3 lg:py-1.5 text-[9px] lg:text-[10px] flex items-center gap-3 lg:gap-4 shrink-0 shadow-sm">
-                      <div>
-                        <span className="text-muted-foreground">Order:</span>{" "}
-                        <span className="font-bold uppercase tracking-wider text-gold">{activeConv.order.status}</span>
-                      </div>
-                      <div className="h-3 w-px bg-border/60" />
-                      <div className="font-mono font-bold text-gold">
-                        {formatPrice(activeConv.order.amount_inr ?? activeConv.order.amount_total ?? 0)}
+                    <div className="flex items-center gap-2">
+                      {activeConv.order.status === "completed" && user?.id === activeConv.seller_id && (
+                        <button
+                          type="button"
+                          onClick={handleRequestReview}
+                          disabled={messages.some(m => m.body === "[SYSTEM_REQUEST_REVIEW]")}
+                          className="h-7 px-3 rounded-lg bg-gold text-primary-foreground font-bold text-[9px] uppercase tracking-wider hover:brightness-110 disabled:opacity-50 transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer border-none"
+                        >
+                          {messages.some(m => m.body === "[SYSTEM_REQUEST_REVIEW]") ? "Review Requested" : "Request Review"}
+                        </button>
+                      )}
+                      
+                      <div className="rounded-xl border border-border/80 bg-surface/50 px-2.5 py-1 lg:px-3 lg:py-1.5 text-[9px] lg:text-[10px] flex items-center gap-3 lg:gap-4 shrink-0 shadow-sm">
+                        <div>
+                          <span className="text-muted-foreground">Order:</span>{" "}
+                          <span className="font-bold uppercase tracking-wider text-gold">{activeConv.order.status}</span>
+                        </div>
+                        <div className="h-3 w-px bg-border/60" />
+                        <div className="font-mono font-bold text-gold">
+                          {formatPrice(activeConv.order.amount_inr ?? activeConv.order.amount_total ?? 0)}
+                        </div>
                       </div>
                     </div>
                   )}
+
                 </div>
 
                 {/* Messages Body */}
@@ -601,6 +719,73 @@ function MessagesPage() {
                   ) : (
                     messages.map((m) => {
                       if (m.is_system) {
+                        if (m.body === "[SYSTEM_REQUEST_REVIEW]") {
+                          const isBuyer = activeConv.buyer_id === user?.id;
+                          const hasSubmitted = messages.some(msg => msg.body.startsWith("[SYSTEM_REVIEW_SUBMITTED]:"));
+
+                          if (isBuyer) {
+                            return (
+                              <div key={m.id} className="flex justify-center my-4 animate-fade-in w-full px-4">
+                                <div className="rounded-2xl border border-gold/30 bg-gradient-to-b from-gold/5 to-transparent p-5 text-center max-w-md w-full shadow-lg shadow-gold/5 flex flex-col items-center gap-3">
+                                  <div className="size-10 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-gold">
+                                    <Sparkles className="size-5 text-gold" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-display font-bold text-sm text-foreground">Order Completed — Share Feedback</h4>
+                                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                      {hasSubmitted 
+                                        ? "Thank you! Your verified rating and written feedback have been successfully recorded." 
+                                        : "The seller has requested a review. Your feedback shapes their reputation and helps others in the community."}
+                                    </p>
+                                  </div>
+                                  {!hasSubmitted && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setReviewModalOpen(true)}
+                                      className="h-9 px-5 rounded-xl bg-gold text-primary-foreground font-semibold text-xs hover:brightness-110 transition-all shadow-md active:scale-95 border-none cursor-pointer"
+                                    >
+                                      Rate & Review Order
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div key={m.id} className="flex justify-center my-4 animate-fade-in">
+                                <div className="rounded-xl border border-border/85 bg-surface/40 px-4 py-2 text-[10px] text-center max-w-sm text-muted-foreground leading-relaxed flex items-center gap-2">
+                                  <Clock size={12} className="text-gold shrink-0 animate-pulse" />
+                                  <span>
+                                    {hasSubmitted 
+                                      ? "Feedback received! The buyer has rated this order." 
+                                      : "You requested a review. Waiting for the buyer's response."}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                        }
+
+                        if (m.body.startsWith("[SYSTEM_REVIEW_SUBMITTED]:")) {
+                          const ratingStr = m.body.replace("[SYSTEM_REVIEW_SUBMITTED]:", "").trim();
+                          const ratingVal = parseInt(ratingStr) || 5;
+                          return (
+                            <div key={m.id} className="flex justify-center my-4 animate-fade-in">
+                              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 text-[10px] text-center max-w-sm text-muted-foreground leading-relaxed flex flex-col items-center gap-1.5">
+                                <div className="flex items-center gap-1">
+                                  <ShieldCheck size={13} className="text-emerald-400" />
+                                  <span className="font-bold text-foreground">Verified Order Review Left!</span>
+                                </div>
+                                <div className="flex gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <Star key={s} className={`size-3 ${s <= ratingVal ? "fill-gold text-gold animate-bounce" : "text-muted-foreground/20"}`} style={{ animationDelay: `${s * 80}ms` }} />
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={m.id} className="flex justify-center my-4 animate-fade-in">
                             <div className="rounded-xl border border-gold/10 bg-gold/5 px-4 py-2 text-[10px] text-center max-w-sm text-muted-foreground leading-relaxed flex items-center gap-2">
@@ -610,6 +795,7 @@ function MessagesPage() {
                           </div>
                         );
                       }
+
 
                       const isMe = m.sender_id === user?.id;
 
@@ -686,6 +872,91 @@ function MessagesPage() {
         </div>
       </main>
       <Footer />
+
+      {/* Rate & Review Modal Overlay */}
+      {reviewModalOpen && activeConv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-surface border border-border/80 w-full max-w-md rounded-3xl p-6 relative shadow-2xl flex flex-col gap-5">
+            <button
+              onClick={() => setReviewModalOpen(false)}
+              className="absolute top-4 right-4 size-8 rounded-full hover:bg-surface-elevated text-muted-foreground hover:text-foreground flex items-center justify-center transition-all border-none bg-transparent cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div className="text-center">
+              <div className="size-12 rounded-full bg-gold/10 border border-gold/20 text-gold flex items-center justify-center mx-auto mb-3">
+                <Star className="size-6 text-gold fill-gold animate-pulse" />
+              </div>
+              <h3 className="font-display font-bold text-base text-foreground">
+                Rate your Experience
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[280px] mx-auto">
+                Share your rating and comments to support other merchants and buyers.
+              </p>
+            </div>
+
+            {/* Interactive Stars Selection */}
+            <div className="flex justify-center gap-2.5 py-2">
+              {[1, 2, 3, 4, 5].map((s) => {
+                const active = hoverRating ? s <= hoverRating : s <= selectedRating;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSelectedRating(s)}
+                    onMouseEnter={() => setHoverRating(s)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    className="border-none bg-transparent cursor-pointer transition-all active:scale-90 p-0.5"
+                  >
+                    <Star
+                      className={`size-8 transition-colors ${
+                        active 
+                          ? "fill-gold text-gold drop-shadow-[0_0_8px_rgba(212,180,106,0.3)]" 
+                          : "text-muted-foreground/30 hover:text-gold/50"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Feedback Written Comments Textarea */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                Written Comments (Optional)
+              </label>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="Write your experience with order fulfillment, seller delivery, or communication quality..."
+                className="w-full min-h-[90px] p-3 text-xs bg-surface-elevated border border-border/80 rounded-xl outline-none focus:border-gold/50 text-foreground placeholder:text-muted-foreground/60 resize-none"
+              />
+            </div>
+
+            {/* Submit Buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setReviewModalOpen(false)}
+                className="flex-1 h-10 text-xs font-semibold rounded-xl border border-border hover:bg-surface transition-all active:scale-95 cursor-pointer bg-transparent"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitReview}
+                disabled={submittingReview}
+                className="flex-1 h-10 text-xs font-bold rounded-xl bg-gold text-primary-foreground hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-gold/5 active:scale-95 border-none cursor-pointer"
+              >
+                {submittingReview && <Loader2 className="size-3.5 animate-spin" />}
+                Submit Review
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

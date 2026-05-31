@@ -253,8 +253,39 @@ export async function processWithdrawalStatus(withdrawalId: string, status: "com
     // 2. Mark withdrawal as completed
     await supabase.from("withdrawals").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", withdrawalId);
 
+    // 2.1 Find and update related support ticket
+    try {
+      const { data: ticket } = await supabase
+        .from("support_tickets")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "open")
+        .eq("category", "billing")
+        .eq("title", `Payout Withdrawal Request — ₹${amount}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ticket) {
+        await supabase
+          .from("support_tickets")
+          .update({ status: "resolved", updated_at: new Date().toISOString() })
+          .eq("id", ticket.id);
+
+        await supabase.from("support_ticket_messages").insert({
+          ticket_id: ticket.id,
+          sender_id: userId,
+          message: `✓ Withdrawal of ₹${amount} completed and paid out. Payout ticket marked resolved.`,
+          system_event: true
+        });
+      }
+    } catch (e) {
+      console.error("[WalletFunctions] Failed to resolve related support ticket:", e);
+    }
+
     // 3. Mark transaction as completed
     await supabase.from("wallet_transactions").update({ status: "completed" }).eq("reference_id", withdrawalId).eq("type", "withdrawal");
+
 
     // 4. Notify user
     try {
@@ -282,8 +313,39 @@ export async function processWithdrawalStatus(withdrawalId: string, status: "com
     // 2. Mark withdrawal as rejected
     await supabase.from("withdrawals").update({ status: "rejected", updated_at: new Date().toISOString() }).eq("id", withdrawalId);
 
+    // 2.1 Find and update related support ticket
+    try {
+      const { data: ticket } = await supabase
+        .from("support_tickets")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "open")
+        .eq("category", "billing")
+        .eq("title", `Payout Withdrawal Request — ₹${amount}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ticket) {
+        await supabase
+          .from("support_tickets")
+          .update({ status: "closed", updated_at: new Date().toISOString() })
+          .eq("id", ticket.id);
+
+        await supabase.from("support_ticket_messages").insert({
+          ticket_id: ticket.id,
+          sender_id: userId,
+          message: `✗ Withdrawal of ₹${amount} was rejected by admin review. Payout ticket closed.`,
+          system_event: true
+        });
+      }
+    } catch (e) {
+      console.error("[WalletFunctions] Failed to close related support ticket:", e);
+    }
+
     // 3. Mark transaction as failed/rejected
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("reference_id", withdrawalId).eq("type", "withdrawal");
+
 
     // 4. Notify user
     try {

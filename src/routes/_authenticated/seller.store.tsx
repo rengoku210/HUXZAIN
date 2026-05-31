@@ -31,8 +31,10 @@ function Page() {
   const [selectedTheme, setSelectedTheme] = useState("midnight");
   const [accentColor, setAccentColor] = useState("#d4b46a");
   const [bannerCustomText, setBannerCustomText] = useState("");
+  const [themeEnabled, setThemeEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
 
   async function loadCustomizations() {
     if (!user) return;
@@ -52,7 +54,9 @@ function Page() {
           setSelectedTheme(data.theme_color || "midnight");
           setAccentColor(data.accent_color || "#d4b46a");
           setBannerCustomText(data.storefront_banner_customization || "");
+          setThemeEnabled(data.theme_enabled !== false);
         }
+
       }
     } catch (e: any) {
       console.warn("Failed to load store customizations:", e);
@@ -105,8 +109,10 @@ function Page() {
           theme_color: selectedTheme,
           accent_color: accentColor,
           storefront_banner_customization: bannerCustomText || null,
+          theme_enabled: themeEnabled,
           updated_at: new Date().toISOString()
         });
+
 
       if (error) throw error;
       toast.success("Store customizations saved and applied live!");
@@ -248,16 +254,37 @@ function Page() {
             </div>
 
             <div>
-              <PanelCard title="Branding Slogan">
-                <span className="text-xs text-muted-foreground">Banner Customized Tagline</span>
-                <input
-                  type="text"
-                  placeholder="e.g. Premium accounts delivered in minutes!"
-                  disabled={!isPro}
-                  value={bannerCustomText}
-                  onChange={(e) => setBannerCustomText(e.target.value)}
-                  className="mt-1.5 w-full h-10 px-3 rounded-lg bg-background border border-border text-xs"
-                />
+              <PanelCard title="Branding Slogan & Visibility">
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-xs text-muted-foreground">Banner Customized Tagline</span>
+                    <input
+                      type="text"
+                      placeholder="e.g. Premium accounts delivered in minutes!"
+                      disabled={!isPro}
+                      value={bannerCustomText}
+                      onChange={(e) => setBannerCustomText(e.target.value)}
+                      className="mt-1.5 w-full h-10 px-3 rounded-lg bg-background border border-border text-xs"
+                    />
+                  </div>
+                  <div className="border-t border-border/40 pt-3">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        disabled={!isPro}
+                        checked={themeEnabled}
+                        onChange={(e) => setThemeEnabled(e.target.checked)}
+                        className="rounded border-border bg-background text-gold focus:ring-gold size-4 accent-gold cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs font-semibold text-foreground">Enable custom theme</span>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          If disabled, public visitors see the default theme.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </PanelCard>
             </div>
           </div>

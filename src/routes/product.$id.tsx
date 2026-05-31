@@ -319,11 +319,52 @@ function ProductPage() {
   const rating = listingRating(listing);
   const reviews = listingReviewCount(listing);
   const image = listingImage(listing);
+  const isThemeEnabled = sellerProfile?.customizations?.theme_enabled !== false;
+  const themeColor = isThemeEnabled ? sellerProfile?.customizations?.theme_color || 'midnight' : 'midnight';
+  const accentColor = isThemeEnabled ? sellerProfile?.customizations?.accent_color || '#d4b46a' : '#d4b46a';
   const categorySlug = listing.categories?.slug ?? "digital-products";
   const categoryName = listing.categories?.name ?? "Digital Products";
 
+
   return (
     <div className="min-h-screen flex flex-col">
+      {isThemeEnabled && sellerProfile?.customizations?.accent_color && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --gold: ${accentColor} !important;
+            --primary: ${accentColor} !important;
+            --ring: ${accentColor}80 !important;
+          }
+          .text-gold {
+            color: ${accentColor} !important;
+          }
+          .bg-gold {
+            background-color: ${accentColor} !important;
+            color: #000000 !important;
+          }
+          .border-gold {
+            border-color: ${accentColor} !important;
+          }
+          .border-gold\\/40 {
+            border-color: ${accentColor}66 !important;
+          }
+          .bg-gold\\/10 {
+            background-color: ${accentColor}1a !important;
+          }
+          .bg-gold\\/15 {
+            background-color: ${accentColor}26 !important;
+          }
+          .bg-gold\\/5 {
+            background-color: ${accentColor}0d !important;
+          }
+          .hover\\:bg-gold\\/10:hover {
+            background-color: ${accentColor}1a !important;
+          }
+          .hover\\:border-gold\\/40:hover {
+            border-color: ${accentColor}66 !important;
+          }
+        `}} />
+      )}
       <Header />
       <main className="flex-1 container-page py-8">
         <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6">
@@ -358,26 +399,63 @@ function ProductPage() {
           <div>
             <h1 className="font-display text-3xl font-bold leading-tight">{title}</h1>
 
-            <div className="mt-4 flex items-center gap-3">
-              {sellerProfile?.customizations?.logo_url ? (
-                <div className="size-10 rounded-full border border-border overflow-hidden bg-background">
-                  <img src={sellerProfile.customizations.logo_url} className="w-full h-full object-cover" alt={seller} />
-                </div>
-              ) : (
-                <div className="size-10 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-sm font-bold text-gold">
-                  {seller[0]}
-                </div>
-              )}
-              <div>
-                <div className="text-sm font-medium">{seller}</div>
-                <div className="text-[11px] text-gold inline-flex items-center gap-1">
-                  <BadgeCheck className="size-3" /> Verified Seller
-                </div>
+            {/* Branded Storefront Card */}
+            <div className="mt-6 rounded-2xl border border-border bg-surface/30 overflow-hidden relative group">
+              {/* Card Banner */}
+              <div className="h-24 w-full relative bg-gradient-to-r from-slate-900 via-slate-850 to-slate-950 overflow-hidden">
+                {isThemeEnabled && sellerProfile?.customizations?.banner_url ? (
+                  <img 
+                    src={sellerProfile.customizations.banner_url} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                    alt="Seller banner" 
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-radial-gradient from-gold/5 via-transparent to-transparent opacity-60" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
               </div>
-              <div className="ml-auto inline-flex items-center gap-1 text-sm">
-                <Star className="size-4 fill-gold text-gold" />
-                <span className="font-semibold">{rating ? rating.toFixed(1) : "New"}</span>
-                <span className="text-muted-foreground">({reviews})</span>
+
+              {/* Profile Details Container */}
+              <div className="p-4 pt-0 relative flex flex-col gap-3">
+                {/* Logo and Name header */}
+                <div className="flex items-end gap-3 -mt-6">
+                  {sellerProfile?.customizations?.logo_url ? (
+                    <div className="size-14 rounded-xl border border-border overflow-hidden bg-background shadow-xl shrink-0 z-10">
+                      <img src={sellerProfile.customizations.logo_url} className="w-full h-full object-cover" alt={seller} />
+                    </div>
+                  ) : (
+                    <div className="size-14 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center text-lg font-bold text-gold shadow-xl shrink-0 z-10">
+                      {seller[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 mb-1 z-10">
+                    <h3 className="font-display font-bold text-sm truncate text-foreground flex items-center gap-1.5">
+                      {seller}
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-gold/10 border border-gold/20 text-gold" title="Verified Seller">
+                        <BadgeCheck className="size-3" />
+                      </span>
+                    </h3>
+                    
+                    {/* Slogan */}
+                    {isThemeEnabled && sellerProfile?.customizations?.storefront_banner_customization && (
+                      <p className="text-[10px] text-gold/80 italic font-medium truncate mt-0.5 max-w-[200px]">
+                        "{sellerProfile.customizations.storefront_banner_customization}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rating and Tier stats row */}
+                <div className="flex items-center justify-between text-xs border-t border-border/40 pt-3 mt-1 flex-wrap gap-2">
+                  <div className="flex items-center gap-1">
+                    <Star className="size-3.5 fill-gold text-gold" />
+                    <span className="font-semibold text-foreground">{rating ? rating.toFixed(1) : "New"}</span>
+                    <span className="text-muted-foreground">({reviews} reviews)</span>
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    Verified Digital Merchant
+                  </div>
+                </div>
               </div>
             </div>
 
