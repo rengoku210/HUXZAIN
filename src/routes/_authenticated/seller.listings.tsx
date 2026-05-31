@@ -179,32 +179,34 @@ function ListingModal({
     console.log("[Rebuild Listing Flow] Starting creation pipeline...");
 
     try {
-      // 2. Upload cover image first (sequential with descriptive errors)
-      let coverImageUrl: string | null = null;
+      // 2. Upload all images in the gallery sequentially
+      const imageUrls: string[] = [];
       
-      if (gallery.length > 0) {
-        const item = gallery[0];
+      for (let i = 0; i < gallery.length; i++) {
+        const item = gallery[i];
         if (item.file) {
-          console.log("[Rebuild Listing Flow] Uploading cover image file:", item.file.name);
+          console.log(`[Rebuild Listing Flow] Uploading gallery image ${i + 1} file:`, item.file.name);
           const ext = item.file.name.split(".").pop() ?? "jpg";
-          const path = `${userId}/listings/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+          const path = `${userId}/listings/${Date.now()}-${i}-${Math.random().toString(36).substring(7)}.${ext}`;
           
           const { data: upData, error: upErr } = await supabase.storage
             .from("listing-images")
             .upload(path, item.file, { upsert: true, contentType: item.file.type });
             
           if (upErr) {
-            console.error("[Rebuild Listing Flow] Cover image upload error:", upErr);
-            throw new Error(`Cover image upload failed: ${upErr.message}`);
+            console.error(`[Rebuild Listing Flow] Gallery image ${i + 1} upload error:`, upErr);
+            throw new Error(`Gallery image ${i + 1} upload failed: ${upErr.message}`);
           }
           
           const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
-          coverImageUrl = urlData.publicUrl;
-          console.log("[Rebuild Listing Flow] Cover image uploaded successfully. URL:", coverImageUrl);
+          imageUrls.push(urlData.publicUrl);
+          console.log(`[Rebuild Listing Flow] Gallery image ${i + 1} uploaded successfully. URL:`, urlData.publicUrl);
         } else if (item.url) {
-          coverImageUrl = item.url;
+          imageUrls.push(item.url);
         }
       }
+
+      const coverImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
 
       // Resolve category UUID
       let finalCategoryId = categoryId;
@@ -234,9 +236,12 @@ function ListingModal({
         description: trimmedDescription,
         slug: generatedSlug,
         price_inr: priceNum,
+        delivery_time_hours: parseInt(deliveryTime) || 24,
         status: finalStatus,
         cover_image_url: coverImageUrl,
+        images: imageUrls,
         category_id: finalCategoryId,
+        attributes: {},
       };
 
       console.log("[Rebuild Listing Flow] Database payload:", JSON.stringify(payload, null, 2));
@@ -565,7 +570,7 @@ function Page() {
       price: l.price_inr ?? l.price ?? 0,
       price_cents: Math.round((l.price_inr ?? l.price ?? 0) * 100),
       cover_url: l.cover_image_url ?? null,
-      gallery_urls: l.gallery_urls ?? [],
+      gallery_urls: l.images && l.images.length > 0 ? l.images : (l.gallery_urls ?? []),
       delivery_time: l.delivery_time ?? "",
       delivery_type: (l.delivery_type ?? "manual") as "instant" | "manual",
     }));
