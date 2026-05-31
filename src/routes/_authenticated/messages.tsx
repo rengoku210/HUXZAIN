@@ -84,6 +84,7 @@ function MessagesPage() {
   const [sending, setSending] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const soundEnabledRef = useRef(true);
 
   // Play notification chime (browser-safe synthesized double-tone)
@@ -362,9 +363,21 @@ function MessagesPage() {
     };
   }, [activeConv?.id, user?.id]);
 
-  // Autoscroll chat history to the bottom
+  // Scans and scrolls the messages container smoothly without causing page jumps
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 60);
+    return () => clearTimeout(timer);
   }, [messages.length, loadingChat]);
 
   // Send message handler
@@ -433,29 +446,29 @@ function MessagesPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      <main className="flex-1 container-page py-6 lg:py-8 max-w-6xl mx-auto flex flex-col h-[calc(100vh-140px)]">
+      <main className="flex-1 container-page py-4 lg:py-8 max-w-6xl mx-auto flex flex-col h-[calc(100vh-120px)] lg:h-[calc(100vh-140px)] animate-fade-in">
         {/* Page title */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between px-1">
           <div>
-            <h1 className="font-display text-2xl font-bold flex items-center gap-2">
+            <h1 className="font-display text-xl lg:text-2xl font-bold flex items-center gap-2">
               <MessageSquare className="text-gold" /> Escrow Chat Panel
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-xs lg:text-sm text-muted-foreground mt-0.5">
               Secure messaging linked directly to platform orders.
             </p>
           </div>
           <button
             onClick={() => void loadConversations(activeConv?.id)}
-            className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-border text-sm hover:border-gold/40 transition-colors"
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-border text-xs lg:text-sm hover:border-gold/40 hover:bg-gold/5 transition-all text-gold font-medium shrink-0 shadow-sm"
           >
             <RefreshCw className="size-3.5" /> Refresh Inbox
           </button>
         </div>
 
         {/* Unified Chat Container Layout */}
-        <div className="flex-1 grid md:grid-cols-[300px_1fr] rounded-3xl border border-border bg-surface/30 overflow-hidden shadow-2xl backdrop-blur-md">
+        <div className="flex-1 grid md:grid-cols-[300px_1fr] rounded-3xl border border-border/80 bg-surface/30 overflow-hidden shadow-2xl backdrop-blur-md">
           {/* LEFT COLUMN: Conversations List */}
-          <aside className="border-r border-border/80 flex flex-col h-full bg-surface/20">
+          <aside className={`border-r border-border/80 flex-col h-full bg-surface/20 ${activeConv ? "hidden md:flex" : "flex"}`}>
             <div className="p-4 border-b border-border/60">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
@@ -528,32 +541,39 @@ function MessagesPage() {
           </aside>
 
           {/* RIGHT COLUMN: Active Chat Box */}
-          <section className="flex flex-col h-full bg-surface/10 relative">
+          <section className={`flex-col h-full bg-surface/10 relative ${activeConv ? "flex" : "hidden md:flex"}`}>
             {activeConv ? (
               <>
                 {/* Chat Top Header Info Box */}
-                <div className="p-4 border-b border-border/60 bg-surface/30 flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
+                <div className="p-3 lg:p-4 border-b border-border/60 bg-surface/40 flex items-center justify-between gap-3 lg:gap-4 flex-wrap shadow-sm">
+                  <div className="flex items-center gap-2 lg:gap-3">
+                    <button
+                      onClick={() => setActiveConv(null)}
+                      className="md:hidden h-8 w-8 rounded-full border border-gold/20 bg-gold/10 hover:bg-gold/20 flex items-center justify-center text-gold transition-all shrink-0 font-bold active:scale-95"
+                      title="Back to Inbox"
+                    >
+                      ←
+                    </button>
+                    <div className="size-9 lg:size-10 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
                       {activeConv.otherUser?.avatar_url ? (
                         <img src={activeConv.otherUser.avatar_url} alt="" className="size-full object-cover" />
                       ) : (
-                        <span className="text-sm font-bold text-gold">{activeOtherInitials}</span>
+                        <span className="text-xs lg:text-sm font-bold text-gold">{activeOtherInitials}</span>
                       )}
                     </div>
                     <div>
-                      <div className="font-bold text-sm text-foreground/95 flex items-center gap-1.5">
+                      <div className="font-bold text-xs lg:text-sm text-foreground/95 flex items-center gap-1.5">
                         {activeOtherName}
                         <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                       </div>
-                      <div className="text-xs text-gold font-medium mt-0.5">{activeConv.subject}</div>
+                      <div className="text-[10px] lg:text-xs text-gold font-medium mt-0.5">{activeConv.subject}</div>
                     </div>
                   </div>
 
                   {activeConv.order && (
-                    <div className="rounded-xl border border-border/80 bg-surface/50 px-3 py-1.5 text-[10px] flex items-center gap-4 shrink-0 shadow-sm">
+                    <div className="rounded-xl border border-border/80 bg-surface/50 px-2.5 py-1 lg:px-3 lg:py-1.5 text-[9px] lg:text-[10px] flex items-center gap-3 lg:gap-4 shrink-0 shadow-sm">
                       <div>
-                        <span className="text-muted-foreground">Order status:</span>{" "}
+                        <span className="text-muted-foreground">Order:</span>{" "}
                         <span className="font-bold uppercase tracking-wider text-gold">{activeConv.order.status}</span>
                       </div>
                       <div className="h-3 w-px bg-border/60" />
@@ -565,7 +585,10 @@ function MessagesPage() {
                 </div>
 
                 {/* Messages Body */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
+                <div
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scroll-smooth"
+                >
                   {loadingChat ? (
                     <div className="py-20 flex flex-col items-center justify-center gap-3">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gold"></div>
