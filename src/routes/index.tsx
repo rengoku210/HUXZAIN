@@ -121,7 +121,7 @@ function Hero({ counts }: { counts: any }) {
     <section className="relative">
       <div className="container-page py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
         <div>
-          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
+          <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight break-words">
             Buy, Sell &amp; Grow
             <br />
             Safely with <span className="text-gold">HUXZAIN</span>
@@ -141,15 +141,15 @@ function Hero({ counts }: { counts: any }) {
             ))}
           </div>
 
-          <div className="mt-7 flex items-stretch gap-0 rounded-xl border border-border bg-surface/80 overflow-hidden max-w-xl shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)]">
+          <div className="mt-7 w-full max-w-xl flex items-stretch gap-0 rounded-xl border border-border bg-surface/80 overflow-hidden shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)]">
             <input
               placeholder="What are you looking for?"
-              className="flex-1 px-4 bg-transparent outline-none text-sm h-12 placeholder:text-muted-foreground"
+              className="flex-1 min-w-0 px-3 sm:px-4 bg-transparent outline-none text-sm h-12 placeholder:text-muted-foreground"
             />
             <button className="px-4 text-sm text-muted-foreground border-l border-border hover:text-foreground hidden sm:flex items-center gap-1">
               All Categories
             </button>
-            <button className="px-6 bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-2">
+            <button className="px-4 sm:px-6 bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-1.5 shrink-0">
               <Search className="size-4" /> Search
             </button>
           </div>
@@ -339,7 +339,7 @@ function ProtectionStrip() {
   const icons = [ShieldCheck, BadgeCheck, Headphones, Scale];
   return (
     <section className="container-page">
-      <div className="rounded-2xl border border-border bg-surface/40 px-6 py-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="rounded-2xl border border-border bg-surface/40 px-6 py-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {protectionPillars.map((p, i) => {
           const Icon = icons[i];
           return (
@@ -434,17 +434,17 @@ function ReadyCTA() {
               Join HUXZAIN today and discover amazing digital products &amp; services.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap justify-center md:justify-start gap-3 w-full md:w-auto">
             <Link
               to={isAuthenticated ? (isSeller ? "/seller" : "/account") : "/signup"}
               search={!isAuthenticated || !isSeller ? { intent: "seller" } : undefined}
-              className="h-11 px-5 rounded-lg border border-border bg-surface/60 text-sm font-medium hover:border-gold/50 inline-flex items-center transition-colors"
+              className="h-11 px-5 rounded-lg border border-border bg-surface/60 text-sm font-medium hover:border-gold/50 inline-flex items-center justify-center transition-colors flex-1 sm:flex-initial text-center whitespace-nowrap"
             >
               Become a Seller
             </Link>
             <Link
               to="/categories"
-              className="h-11 px-5 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center"
+              className="h-11 px-5 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center justify-center flex-1 sm:flex-initial text-center whitespace-nowrap"
             >
               Start Shopping
             </Link>

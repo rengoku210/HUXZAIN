@@ -766,27 +766,29 @@ export function Header() {
           </div>
         </div>
 
-        {/* â”€â”€ Sub nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div className="border-t border-border/60 bg-surface/30">
-          <div className="container-page flex items-center h-11 gap-1 overflow-x-auto scrollbar-none">
-            {navItems.map((item) => (
-              <Link
-                key={item.label}
-                to={item.to as any}
-                params={"params" in item ? (item.params as any) : undefined}
-                activeOptions={{ exact: item.to === "/" }}
-                className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium"
-              >
-                {item.label}
-              </Link>
-            ))}
-            <div className="ml-auto flex items-center gap-3 pr-2 shrink-0">
-              <Link to="/" className="hidden md:inline-flex items-center gap-1.5 text-sm text-gold">
+        {/* ── Sub nav ────────────────────────────────────────────── */}
+        <div className="border-t border-border/60 bg-surface/30 w-full overflow-hidden">
+          <div className="container-page flex items-center justify-between h-11 gap-2">
+            <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none w-full py-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.label}
+                  to={item.to as any}
+                  params={"params" in item ? (item.params as any) : undefined}
+                  activeOptions={{ exact: item.to === "/" }}
+                  className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium shrink-0"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            <div className="hidden md:flex items-center gap-3 pr-2 shrink-0">
+              <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-gold">
                 <Flame className="size-4" /> Deals
               </Link>
               <Link
                 to="/"
-                className="hidden md:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
               >
                 <HelpCircle className="size-4" /> Support
               </Link>
