@@ -223,14 +223,16 @@ function Page() {
         throw new Error(res?.error || "Unknown server error");
       }
 
-      // 3. Compatibility fallback write: non-blocking, client-side update to profiles.role
-      try {
-        await sb
-          .from("profiles")
-          .update({ role: newPrimaryRole })
-          .eq("id", userId);
-      } catch (profilesErr) {
-        console.warn("[AdminUsers] Non-blocking client profiles.role compatibility update failed:", profilesErr);
+      // 3. Compatibility fallback write: client-side update to profiles.role
+      const { data: profData, error: profErr } = await sb
+        .from("profiles")
+        .update({ role: newPrimaryRole })
+        .eq("id", userId)
+        .select();
+
+      console.log("[AdminUsers] Client-side profiles.role update response:", { profData, profErr });
+      if (profErr) {
+        throw new Error(`Profile sync failed: ${profErr.message}`);
       }
 
       toast.success("User role updated successfully!");
