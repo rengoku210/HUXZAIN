@@ -12,7 +12,7 @@ export default defineConfig({
   cloudflare: false,
   tanstackStart: {
     spa: {
-      enabled: false,
+      enabled: true,
       prerender: {
         outputPath: "/index",
       },

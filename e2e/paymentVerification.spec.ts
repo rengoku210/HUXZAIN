@@ -9,7 +9,7 @@ test.describe("Payment Verification Flow", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "user-123",
+          id: "12345678-1234-1234-1234-1234567890ab",
           email: "buyer@example.com",
           user_metadata: { role: "buyer" },
         }),
@@ -30,7 +30,7 @@ test.describe("Payment Verification Flow", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ Key: "payment-proofs/user-123/order-999/proof.png" }),
+        body: JSON.stringify({ Key: "payment-proofs/12345678-1234-1234-1234-1234567890ab/order-999/proof.png" }),
       });
     });
 
@@ -51,7 +51,7 @@ test.describe("Payment Verification Flow", () => {
         body: JSON.stringify([
           {
             id: "ver-abc-123",
-            user_id: "user-123",
+            user_id: "12345678-1234-1234-1234-1234567890ab",
             order_id: "order-999",
             status: "pending",
             ocr_result: { confidence: 0.85 },

@@ -204,7 +204,7 @@ function CheckoutPage() {
             <div className="relative p-3 rounded-2xl border border-gold/30 bg-white shadow-2xl flex items-center justify-center w-52 h-52 group overflow-hidden">
               {/* Dynamic QR API that generates a working UPI QR Code tailored to their UPI ID */}
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=rammodhvadiya210@okaxis&pn=HUXZAIN&am=${planMeta.monthly}&cu=INR&tn=Huxzain%20${planMeta.label}%20Subscription`)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=shprivateltd@upi&pn=HUXZAIN&am=${planMeta.monthly}&cu=INR&tn=Huxzain%20${planMeta.label}%20Subscription`)}`}
                 alt="UPI QR Code" 
                 className="w-full h-full object-contain"
               />
@@ -214,7 +214,7 @@ function CheckoutPage() {
             {/* UPI Payee ID Details */}
             <div className="mt-4 text-center">
               <span className="text-xs text-muted-foreground font-mono bg-surface px-3 py-1.5 rounded-xl border border-border/80">
-                UPI ID: <span className="text-foreground font-semibold">rammodhvadiya210@okaxis</span>
+                UPI ID: <span className="text-foreground font-semibold">shprivateltd@upi</span>
               </span>
             </div>
           </div>

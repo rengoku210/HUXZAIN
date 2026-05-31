@@ -135,7 +135,7 @@ function UnifiedPaymentPage() {
     ? "HUXZAIN Platform"
     : sellerProfile?.display_name || sellerProfile?.username || "Verified Seller";
 
-  const upiId = "rammodhvadiya210@okaxis";
+  const upiId = "shprivateltd@upi";
 
   // Dynamic UPI URI formulation
   const transactionNote = isSubscription

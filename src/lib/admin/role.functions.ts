@@ -67,7 +67,7 @@ export const updateUserRole = createServerFn({ method: "POST" })
       }
 
       const callerRoles = callerRoleData?.map((r: any) => r.role as string) || [];
-      const ADMIN_EMAILS = ["admin@admin.com", "lullilullivabhaiva@gmail.com", "rammodhvadiya210@gmail.com"];
+      const ADMIN_EMAILS = ["admin@admin.com", "lullilullivabhaiva@gmail.com"];
       const isEmailWhitelist = ADMIN_EMAILS.includes(callerEmail.toLowerCase());
 
       const isSuperAdmin = callerRoles.includes("super_admin") || callerRoles.includes("owner") || isEmailWhitelist;

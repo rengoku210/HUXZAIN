@@ -254,6 +254,7 @@ function Page() {
                         >
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-foreground">{opt.name}</span>
+                          UPI ID: <span className="text-foreground font-semibold">shprivateltd@upi</span>
                             <span className="font-mono text-gold font-bold">{fmt(opt.price)}</span>
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{opt.desc}</p>

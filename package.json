@@ -19,6 +19,7 @@
     "audit:routes": "ts-node scripts/route-audit.ts"
   },
   "dependencies": {
+    "@capacitor/core": "^8.3.4",
     "@cloudflare/vite-plugin": "^1.25.5",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
@@ -80,6 +81,8 @@
     "vite-tsconfig-paths": "^6.0.2"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^1.7.0",
     "@playwright/test": "^1.60.0",

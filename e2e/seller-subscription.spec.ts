@@ -18,7 +18,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
         expires_in: 3600,
         refresh_token: "mock-refresh-token",
         user: {
-          id: "seller-123",
+          id: "abcdefab-abcd-abcd-abcd-abcdefabcdef",
           aud: "authenticated",
           role: "authenticated",
           email: "seller@huxzain.app",
@@ -36,7 +36,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "seller-123",
+          id: "abcdefab-abcd-abcd-abcd-abcdefabcdef",
           email: "seller@huxzain.app",
           user_metadata: { role: "seller" },
         }),
@@ -49,7 +49,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "seller-123",
+          id: "abcdefab-abcd-abcd-abcd-abcdefabcdef",
           username: "huxzainseller",
           display_name: "Premium HUXZAIN Seller",
           is_seller: true,
@@ -130,7 +130,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ Key: "payment-proofs/seller-123/proof.png" }),
+        body: JSON.stringify({ Key: "payment-proofs/abcdefab-abcd-abcd-abcd-abcdefabcdef/proof.png" }),
       });
     });
 
