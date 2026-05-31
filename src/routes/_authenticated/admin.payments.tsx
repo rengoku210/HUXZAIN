@@ -59,9 +59,7 @@ interface UnifiedProofRow {
     title?: string | null;
     cover_image_url?: string | null;
   } | null;
-  orders?: {
-    urgent_delivery_fee?: number | null;
-  } | null;
+  order_data?: any | null;
 }
 
 function AdminPayments() {
@@ -94,9 +92,6 @@ function AdminPayments() {
           listings:listing_id (
             title,
             cover_image_url
-          ),
-          orders:order_id (
-            urgent_delivery_fee
           )
         `)
         .order("created_at", { ascending: false });
@@ -273,6 +268,26 @@ function AdminPayments() {
         setOcrLoading(false);
       }
     })();
+  }, [activeProof?.id]);
+
+  // Fetch full order data for the active proof to extract dynamic fields (like urgent delivery fee)
+  useEffect(() => {
+    if (activeProof && activeProof.order_id && !activeProof.order_data) {
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from("orders")
+            .select("*")
+            .eq("id", activeProof.order_id)
+            .single();
+          if (data) {
+            setActiveProof((prev) => prev ? { ...prev, order_data: data } : null);
+          }
+        } catch (e) {
+          console.warn("[AdminPayments] Could not fetch active order data:", e);
+        }
+      })();
+    }
   }, [activeProof?.id]);
 
   // ── Compute fraud score whenever OCR data is ready ──
@@ -989,11 +1004,11 @@ function AdminPayments() {
                         ₹{Number(activeProof.amount ?? 0).toFixed(2)}
                       </div>
                     </div>
-                    {activeProof.orders?.urgent_delivery_fee && activeProof.orders.urgent_delivery_fee > 0 ? (
+                    {activeProof.order_data && (activeProof.order_data.urgent_delivery_fee > 0 || activeProof.order_data.is_urgent_delivery_fee > 0) ? (
                       <div>
                         <div className="text-muted-foreground">Urgent Delivery Fee</div>
                         <div className="font-bold text-emerald-400 mt-0.5">
-                          + ₹{activeProof.orders.urgent_delivery_fee.toFixed(2)}
+                          + ₹{Number(activeProof.order_data.urgent_delivery_fee || activeProof.order_data.is_urgent_delivery_fee || 0).toFixed(2)}
                         </div>
                       </div>
                     ) : null}
