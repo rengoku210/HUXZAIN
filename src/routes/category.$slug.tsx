@@ -101,7 +101,39 @@ function CategoryPage() {
       const { data: listData } = await query;
       console.log('Category page listings fetched (status active):', listData);
       if (!active) return;
-      setListings((listData ?? []) as ListingLike[]);
+
+      let fetchedListings = (listData ?? []) as ListingLike[];
+      try {
+        const { data: pushBoosts } = await supabase
+          .from("listing_boosts")
+          .select("listing_id")
+          .eq("boost_type", "push_to_top")
+          .eq("status", "active")
+          .gt("ends_at", new Date().toISOString());
+
+        const boostedIds = pushBoosts ? pushBoosts.map((b: any) => b.listing_id) : [];
+        if (boostedIds.length > 0) {
+          fetchedListings = fetchedListings.map(l => {
+            if (boostedIds.includes(l.id)) {
+              return { ...l, badge: "Sponsored" };
+            }
+            return l;
+          });
+
+          // Sort boosted listings to the top
+          fetchedListings.sort((a, b) => {
+            const aBoosted = boostedIds.includes(a.id);
+            const bBoosted = boostedIds.includes(b.id);
+            if (aBoosted && !bBoosted) return -1;
+            if (!aBoosted && bBoosted) return 1;
+            return 0;
+          });
+        }
+      } catch (err) {
+        console.error("Failed to apply category listing prioritization boosts:", err);
+      }
+
+      setListings(fetchedListings);
       setLoading(false);
     };
 

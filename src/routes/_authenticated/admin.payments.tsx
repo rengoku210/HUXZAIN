@@ -59,6 +59,9 @@ interface UnifiedProofRow {
     title?: string | null;
     cover_image_url?: string | null;
   } | null;
+  orders?: {
+    urgent_delivery_fee?: number | null;
+  } | null;
 }
 
 function AdminPayments() {
@@ -91,6 +94,9 @@ function AdminPayments() {
           listings:listing_id (
             title,
             cover_image_url
+          ),
+          orders:order_id (
+            urgent_delivery_fee
           )
         `)
         .order("created_at", { ascending: false });
@@ -346,19 +352,58 @@ function AdminPayments() {
 
       // 2. For listing purchases — process order approval flow
       if (activeProof.payment_type === "listing") {
-        let orderId = activeProof.order_id;
-        if (!orderId && activeProof.payment_reference) {
-          const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
-          if (orderIdMatch) {
-            orderId = orderIdMatch[1];
-          } else if (activeProof.payment_reference.length === 36) {
-            orderId = activeProof.payment_reference;
+        if (activeProof.payment_reference && activeProof.payment_reference.startsWith("boost:")) {
+          // It's a boost payment!
+          // Format: boost:${type}:${listingId}
+          const parts = activeProof.payment_reference.split(":");
+          const boostType = parts[1];
+          const listingId = parts[2];
+          
+          if (boostType && listingId) {
+            const startsAt = new Date().toISOString();
+            const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            
+            const { error: bErr } = await supabase
+              .from("listing_boosts")
+              .insert({
+                listing_id: listingId,
+                seller_id: activeProof.user_id,
+                boost_type: boostType as any,
+                amount_inr: activeProof.amount,
+                duration_days: 7,
+                starts_at: startsAt,
+                ends_at: endsAt,
+                status: "active" as any
+              });
+              
+            if (bErr) {
+              console.error("[AdminPayments] Error inserting listing_boosts:", bErr);
+            } else {
+              // Notify user
+              await supabase.from("notifications").insert({
+                user_id: activeProof.user_id,
+                kind: "boost.active",
+                title: "Listing Boost Activated!",
+                body: `Your payment of ₹${activeProof.amount} was verified and your listing boost "${boostType.replace(/_/g, ' ').toUpperCase()}" is now active!`
+              });
+              console.log(`[AdminPayments] Activated boost of type ${boostType} for listing ${listingId}`);
+            }
           }
-        }
-        if (orderId) {
-          await processListingOrderApproval(orderId, Number(activeProof.amount), activeProof.user_id);
         } else {
-          console.warn("[AdminPayments] No valid orderId found for listing proof approval!");
+          let orderId = activeProof.order_id;
+          if (!orderId && activeProof.payment_reference) {
+            const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
+            if (orderIdMatch) {
+              orderId = orderIdMatch[1];
+            } else if (activeProof.payment_reference.length === 36) {
+              orderId = activeProof.payment_reference;
+            }
+          }
+          if (orderId) {
+            await processListingOrderApproval(orderId, Number(activeProof.amount), activeProof.user_id);
+          } else {
+            console.warn("[AdminPayments] No valid orderId found for listing proof approval!");
+          }
         }
       }
 
@@ -604,30 +649,35 @@ function AdminPayments() {
 
       // For listing type — update order status
       if (activeProof.payment_type === "listing") {
-        let orderId = activeProof.order_id;
-        if (!orderId && activeProof.payment_reference) {
-          const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
-          if (orderIdMatch) {
-            orderId = orderIdMatch[1];
-          } else if (activeProof.payment_reference.length === 36) {
-            orderId = activeProof.payment_reference;
+        if (activeProof.payment_reference && activeProof.payment_reference.startsWith("boost:")) {
+          // It's a boost rejection! Do not cancel any listing orders.
+          console.log("[AdminPayments] Boost proof rejected.");
+        } else {
+          let orderId = activeProof.order_id;
+          if (!orderId && activeProof.payment_reference) {
+            const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
+            if (orderIdMatch) {
+              orderId = orderIdMatch[1];
+            } else if (activeProof.payment_reference.length === 36) {
+              orderId = activeProof.payment_reference;
+            }
           }
-        }
-        if (orderId) {
-          await supabase
-            .from("orders")
-            .update({ status: "cancelled", payment_status: "failed" })
-            .eq("id", orderId);
-
-          // Also update legacy payment_verifications
-          try {
+          if (orderId) {
             await supabase
-              .from("payment_verifications")
-              .update({ status: "rejected" })
-              .eq("order_id", orderId)
-              .eq("status", "pending");
-          } catch (e) {
-            console.warn("[AdminPayments] payment_verifications reject sync skipped:", e);
+              .from("orders")
+              .update({ status: "cancelled", payment_status: "failed" })
+              .eq("id", orderId);
+
+            // Also update legacy payment_verifications
+            try {
+              await supabase
+                .from("payment_verifications")
+                .update({ status: "rejected" })
+                .eq("order_id", orderId)
+                .eq("status", "pending");
+            } catch (e) {
+              console.warn("[AdminPayments] payment_verifications reject sync skipped:", e);
+            }
           }
         }
       }
@@ -939,6 +989,14 @@ function AdminPayments() {
                         ₹{Number(activeProof.amount ?? 0).toFixed(2)}
                       </div>
                     </div>
+                    {activeProof.orders?.urgent_delivery_fee && activeProof.orders.urgent_delivery_fee > 0 ? (
+                      <div>
+                        <div className="text-muted-foreground">Urgent Delivery Fee</div>
+                        <div className="font-bold text-emerald-400 mt-0.5">
+                          + ₹{activeProof.orders.urgent_delivery_fee.toFixed(2)}
+                        </div>
+                      </div>
+                    ) : null}
                     <div>
                       <div className="text-muted-foreground">Status</div>
                       <span

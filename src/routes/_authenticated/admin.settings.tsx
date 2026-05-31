@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Settings, Save, Mail, Percent, Globe, Key, ShieldCheck, RefreshCw } from "lucide-react";
+import { Settings, Save, Mail, Percent, Globe, Key, ShieldCheck, RefreshCw, Megaphone, Send } from "lucide-react";
 import { toast } from "sonner";
+import { getSupabase } from "@/lib/supabase-client";
+import { sendPromotionalEmailCampaign } from "@/lib/email.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
   head: () => ({ meta: [{ title: "Platform Settings — HUXZAIN Admin" }] }),
@@ -19,6 +21,15 @@ function Page() {
   const [kycRequired, setKycRequired] = useState(true);
   const [escrowTimeout, setEscrowTimeout] = useState("24");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+
+  // Email Broadcaster States
+  const [activeListings, setActiveListings] = useState<any[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const [featuredListingId, setFeaturedListingId] = useState("");
+  const [discountBanner, setDiscountBanner] = useState("");
+  const [weeklyDeal, setWeeklyDeal] = useState("");
+  const [sendEnabled, setSendEnabled] = useState(false);
+  const [broadcasting, setBroadcasting] = useState(false);
 
   // Load from localStorage if present
   useEffect(() => {
@@ -38,6 +49,62 @@ function Page() {
     if (savedEscrow) setEscrowTimeout(savedEscrow);
     if (savedMaint) setMaintenanceMode(savedMaint === "true");
   }, []);
+
+  useEffect(() => {
+    async function loadActiveListings() {
+      const supabase = getSupabase();
+      if (!supabase) {
+        setListingsLoading(false);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("listings")
+          .select("id, title")
+          .eq("status", "active");
+        if (error) throw error;
+        if (data) setActiveListings(data);
+      } catch (err: any) {
+        console.error("Failed to load active listings:", err.message);
+      } finally {
+        setListingsLoading(false);
+      }
+    }
+    loadActiveListings();
+  }, []);
+
+  const handleBroadcastCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sendEnabled) {
+      toast.error("Please enable 'Send Authorization' first.");
+      return;
+    }
+    
+    setBroadcasting(true);
+    try {
+      const res = await sendPromotionalEmailCampaign({
+        data: {
+          featuredListingId: featuredListingId || null,
+          discountBanner: discountBanner.trim(),
+          weeklyDeal: weeklyDeal.trim(),
+        }
+      });
+      
+      if (res?.success) {
+        toast.success(res.message || "Email campaign broadcasted successfully!");
+        setDiscountBanner("");
+        setWeeklyDeal("");
+        setFeaturedListingId("");
+        setSendEnabled(false);
+      } else {
+        toast.error("Failed to broadcast email: " + (res?.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      toast.error("Campaign broadcast failed: " + err.message);
+    } finally {
+      setBroadcasting(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,6 +283,112 @@ function Page() {
           </button>
         </div>
       </form>
+
+      {/* Promotional Email Campaigns Cockpit */}
+      <div className="rounded-2xl border border-border bg-surface/40 p-6 space-y-6">
+        <div>
+          <h2 className="font-display text-lg font-bold flex items-center gap-2">
+            <Megaphone className="text-gold" size={18} /> Promotional Email Campaigns Cockpit
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Design and broadcast HTML promotional campaigns directly to every registered HUXZAIN user email.
+          </p>
+        </div>
+
+        <form onSubmit={handleBroadcastCampaign} className="grid md:grid-cols-2 gap-6 items-start">
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Weekly Spotlight Listing</label>
+              {listingsLoading ? (
+                <div className="h-10 rounded-lg bg-background/50 border border-border flex items-center justify-center text-xs text-muted-foreground animate-pulse">
+                  Loading active listings...
+                </div>
+              ) : (
+                <select
+                  value={featuredListingId}
+                  onChange={(e) => setFeaturedListingId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                >
+                  <option value="">-- Select No Listing --</option>
+                  {activeListings.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="text-[10px] text-muted-foreground mt-1 block">
+                Listing will be featured in the email with a special title: **"Best Deal This Week / Limited Time Offer"**.
+              </span>
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Discount Banner Text Overlay</label>
+              <input
+                type="text"
+                value={discountBanner}
+                onChange={(e) => setDiscountBanner(e.target.value)}
+                placeholder="e.g. 50% OFF ON ALL VALORANT ACCOUNTS THIS WEEKEND!"
+                className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden placeholder:text-muted-foreground/50"
+              />
+              <span className="text-[10px] text-muted-foreground mt-1 block">
+                Renders as a gold-gradient banner at the top of the email template.
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Weekly Deal / Newsletter Description</label>
+              <textarea
+                value={weeklyDeal}
+                onChange={(e) => setWeeklyDeal(e.target.value)}
+                placeholder="Write promotional deal description or custom announcement copy here..."
+                rows={4}
+                className="w-full p-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden placeholder:text-muted-foreground/50 resize-none"
+              />
+              <span className="text-[10px] text-muted-foreground mt-1 block">
+                Main announcement paragraph displayed below the header banner.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/85 bg-surface/30">
+              <div className="space-y-0.5">
+                <span className="text-xs font-semibold text-foreground">Send Authorization</span>
+                <p className="text-[10px] text-muted-foreground">
+                  Confirm to unlock the main broadcast action.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sendEnabled}
+                  onChange={(e) => setSendEnabled(e.target.checked)}
+                  className="rounded border-border bg-background text-gold focus:ring-gold size-4 accent-gold cursor-pointer"
+                />
+              </label>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={broadcasting || !sendEnabled}
+                className="inline-flex items-center gap-2 h-10 px-6 rounded-xl bg-gold text-black text-xs font-bold hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-40 cursor-pointer shadow-lg shadow-gold/5"
+              >
+                {broadcasting ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> Broadcasting...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} /> Send Campaign Broadcast
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

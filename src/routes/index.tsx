@@ -54,6 +54,8 @@ function Home() {
     categoryCounts: {} as Record<string, number>
   });
 
+  const [activeSearch, setActiveSearch] = useState("");
+
   useEffect(() => {
     async function fetchStats() {
       const sb = getSupabase();
@@ -95,10 +97,10 @@ function Home() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1">
-        <Hero counts={counts} />
+        <Hero counts={counts} onSearch={(q) => setActiveSearch(q)} />
         <PopularCategories counts={counts} />
         <TrustStrip />
-        <FeaturedSection />
+        <FeaturedSection activeSearch={activeSearch} onClearSearch={() => setActiveSearch("")} />
         <ProtectionStrip />
         <HowItWorks />
         <BigStats counts={counts} />
@@ -109,7 +111,14 @@ function Home() {
   );
 }
 
-function Hero({ counts }: { counts: any }) {
+function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void }) {
+  const [query, setQuery] = useState("");
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearch(query.trim());
+  };
+
   const statsList = [
     { v: counts.users > 0 ? `${counts.users.toLocaleString()}+` : "10+", l: "Active Users" },
     { v: counts.users > 0 ? `${Math.ceil(counts.users * 0.45).toLocaleString()}+` : "4+", l: "Verified Sellers" },
@@ -119,18 +128,18 @@ function Hero({ counts }: { counts: any }) {
 
   return (
     <section className="relative">
-      <div className="container-page py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
+      <div className="container-page py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center overflow-x-hidden">
         <div>
           <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight break-words">
             Buy, Sell &amp; Grow
             <br />
             Safely with <span className="text-gold">HUXZAIN</span>
           </h1>
-          <p className="mt-5 text-muted-foreground max-w-lg">
+          <p className="mt-5 text-muted-foreground max-w-lg text-sm sm:text-base">
             A secure marketplace for digital products and services.
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs sm:text-sm">
             {["Secure Escrow", "Verified Sellers", "24/7 Support", "Buyer Protection"].map((f) => (
               <div key={f} className="flex items-center gap-2 text-muted-foreground">
                 <span className="size-4 rounded-full border border-gold/40 bg-gold/10 flex items-center justify-center">
@@ -141,18 +150,20 @@ function Hero({ counts }: { counts: any }) {
             ))}
           </div>
 
-          <div className="mt-7 w-full max-w-xl flex items-stretch gap-0 rounded-xl border border-border bg-surface/80 overflow-hidden shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)]">
+          <form onSubmit={handleSearchSubmit} className="mt-7 w-full max-w-xl flex items-stretch gap-0 rounded-xl border border-border bg-surface/80 overflow-hidden shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)]">
             <input
               placeholder="What are you looking for?"
-              className="flex-1 min-w-0 px-3 sm:px-4 bg-transparent outline-none text-sm h-12 placeholder:text-muted-foreground"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="flex-1 min-w-0 px-3 sm:px-4 bg-transparent outline-none text-xs sm:text-sm h-12 placeholder:text-muted-foreground"
             />
-            <button className="px-4 text-sm text-muted-foreground border-l border-border hover:text-foreground hidden sm:flex items-center gap-1">
+            <button type="button" className="px-4 text-xs sm:text-sm text-muted-foreground border-l border-border hover:text-foreground hidden sm:flex items-center gap-1">
               All Categories
             </button>
-            <button className="px-4 sm:px-6 bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-1.5 shrink-0">
+            <button type="submit" className="px-4 sm:px-6 bg-gold text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-1.5 shrink-0">
               <Search className="size-4" /> Search
             </button>
-          </div>
+          </form>
 
           <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl">
             {statsList.map((s) => (
@@ -161,8 +172,8 @@ function Hero({ counts }: { counts: any }) {
                   ★
                 </div>
                 <div>
-                  <div className="font-display text-xl font-bold text-foreground">{s.v}</div>
-                  <div className="text-[11px] text-muted-foreground">{s.l}</div>
+                  <div className="font-display text-lg sm:text-xl font-bold text-foreground">{s.v}</div>
+                  <div className="text-[10px] sm:text-[11px] text-muted-foreground">{s.l}</div>
                 </div>
               </div>
             ))}
@@ -241,57 +252,148 @@ function TrustStrip() {
   );
 }
 
-function FeaturedSection() {
+function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string; onClearSearch: () => void }) {
   const { isAuthenticated, roles } = useAuth();
   const isSeller = roles.includes("seller");
   const [liveListings, setLiveListings] = useState<ListingLike[] | null>(null);
+  const [spotlightListings, setSpotlightListings] = useState<ListingLike[]>([]);
   const [loadingListings, setLoadingListings] = useState(true);
 
   useEffect(() => {
-  const supabase = getSupabase();
-  if (!supabase) {
-    setLoadingListings(false);
-    return;
-  }
-
-  async function loadListings() {
-    try {
-      const { data, error } = await supabase!.from("listings")
-        .select("*")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(8);
-
-      if (error) {
-        console.error("Error loading featured listings:", error);
-        setLiveListings([]);
-      } else {
-        console.log('FeaturedSection listings:', data);
-        const listings = (data as ListingLike[]) ?? [];
-        setLiveListings(listings);
-      }
-    } catch (e) {
-      console.error("Error loading featured listings:", e);
-      setLiveListings([]);
-    } finally {
+    const supabase = getSupabase();
+    if (!supabase) {
       setLoadingListings(false);
+      return;
     }
-  }
 
-  void loadListings();
-}, []);
+    async function loadListings() {
+      try {
+        setLoadingListings(true);
+
+        // 1. Fetch active homepage spotlights (strictly 5 active slots limit)
+        const { data: spotlightBoosts } = await supabase!
+          .from("listing_boosts")
+          .select("listing_id")
+          .eq("boost_type", "homepage_spotlight")
+          .eq("status", "active")
+          .gt("ends_at", new Date().toISOString())
+          .limit(5);
+
+        const spotlightIds = spotlightBoosts ? spotlightBoosts.map((b: any) => b.listing_id) : [];
+        let fetchedSpotlights: ListingLike[] = [];
+        
+        if (spotlightIds.length > 0) {
+          const { data: spotData } = await supabase!
+            .from("listings")
+            .select("*")
+            .in("id", spotlightIds)
+            .eq("status", "active");
+          if (spotData) {
+            fetchedSpotlights = spotData.map(l => ({ ...l, badge: "Spotlight" })) as ListingLike[];
+          }
+        }
+        setSpotlightListings(fetchedSpotlights);
+
+        // 2. Fetch push_to_top boosts
+        const { data: pushBoosts } = await supabase!
+          .from("listing_boosts")
+          .select("listing_id")
+          .eq("boost_type", "push_to_top")
+          .eq("status", "active")
+          .gt("ends_at", new Date().toISOString());
+        const pushedIds = pushBoosts ? pushBoosts.map((b: any) => b.listing_id) : [];
+
+        // 3. Query listings matching the search filter (if any) or generic featured limit 8
+        let query = supabase!.from("listings").select("*").eq("status", "active");
+
+        if (activeSearch) {
+          query = query.ilike("title", `%${activeSearch}%`);
+        } else {
+          query = query.order("created_at", { ascending: false }).limit(8);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error("Error loading featured listings:", error);
+          setLiveListings([]);
+        } else {
+          let listings = (data as ListingLike[]) ?? [];
+
+          // Tag boosted ones
+          listings = listings.map(l => {
+            if (pushedIds.includes(l.id)) {
+              return { ...l, badge: "Sponsored" };
+            }
+            return l;
+          });
+
+          // Prioritize boosted listings to the top for search
+          if (activeSearch) {
+            listings.sort((a, b) => {
+              const aBoosted = pushedIds.includes(a.id);
+              const bBoosted = pushedIds.includes(b.id);
+              if (aBoosted && !bBoosted) return -1;
+              if (!aBoosted && bBoosted) return 1;
+              return 0;
+            });
+          }
+
+          setLiveListings(listings);
+        }
+      } catch (e) {
+        console.error("Error loading featured listings:", e);
+        setLiveListings([]);
+      } finally {
+        setLoadingListings(false);
+      }
+    }
+
+    void loadListings();
+  }, [activeSearch]);
 
   return (
     <section className="container-page py-14">
       <div className="flex items-end justify-between mb-8">
-        <h2 className="font-display text-3xl font-bold">Featured Listings</h2>
-        <Link
-          to="/categories"
-          className="text-sm text-gold inline-flex items-center gap-1.5 hover:underline"
-        >
-          View All <ArrowRight className="size-3.5" />
-        </Link>
+        <h2 className="font-display text-2xl sm:text-3xl font-bold">
+          {activeSearch ? `Search Results for "${activeSearch}"` : "Featured Listings"}
+        </h2>
+        {activeSearch ? (
+          <button
+            onClick={onClearSearch}
+            className="text-xs font-bold text-rose-400 border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 rounded-lg hover:bg-rose-500/20 transition-all cursor-pointer"
+          >
+            Clear Search
+          </button>
+        ) : (
+          <Link
+            to="/categories"
+            className="text-sm text-gold inline-flex items-center gap-1.5 hover:underline"
+          >
+            View All <ArrowRight className="size-3.5" />
+          </Link>
+        )}
       </div>
+
+      {spotlightListings.length > 0 && !activeSearch && (
+        <div className="mb-10 rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/5 via-surface/30 to-background p-6 shadow-lg shadow-gold/[0.02]">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="flex h-2 w-2 rounded-full bg-gold animate-pulse" />
+            <h3 className="font-display text-xs sm:text-sm font-bold text-gold uppercase tracking-widest">
+              🔥 Premium Spotlight Showcases
+            </h3>
+            <span className="text-[10px] text-muted-foreground border border-border/80 rounded-full px-2 py-0.5 ml-auto font-medium">
+              {spotlightListings.length} / 5 slots filled
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {spotlightListings.map((l) => (
+              <ListingCard key={l.id} l={l} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {loadingListings ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {[...Array(5)].map((_, i) => (
@@ -310,17 +412,28 @@ function FeaturedSection() {
       ) : !liveListings || liveListings.length === 0 ? (
         <div className="rounded-2xl border border-border bg-surface/40 py-16 text-center">
           <ShoppingCart className="size-10 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground font-medium">No listings yet</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Be the first to list a product on HUXZAIN
+          <p className="text-muted-foreground font-medium">
+            {activeSearch ? "No matching products found" : "No listings yet"}
           </p>
-          <Link
-            to={isAuthenticated ? (isSeller ? "/seller" : "/account") : "/signup"}
-            search={!isAuthenticated || !isSeller ? { intent: "seller" } : undefined}
-            className="mt-5 inline-flex h-10 px-5 rounded-xl bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110"
-          >
-            Start Selling
-          </Link>
+          <p className="text-sm text-muted-foreground mt-1">
+            {activeSearch ? "Try adjusting your keywords or browse popular tags." : "Be the first to list a product on HUXZAIN"}
+          </p>
+          {activeSearch ? (
+            <button
+              onClick={onClearSearch}
+              className="mt-5 inline-flex h-10 px-5 rounded-xl bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 items-center cursor-pointer"
+            >
+              Back to Catalog
+            </button>
+          ) : (
+            <Link
+              to={isAuthenticated ? (isSeller ? "/seller" : "/account") : "/signup"}
+              search={!isAuthenticated || !isSeller ? { intent: "seller" } : undefined}
+              className="mt-5 inline-flex h-10 px-5 rounded-xl bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110"
+            >
+              Start Selling
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -328,7 +441,6 @@ function FeaturedSection() {
               console.log('🏠 Homepage listing passed to card:', l);
               return <ListingCard key={l.id} l={l} />;
             })}
-
         </div>
       )}
     </section>

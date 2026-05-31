@@ -59,6 +59,8 @@ function Page() {
   const [screenshotUrl, setScreenshotUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [spotlightCount, setSpotlightCount] = useState(0);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   async function loadData() {
     if (!user) return;
@@ -86,6 +88,18 @@ function Page() {
           .select("*, listings:listing_id(title)")
           .eq("seller_id", user.id);
         if (bst) setActiveBoosts(bst);
+
+        // Load active homepage spotlights count
+        const { count: sCount, error: countErr } = await supabase
+          .from("listing_boosts")
+          .select("id", { count: "exact", head: true })
+          .eq("boost_type", "homepage_spotlight")
+          .eq("status", "active")
+          .gt("ends_at", new Date().toISOString());
+
+        if (!countErr && sCount !== null) {
+          setSpotlightCount(sCount);
+        }
       }
     } catch (e: any) {
       toast.error("Failed to load boosts data: " + e.message);
@@ -117,7 +131,7 @@ function Page() {
     }
   }
 
-  async function handleBoost() {
+  async function handleBoost(bypassConfirm = false) {
     if (!user) return;
     if (!selectedListing) {
       toast.error("Please select a listing to boost first. You must have at least one active listing.");
@@ -127,6 +141,16 @@ function Page() {
     const eligible = tierAtLeast(tier, selectedOption.min);
     if (!eligible) {
       toast.error(`This boost option requires a ${selectedOption.min.toUpperCase()} plan. Upgrade or select another.`);
+      return;
+    }
+
+    if (selectedOption.id === "homepage_spotlight" && spotlightCount >= 5) {
+      toast.error("Homepage Spotlight slots are currently fully booked. Please select another boost option or try again later.");
+      return;
+    }
+
+    if (payMethod === "wallet" && !bypassConfirm) {
+      setShowConfirmModal(true);
       return;
     }
 
@@ -148,6 +172,7 @@ function Page() {
       );
 
       setScreenshotUrl("");
+      setShowConfirmModal(false);
       await loadData();
     } catch (err: any) {
       toast.error("Failed to purchase boost: " + err.message);
@@ -219,23 +244,31 @@ function Page() {
                     {boostOptions.map((opt) => {
                       const active = selectedOption.id === opt.id;
                       const eligible = tierAtLeast(tier, opt.min);
+                      const isSpotlightBooked = opt.id === "homepage_spotlight" && spotlightCount >= 5;
                       return (
                         <button
                           key={opt.id}
                           type="button"
                           onClick={() => setSelectedOption(opt)}
-                          className={`p-3 rounded-xl border text-left transition-all ${active ? "bg-gold/5 border-gold ring-1 ring-gold/20" : "border-border/60 hover:bg-surface/20"}`}
+                          className={`p-3 rounded-xl border text-left transition-all ${active ? "bg-gold/5 border-gold ring-1 ring-gold/20" : "border-border/60 hover:bg-surface/20"} ${isSpotlightBooked ? "opacity-75 cursor-not-allowed border-rose-500/30" : ""}`}
                         >
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-foreground">{opt.name}</span>
                             <span className="font-mono text-gold font-bold">{fmt(opt.price)}</span>
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{opt.desc}</p>
-                          {!eligible && (
-                            <span className="inline-block mt-2 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase">
-                              Requires {opt.min.toUpperCase()}
-                            </span>
-                          )}
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {!eligible && (
+                              <span className="inline-block text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase">
+                                Requires {opt.min.toUpperCase()}
+                              </span>
+                            )}
+                            {isSpotlightBooked && (
+                              <span className="inline-block text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded uppercase animate-pulse">
+                                Fully Booked / No Slots Available
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -293,13 +326,24 @@ function Page() {
                   </div>
                 )}
 
+                {selectedOption.id === "homepage_spotlight" && spotlightCount >= 5 ? (
+                  <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/10 text-xs text-rose-400 font-medium">
+                    ⚠️ The Homepage Spotlight slots are currently **Fully Booked / No Slots Available**. 
+                    Please choose another boost option or try again later when an existing spotlight campaign expires.
+                  </div>
+                ) : null}
+
                 <button
                   type="button"
-                  onClick={handleBoost}
-                  disabled={submitting || uploading}
+                  onClick={() => handleBoost()}
+                  disabled={submitting || uploading || (selectedOption.id === "homepage_spotlight" && spotlightCount >= 5)}
                   className="w-full h-11 rounded-xl bg-gold text-black font-bold text-sm hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  {submitting ? "Processing Boost..." : `Activate ${selectedOption.name} for ${fmt(selectedOption.price)}`}
+                  {selectedOption.id === "homepage_spotlight" && spotlightCount >= 5
+                    ? "Spotlight Fully Booked"
+                    : submitting 
+                      ? "Processing Boost..." 
+                      : `Activate ${selectedOption.name} for ${fmt(selectedOption.price)}`}
                 </button>
               </div>
             </PanelCard>
@@ -349,6 +393,60 @@ function Page() {
                 </div>
               )}
             </PanelCard>
+          </div>
+        </div>
+      )}
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-surface-elevated p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <div className="size-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center text-gold">
+                <Rocket className="size-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-foreground">Confirm Boost Purchase</h3>
+                <p className="text-[11px] text-muted-foreground">Instant Wallet Balance Checkout</p>
+              </div>
+            </div>
+            <div className="space-y-2 py-2">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Do you want to purchase this boost for <span className="font-mono font-bold text-gold">{fmt(selectedOption.price)}</span> from wallet balance?
+              </p>
+              <div className="rounded-xl bg-background/50 border border-border p-3 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Listing:</span>
+                  <span className="font-semibold text-foreground truncate max-w-[200px]">
+                    {listings.find(l => l.id === selectedListing)?.title || "Selected Listing"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Boost Type:</span>
+                  <span className="font-semibold text-gold uppercase">{selectedOption.name}</span>
+                </div>
+                <div className="flex justify-between border-t border-border/60 pt-1.5 mt-1.5">
+                  <span className="text-muted-foreground">Available Wallet Balance:</span>
+                  <span className="font-semibold text-foreground">{fmt(wallet?.available_balance || 0)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 h-10 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-surface hover:text-foreground transition-all active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBoost(true)}
+                disabled={submitting}
+                className="flex-1 h-10 rounded-xl bg-gold text-black text-xs font-bold hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {submitting ? "Processing..." : "Confirm & Pay"}
+              </button>
+            </div>
           </div>
         </div>
       )}
