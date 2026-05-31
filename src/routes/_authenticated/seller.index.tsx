@@ -71,6 +71,11 @@ function Overview() {
   const [isDemoData, setIsDemoData] = useState(true);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
+  // Store Customizations States
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [bannerText, setBannerText] = useState("");
+
   useEffect(() => {
     async function load() {
       const supabase = getSupabase();
@@ -82,7 +87,7 @@ function Overview() {
       setLoading(true);
 
       try {
-        const [ordersRes, walletRes, listingsRes, recentRes, txnsRes] = await Promise.all([
+        const [ordersRes, walletRes, listingsRes, recentRes, txnsRes, customizationsRes] = await Promise.all([
           supabase
             .from("orders")
             .select("id", { count: "exact", head: true })
@@ -104,13 +109,24 @@ function Overview() {
             .eq("wallet_id", user.id)
             .eq("type", "sale")
             .eq("status", "completed")
-            .order("created_at", { ascending: true })
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("seller_customizations")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle()
         ]);
 
         setTotalOrders(ordersRes.count ?? 0);
         setActiveListings(listingsRes.count ?? 0);
 
         setTotalEarnings(walletRes?.total_earnings || 0);
+
+        if (customizationsRes?.data) {
+          setLogoUrl(customizationsRes.data.logo_url || null);
+          setBannerUrl(customizationsRes.data.banner_url || null);
+          setBannerText(customizationsRes.data.storefront_banner_customization || "");
+        }
 
         // Process last 7 days sales
         const dates = Array.from({ length: 7 }, (_, i) => {
@@ -230,36 +246,53 @@ function Overview() {
 
       {/* Hero / welcome */}
       <div
-        className="relative rounded-3xl border border-border p-6 lg:p-8 overflow-hidden"
-        style={{ background: meta.surfaceGradient, boxShadow: meta.glow }}
+        className="relative rounded-3xl border border-border p-6 lg:p-8 overflow-hidden min-h-[160px]"
+        style={{ 
+          backgroundImage: bannerUrl ? `url(${bannerUrl})` : "none", 
+          background: bannerUrl ? undefined : meta.surfaceGradient,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          boxShadow: meta.glow 
+        }}
       >
         <div
-          className="absolute inset-0 opacity-30 pointer-events-none"
+          className="absolute inset-0 opacity-40 pointer-events-none bg-black/60"
           style={{
-            background:
-              "radial-gradient(800px 300px at 90% 0%, oklch(0.82 0.13 82 / 0.18), transparent)",
+            background: bannerUrl 
+              ? "linear-gradient(to right, rgba(0,0,0,0.9) 30%, rgba(0,0,0,0.5) 100%)"
+              : "radial-gradient(800px 300px at 90% 0%, oklch(0.82 0.13 82 / 0.18), transparent)",
           }}
         />
-        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-              Welcome back
+        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 z-10">
+          <div className="flex flex-col sm:flex-row gap-4 items-center text-center sm:text-left">
+            {logoUrl ? (
+              <div className="size-16 rounded-2xl border border-gold/30 overflow-hidden bg-background shadow-xl shrink-0 z-10">
+                <img src={logoUrl} className="w-full h-full object-cover" alt="Store logo" />
+              </div>
+            ) : (
+              <div className="size-16 rounded-2xl bg-gold/10 border border-gold/30 flex items-center justify-center text-2xl font-bold text-gold shadow-xl shrink-0 z-10">
+                {name[0].toUpperCase()}
+              </div>
+            )}
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.25em] text-gold font-bold">
+                {bannerText ? `“${bannerText}”` : "Welcome back"}
+              </div>
+              <h1 className="font-display text-2xl lg:text-3xl font-bold mt-1 text-white">
+                {name} <span className="text-gold-gradient">·</span>{" "}
+                <span className="text-gold-gradient">{meta.label}</span>
+              </h1>
+              <p className="text-xs text-zinc-300 mt-1 max-w-xl">
+                You're on the {meta.label} plan. Upgrade to unlock premium analytics & featured placement.
+              </p>
             </div>
-            <h1 className="font-display text-3xl lg:text-4xl font-bold mt-1">
-              {name} <span className="text-gold-gradient">·</span>{" "}
-              <span className="text-gold-gradient">{meta.label}</span>
-            </h1>
-            <p className="text-sm text-muted-foreground mt-2 max-w-xl">
-              You're on the {meta.label} plan.{" "}
-              Upgrade to unlock premium analytics & featured placement.
-            </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <TierBadge tier={tier} size="lg" />
             <Link
               to="/seller/listings"
               search={{ intent: "new" }}
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-gold text-black font-semibold text-sm hover:bg-gold/90"
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-gold text-black font-semibold text-sm hover:bg-gold/90 transition-all active:scale-95"
             >
               <Plus size={14} /> Add Listing
             </Link>

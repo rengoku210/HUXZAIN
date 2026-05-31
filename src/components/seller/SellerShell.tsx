@@ -93,9 +93,11 @@ const navGroups: NavGroup[] = [
 
 function SellerSidebar({ 
   onLinkClick, 
+  logoUrl,
   className = "hidden lg:block rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32"
 }: { 
   onLinkClick?: () => void; 
+  logoUrl?: string | null;
   className?: string;
 }) {
   const { location } = useRouterState();
@@ -129,14 +131,28 @@ function SellerSidebar({
   return (
     <aside className={className}>
       <div
-        className="rounded-xl p-4 mb-3 border border-border/60 relative overflow-hidden"
+        className="rounded-xl p-4 mb-3 border border-border/60 relative overflow-hidden flex flex-col gap-3"
         style={{ background: meta.surfaceGradient }}
       >
-        <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Seller</div>
-        <div className="text-sm font-semibold truncate mt-0.5">
-          {auth.profile?.display_name ?? auth.user?.email ?? "Guest"}
+        <div className="flex items-center gap-2.5">
+          {logoUrl ? (
+            <div className="size-9 rounded-lg border border-border/60 overflow-hidden bg-background shrink-0 shadow-md">
+              <img src={logoUrl} className="w-full h-full object-cover" alt="Store logo" />
+            </div>
+          ) : (
+            <div className="size-9 rounded-lg bg-gold/10 border border-gold/30 flex items-center justify-center font-display text-xs font-bold text-gold shrink-0 shadow-md">
+              {(auth.profile?.display_name ?? auth.user?.email ?? "S")[0].toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground/80 leading-none">Storefront</div>
+            <div className="text-xs font-bold truncate text-foreground mt-0.5">
+              {auth.profile?.display_name ?? auth.user?.email?.split("@")[0] ?? "Store"}
+            </div>
+          </div>
         </div>
-        <div className="mt-3">
+        <div className="border-t border-border/40 pt-2.5 flex items-center justify-between gap-2">
+          <span className="text-[9px] uppercase tracking-[0.25em] text-muted-foreground">Tier</span>
           <TierBadge tier={tier} size="sm" />
         </div>
       </div>
@@ -292,6 +308,43 @@ function ShellInner({ children }: { children?: ReactNode }) {
   const allowed = auth.hasAnyRole(["seller", "admin", "super_admin", "owner"]);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Store Customizations States for active accents / branding
+  const [accentColor, setAccentColor] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadCustomizations() {
+      if (!auth.user) return;
+      try {
+        const sb = getSupabase();
+        if (sb) {
+          const { data } = await sb
+            .from("seller_customizations")
+            .select("accent_color, theme_enabled, logo_url")
+            .eq("id", auth.user.id)
+            .maybeSingle();
+            
+          if (data) {
+            if (data.theme_enabled !== false && data.accent_color) {
+              setAccentColor(data.accent_color);
+            } else {
+              setAccentColor(null);
+            }
+            setLogoUrl(data.logo_url || null);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load seller panel customizations:", e);
+      }
+    }
+    loadCustomizations();
+
+    window.addEventListener("seller-theme-updated", loadCustomizations);
+    return () => {
+      window.removeEventListener("seller-theme-updated", loadCustomizations);
+    };
+  }, [auth.user, auth.ready]);
+
   // Find active nav item to display in the mobile top bar
   const allItems = navGroups.flatMap(g => g.items);
   const activeItem = allItems.find(n => n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)) || allItems[0];
@@ -308,6 +361,51 @@ function ShellInner({ children }: { children?: ReactNode }) {
         background: `radial-gradient(1200px 600px at 80% -10%, ${meta.glow}, transparent 60%)`,
       }}
     >
+      {accentColor && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --gold: ${accentColor} !important;
+            --primary: ${accentColor} !important;
+            --ring: ${accentColor}80 !important;
+          }
+          .text-gold {
+            color: ${accentColor} !important;
+          }
+          .bg-gold {
+            background-color: ${accentColor} !important;
+            color: #000000 !important;
+          }
+          .border-gold {
+            border-color: ${accentColor} !important;
+          }
+          .border-gold\\/40 {
+            border-color: ${accentColor}66 !important;
+          }
+          .border-gold\\/20 {
+            border-color: ${accentColor}33 !important;
+          }
+          .bg-gold\\/10 {
+            background-color: ${accentColor}1a !important;
+          }
+          .bg-gold\\/15 {
+            background-color: ${accentColor}26 !important;
+          }
+          .bg-gold\\/5 {
+            background-color: ${accentColor}0d !important;
+          }
+          .hover\\:bg-gold\\/10:hover {
+            background-color: ${accentColor}1a !important;
+          }
+          .hover\\:border-gold\\/40:hover {
+            border-color: ${accentColor}66 !important;
+          }
+          .text-gold-gradient {
+            background: linear-gradient(135deg, ${accentColor}, #ffffff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+          }
+        `}} />
+      )}
       <Header />
       
       {/* Sticky Mobile Top Bar */}
@@ -357,6 +455,7 @@ function ShellInner({ children }: { children?: ReactNode }) {
             {/* Render the sidebar in drawer mode */}
             <SellerSidebar 
               onLinkClick={() => setDrawerOpen(false)} 
+              logoUrl={logoUrl}
               className="flex-1 space-y-4"
             />
           </div>
@@ -364,7 +463,7 @@ function ShellInner({ children }: { children?: ReactNode }) {
       )}
 
       <main className="flex-1 container-page py-6 lg:py-8 grid lg:grid-cols-[260px_1fr] gap-6">
-        <SellerSidebar />
+        <SellerSidebar logoUrl={logoUrl} />
         <div className="min-w-0">
           {children ?? <Outlet />}
         </div>

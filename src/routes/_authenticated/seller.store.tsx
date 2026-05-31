@@ -116,6 +116,8 @@ function Page() {
 
       if (error) throw error;
       toast.success("Store customizations saved and applied live!");
+      // Dispatch custom window event for real-time shell accent & logo recalculations!
+      window.dispatchEvent(new Event("seller-theme-updated"));
     } catch (err: any) {
       toast.error("Failed to save customizations: " + err.message);
     } finally {
@@ -234,7 +236,10 @@ function Page() {
                         key={t.id}
                         type="button"
                         disabled={locked || !isPro}
-                        onClick={() => setSelectedTheme(t.id)}
+                        onClick={() => {
+                          setSelectedTheme(t.id);
+                          setAccentColor(t.text);
+                        }}
                         className={`rounded-xl border p-2.5 text-left transition-all ${active ? "border-gold ring-1 ring-gold/20 bg-gold/5" : "border-border/60 hover:border-gold/30"} ${(locked || !isPro) ? "opacity-40 cursor-not-allowed" : ""}`}
                       >
                         <div className="flex gap-1 h-10 rounded-lg overflow-hidden border border-border/40">
