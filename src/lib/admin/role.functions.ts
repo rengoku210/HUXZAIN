@@ -2,6 +2,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { getAdminClient } from "@/server/supabase-admin";
+import { createClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/roles";
 
 export const updateUserRole = createServerFn({ method: "POST" })
@@ -107,15 +108,34 @@ export const updateUserRole = createServerFn({ method: "POST" })
 export const listAdminUsers = createServerFn({ method: "POST" })
   .inputValidator((data: { token: string }) => data)
   .handler(async ({ data: { token } }) => {
-    const adminClient = getAdminClient();
-    if (!adminClient) throw new Error("Server misconfigured.");
+    let activeClient = getAdminClient();
+    let isFallback = false;
 
-    // 1. Authenticate caller
-    const { data: authData, error: authErr } = await adminClient.auth.getUser(token);
+    if (!activeClient) {
+      console.warn("[listAdminUsers] Admin service client is missing. Resolving standard client fallback...");
+      const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://fqeoracqywgwbvwijwqq.supabase.co";
+      const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      if (url && anonKey) {
+        activeClient = createClient(url, anonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+          },
+        });
+        isFallback = true;
+      }
+    }
+
+    if (!activeClient) {
+      throw new Error("Server misconfigured: database connection is unavailable.");
+    }
+
+    // 1. Authenticate caller using active client
+    const { data: authData, error: authErr } = await activeClient.auth.getUser(token);
     if (authErr || !authData.user) throw new Error("Unauthorized");
 
     const callerId = authData.user.id;
-    const { data: callerRoleData } = await adminClient.from("user_roles").select("role").eq("user_id", callerId);
+    const { data: callerRoleData } = await activeClient.from("user_roles").select("role").eq("user_id", callerId);
     const callerRoles = callerRoleData?.map((r: any) => r.role as string) || [];
     const isEmailWhitelist = ["admin@admin.com", "lullilullivabhaiva@gmail.com", "rammodhvadiya210@gmail.com"].includes(authData.user.email ?? "");
     const isAdmin = callerRoles.includes("admin") || callerRoles.includes("super_admin") || callerRoles.includes("owner") || isEmailWhitelist;
@@ -123,20 +143,30 @@ export const listAdminUsers = createServerFn({ method: "POST" })
     if (!isAdmin) throw new Error("Forbidden");
 
     // 2. Fetch profiles, database roles, and auth metadata roles
-    const { data: profiles, error: pErr } = await adminClient
+    const { data: profiles, error: pErr } = await activeClient
       .from("profiles")
       .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
       .order("created_at", { ascending: false });
 
     if (pErr) throw pErr;
 
-    const { data: roleRows, error: rErr } = await adminClient
+    const { data: roleRows, error: rErr } = await activeClient
       .from("user_roles")
       .select("user_id, role");
 
     if (rErr) throw rErr;
 
-    const { data: authUsers, error: listErr } = await adminClient.auth.admin.listUsers();
+    let authUsers = null;
+    let listErr = null;
+    if (!isFallback) {
+      try {
+        const res = await activeClient.auth.admin.listUsers();
+        authUsers = res.data;
+        listErr = res.error;
+      } catch (err) {
+        console.warn("[listAdminUsers] Non-blocking listUsers exception:", err);
+      }
+    }
     
     const metaRoleMap: Record<string, string> = {};
     if (!listErr && authUsers?.users) {
