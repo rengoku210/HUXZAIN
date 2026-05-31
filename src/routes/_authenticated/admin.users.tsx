@@ -63,20 +63,69 @@ function Page() {
         return;
       }
 
-      const response = await listAdminUsers({
-        data: { token: session.access_token }
+      console.log("[AdminUsers] Querying Supabase database directly from client side...");
+      
+      // 1. Fetch user profiles
+      const { data: profiles, error: pErr } = await sb
+        .from("profiles")
+        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
+        .order("created_at", { ascending: false });
+
+      if (pErr) throw pErr;
+
+      // 2. Fetch user roles
+      const { data: roleRows, error: rErr } = await sb
+        .from("user_roles")
+        .select("user_id, role");
+
+      if (rErr) throw rErr;
+
+      // 3. Map roles
+      const roleMap: Record<string, string[]> = {};
+      roleRows?.forEach((row) => {
+        const uid = row.user_id;
+        const r = row.role;
+        if (!roleMap[uid]) roleMap[uid] = [];
+        roleMap[uid].push(r);
       });
 
-      if (response && response.success && response.data) {
-        setUsers(response.data as ManagedUser[]);
-      } else {
-        const errStr = response?.error || "Unknown server error";
-        console.error("[AdminUsers] Server returned error:", errStr);
-        toast.error("Failed to fetch users: " + errStr);
-      }
+      // 4. Combine
+      const combined = (profiles ?? []).map((p) => {
+        const roles = roleMap[p.id] ?? [];
+        return {
+          id: p.id,
+          email: p.email,
+          display_name: p.display_name,
+          username: p.username,
+          created_at: p.created_at,
+          suspended_at: p.suspended_at,
+          is_seller: p.is_seller,
+          is_verified: p.is_verified,
+          roles: roles as Role[],
+        };
+      });
+
+      setUsers(combined as ManagedUser[]);
+      console.log("[AdminUsers] Users successfully loaded directly from DB:", combined.length);
     } catch (e: any) {
-      console.error(e);
-      toast.error("Failed to fetch users: " + e.message);
+      console.error("[AdminUsers] Direct query failed, executing server function fallback:", e);
+      
+      try {
+        const sb = getSupabase();
+        const { data: { session } } = await sb!.auth.getSession();
+        const response = await listAdminUsers({
+          data: { token: session!.access_token }
+        });
+
+        if (response && response.success && response.data) {
+          setUsers(response.data as ManagedUser[]);
+        } else {
+          throw new Error(response?.error || "Server function error");
+        }
+      } catch (fallbackErr: any) {
+        console.error("[AdminUsers] Server function fallback failed:", fallbackErr);
+        toast.error("Failed to fetch users: " + fallbackErr.message);
+      }
     } finally {
       setLoading(false);
     }
