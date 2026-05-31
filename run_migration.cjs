@@ -187,6 +187,9 @@ create policy sessions_self on public.active_sessions for all using (auth.uid() 
 
 -- 10. Add subscription_expires_at to profiles if not exists
 alter table public.profiles add column if not exists subscription_expires_at timestamptz;
+
+-- 11. Add role column to profiles for persistent granular roles
+alter table public.profiles add column if not exists role text default 'buyer';
 `;
 
 async function run() {

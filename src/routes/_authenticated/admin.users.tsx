@@ -64,14 +64,29 @@ function Page() {
       }
 
       console.log("[AdminUsers] Querying Supabase database directly from client side...");
-      
-      // 1. Fetch user profiles
-      const { data: profiles, error: pErr } = await sb
-        .from("profiles")
-        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
-        .order("created_at", { ascending: false });
+      // 1. Fetch user profiles with fallback if role column is missing
+      let profiles: any[] | null = null;
+      let pErr: any = null;
+      try {
+        const res = await sb
+          .from("profiles")
+          .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email, role")
+          .order("created_at", { ascending: false });
+        profiles = res.data;
+        pErr = res.error;
+      } catch (err) {
+        console.warn("[AdminUsers] Direct fetch profiles.role column threw exception:", err);
+      }
 
-      if (pErr) throw pErr;
+      if (pErr || !profiles) {
+        console.log("[AdminUsers] Fetching profiles without role column...");
+        const res = await sb
+          .from("profiles")
+          .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
+          .order("created_at", { ascending: false });
+        if (res.error) throw res.error;
+        profiles = res.data;
+      }
 
       // 2. Fetch user roles
       const { data: roleRows, error: rErr } = await sb
@@ -90,8 +105,17 @@ function Page() {
       });
 
       // 4. Combine
-      const combined = (profiles ?? []).map((p) => {
+      const combined = (profiles ?? []).map((p: any) => {
         const roles = roleMap[p.id] ?? [];
+        
+        // Supplement with granular role from profiles.role if it exists
+        const granularRole = p.role;
+        if (granularRole && ["staff", "moderator", "super_admin", "owner"].includes(granularRole)) {
+          if (!roles.includes(granularRole)) {
+            roles.push(granularRole);
+          }
+        }
+        
         return {
           id: p.id,
           email: p.email,

@@ -29,6 +29,7 @@ export type Profile = {
   subscription_tier?: string | null;
   subscription_expires_at?: string | null;
   updated_at?: string | null;
+  role?: string | null;
 };
 
 type AuthState = {
@@ -167,8 +168,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 3. Ensure roles exist in DB
       const dbRoles = uniqueRoles((r ?? []) as { role: Role }[]);
 
-      // Supplement with granular role from user_metadata if they are an admin in DB
-      const metaRole = fallbackUser?.user_metadata?.role as Role | undefined;
+      // Supplement with granular role from profiles.role or user_metadata if they are an admin in DB
+      const profileRole = (finalProfile as any)?.role as Role | undefined;
+      const metaRole = (profileRole || fallbackUser?.user_metadata?.role) as Role | undefined;
       if (metaRole && ["staff", "moderator", "super_admin", "owner"].includes(metaRole) && dbRoles.includes("admin")) {
         if (metaRole === "staff") {
           const adminIdx = dbRoles.indexOf("admin");

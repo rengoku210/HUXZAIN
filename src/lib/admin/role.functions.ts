@@ -139,13 +139,23 @@ export const updateUserRole = createServerFn({ method: "POST" })
         }
       }
 
-      // 6. Persist granular role securely in auth.users user_metadata (if service role key is available)
+      // 5.5. Sync granular role to profiles table (fail-safe in case the column does not exist yet)
       const primaryRole = newRoles.includes("super_admin") ? "super_admin" :
                           newRoles.includes("owner") ? "owner" :
                           newRoles.includes("admin") ? "admin" :
                           newRoles.includes("moderator") ? "moderator" :
                           newRoles.includes("staff") ? "staff" : "buyer";
 
+      try {
+        await activeClient
+          .from("profiles")
+          .update({ role: primaryRole })
+          .eq("id", targetUserId);
+      } catch (profilesErr: any) {
+        console.warn("[RoleFunctions] Failed to sync profiles.role (might not exist yet):", profilesErr?.message || profilesErr);
+      }
+
+      // 6. Persist granular role securely in auth.users user_metadata (if service role key is available)
       if (!isFallback) {
         try {
           const { error: metaErr } = await activeClient.auth.admin.updateUserById(targetUserId, {
@@ -237,17 +247,32 @@ export const listAdminUsers = createServerFn({ method: "POST" })
         };
       }
 
-      // 2. Fetch profiles and database roles
-      const { data: profiles, error: pErr } = await activeClient
-        .from("profiles")
-        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
-        .order("created_at", { ascending: false });
+      // 2. Fetch profiles safely with optional role column
+      let profiles: any[] | null = null;
+      let pErr: any = null;
+      try {
+        const res = await activeClient
+          .from("profiles")
+          .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email, role")
+          .order("created_at", { ascending: false });
+        profiles = res.data;
+        pErr = res.error;
+      } catch (err) {
+        console.warn("[listAdminUsers] Direct fetch profiles.role column threw exception:", err);
+      }
 
-      if (pErr) {
-        return {
-          success: false,
-          error: `Failed to fetch user profiles: ${pErr.message}`
-        };
+      if (pErr || !profiles) {
+        const res = await activeClient
+          .from("profiles")
+          .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email")
+          .order("created_at", { ascending: false });
+        if (res.error) {
+          return {
+            success: false,
+            error: `Failed to fetch user profiles: ${res.error.message}`
+          };
+        }
+        profiles = res.data;
       }
 
       const { data: roleRows, error: rErr } = await activeClient
@@ -290,9 +315,9 @@ export const listAdminUsers = createServerFn({ method: "POST" })
         roleMap[uid].push(r);
       });
 
-      const combined = (profiles ?? []).map((p) => {
+      const combined = (profiles ?? []).map((p: any) => {
         const roles = roleMap[p.id] ?? [];
-        const metaRole = metaRoleMap[p.id];
+        const metaRole = p.role || metaRoleMap[p.id];
         
         // Supplement with granular role if they are an admin
         if (metaRole && roles.includes("admin")) {
