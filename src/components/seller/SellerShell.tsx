@@ -311,6 +311,8 @@ function ShellInner({ children }: { children?: ReactNode }) {
   // Store Customizations States for active accents / branding
   const [accentColor, setAccentColor] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [activeTheme, setActiveTheme] = useState<string>("midnight");
+  const [themeEnabled, setThemeEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     async function loadCustomizations() {
@@ -320,13 +322,20 @@ function ShellInner({ children }: { children?: ReactNode }) {
         if (sb) {
           const { data } = await sb
             .from("seller_customizations")
-            .select("accent_color, theme_enabled, logo_url")
+            .select("accent_color, theme_color, logo_url")
             .eq("id", auth.user.id)
             .maybeSingle();
             
           if (data) {
-            if (data.theme_enabled !== false && data.accent_color) {
-              setAccentColor(data.accent_color);
+            const rawTheme = data.theme_color || "midnight";
+            const [themeId, status] = rawTheme.split("|");
+            const isEnabled = status !== "disabled";
+            
+            setThemeEnabled(isEnabled);
+            setActiveTheme(themeId || "midnight");
+            
+            if (isEnabled) {
+              setAccentColor(data.accent_color || "#d4b46a");
             } else {
               setAccentColor(null);
             }
@@ -354,6 +363,84 @@ function ShellInner({ children }: { children?: ReactNode }) {
   }, [auth.ready, allowed, navigate]);
 
   if (!allowed) return null;
+
+  // Custom Theme Palette Definitions
+  const themeColors: Record<string, {
+    background: string;
+    surface: string;
+    surfaceElevated: string;
+    card: string;
+    gold: string;
+    goldSoft: string;
+    border: string;
+    ring: string;
+    primary: string;
+    primaryForeground: string;
+  }> = {
+    midnight: {
+      background: "oklch(0.16 0.012 250)",
+      surface: "oklch(0.19 0.013 250)",
+      surfaceElevated: "oklch(0.225 0.014 250)",
+      card: "oklch(0.205 0.013 250)",
+      gold: "oklch(0.82 0.13 82)",
+      goldSoft: "oklch(0.72 0.105 80)",
+      border: "oklch(0.28 0.014 250 / 70%)",
+      ring: "oklch(0.82 0.13 82 / 50%)",
+      primary: "oklch(0.82 0.13 82)",
+      primaryForeground: "oklch(0.18 0.015 250)"
+    },
+    noir: {
+      background: "#080808",
+      surface: "#141414",
+      surfaceElevated: "#222222",
+      card: "#0d0d0d",
+      gold: "#e85d3a",
+      goldSoft: "#a83d22",
+      border: "rgba(232, 93, 58, 0.3)",
+      ring: "rgba(232, 93, 58, 0.5)",
+      primary: "#e85d3a",
+      primaryForeground: "#ffffff"
+    },
+    indigo: {
+      background: "#04040f",
+      surface: "#0c0c24",
+      surfaceElevated: "#18184a",
+      card: "#08081c",
+      gold: "#6366f1",
+      goldSoft: "#4338ca",
+      border: "rgba(99, 102, 241, 0.3)",
+      ring: "rgba(99, 102, 241, 0.5)",
+      primary: "#6366f1",
+      primaryForeground: "#ffffff"
+    },
+    platinum: {
+      background: "#0a0a0a",
+      surface: "#1a1a1a",
+      surfaceElevated: "#2d2d2d",
+      card: "#141414",
+      gold: "#e5e5e5",
+      goldSoft: "#a3a3a3",
+      border: "rgba(229, 229, 229, 0.3)",
+      ring: "rgba(229, 229, 229, 0.5)",
+      primary: "#e5e5e5",
+      primaryForeground: "#000000"
+    },
+    violet: {
+      background: "#080312",
+      surface: "#14072b",
+      surfaceElevated: "#240d4f",
+      card: "#0f0521",
+      gold: "#a78bfa",
+      goldSoft: "#7c3aed",
+      border: "rgba(167, 139, 250, 0.3)",
+      ring: "rgba(167, 139, 250, 0.5)",
+      primary: "#a78bfa",
+      primaryForeground: "#ffffff"
+    }
+  };
+
+  const currentTheme = themeEnabled ? (themeColors[activeTheme] || themeColors.midnight) : null;
+
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -361,46 +448,53 @@ function ShellInner({ children }: { children?: ReactNode }) {
         background: `radial-gradient(1200px 600px at 80% -10%, ${meta.glow}, transparent 60%)`,
       }}
     >
-      {accentColor && (
+      {currentTheme && (
         <style dangerouslySetInnerHTML={{ __html: `
           :root {
-            --gold: ${accentColor} !important;
-            --primary: ${accentColor} !important;
-            --ring: ${accentColor}80 !important;
+            --background: ${currentTheme.background} !important;
+            --surface: ${currentTheme.surface} !important;
+            --surface-elevated: ${currentTheme.surfaceElevated} !important;
+            --card: ${currentTheme.card} !important;
+            --gold: ${currentTheme.gold} !important;
+            --gold-soft: ${currentTheme.goldSoft} !important;
+            --primary: ${currentTheme.gold} !important;
+            --primary-foreground: ${currentTheme.primaryForeground} !important;
+            --border: ${currentTheme.border} !important;
+            --ring: ${currentTheme.ring} !important;
           }
           .text-gold {
-            color: ${accentColor} !important;
+            color: ${currentTheme.gold} !important;
           }
           .bg-gold {
-            background-color: ${accentColor} !important;
-            color: #000000 !important;
+            background-color: ${currentTheme.gold} !important;
+            color: ${currentTheme.primaryForeground} !important;
           }
           .border-gold {
-            border-color: ${accentColor} !important;
+            border-color: ${currentTheme.gold} !important;
           }
           .border-gold\\/40 {
-            border-color: ${accentColor}66 !important;
+            border-color: ${currentTheme.gold}66 !important;
           }
           .border-gold\\/20 {
-            border-color: ${accentColor}33 !important;
+            border-color: ${currentTheme.gold}33 !important;
           }
           .bg-gold\\/10 {
-            background-color: ${accentColor}1a !important;
+            background-color: ${currentTheme.gold}1a !important;
           }
           .bg-gold\\/15 {
-            background-color: ${accentColor}26 !important;
+            background-color: ${currentTheme.gold}26 !important;
           }
           .bg-gold\\/5 {
-            background-color: ${accentColor}0d !important;
+            background-color: ${currentTheme.gold}0d !important;
           }
           .hover\\:bg-gold\\/10:hover {
-            background-color: ${accentColor}1a !important;
+            background-color: ${currentTheme.gold}1a !important;
           }
           .hover\\:border-gold\\/40:hover {
-            border-color: ${accentColor}66 !important;
+            border-color: ${currentTheme.gold}66 !important;
           }
           .text-gold-gradient {
-            background: linear-gradient(135deg, ${accentColor}, #ffffff) !important;
+            background: linear-gradient(135deg, ${currentTheme.gold}, #ffffff) !important;
             -webkit-background-clip: text !important;
             -webkit-text-fill-color: transparent !important;
           }

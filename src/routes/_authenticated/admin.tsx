@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   CreditCard,
+  DollarSign,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -28,6 +29,7 @@ const nav = [
   { to: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
   { to: "/admin/disputes", label: "Disputes", icon: AlertCircle },
   { to: "/admin/reports", label: "Reports", icon: Flag },
+  { to: "/admin/earnings", label: "Earnings", icon: DollarSign },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
@@ -59,6 +61,8 @@ function AdminLayout() {
     if (auth.ready && auth.isAuthenticated) {
       if (!allowed) {
         nav2({ to: "/dashboard" });
+      } else if (location.pathname === "/admin/earnings" && !(auth.hasRole("owner") || auth.user?.email === "admin@admin.com")) {
+        nav2({ to: "/admin" });
       } else if (isStrictStaff) {
         // Redirect staff if they try to access non-payment/subscription routes
         const currentPath = location.pathname;
@@ -68,13 +72,16 @@ function AdminLayout() {
         }
       }
     }
-  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2]);
+  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2, auth.roles]);
 
   if (!allowed) return null;
 
   const filteredNav = nav.filter(n => {
     if (isStrictStaff) {
       return staffAllowedPaths.includes(n.to);
+    }
+    if (n.to === "/admin/earnings") {
+      return auth.hasRole("owner") || auth.user?.email === "admin@admin.com";
     }
     return true;
   });

@@ -60,6 +60,10 @@ function ProductPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [ordering, setOrdering] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(wishlistStore.isWishlisted(id));
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("Fraud / Scam");
+  const [reportDescription, setReportDescription] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   useEffect(() => {
     const handleWishlistUpdate = () => {
@@ -506,6 +510,26 @@ function ProductPage() {
               <ShieldCheck className="size-4 text-gold" />
               Payment verification and order history are connected to this listing.
             </div>
+
+            <div className="mt-4 border-t border-border/40 pt-4 flex justify-between items-center flex-wrap gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="size-3.5" />
+                <span>Concerned about this product?</span>
+              </div>
+              <button
+                onClick={() => {
+                  if (!isAuthenticated || !user) {
+                    toast.error("Please sign in to report a listing.");
+                    navigate({ to: "/login", search: { redirect: `/product/${id}` } });
+                    return;
+                  }
+                  setReportOpen(true);
+                }}
+                className="text-gold hover:underline font-semibold cursor-pointer"
+              >
+                Report Listing
+              </button>
+            </div>
           </div>
         </div>
 
@@ -534,6 +558,99 @@ function ProductPage() {
           {activeTab === 3 && <p>Post-purchase support is available from your order page.</p>}
         </div>
       </main>
+
+      {/* Report Modal */}
+      {reportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReportOpen(false)} />
+          <div className="relative w-full max-w-md bg-surface border border-border rounded-2xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+            <h3 className="font-display font-bold text-lg text-white mb-2">Report Listing</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Please specify the reason for reporting <span className="text-gold font-semibold">"{title}"</span>.
+            </p>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setSubmittingReport(true);
+              try {
+                const supabase = getSupabase();
+                if (!supabase || !user) throw new Error("Authentication required");
+
+                const reportPayload = {
+                  listing_id: listing.id,
+                  listing_title: listing.title,
+                  seller_id: listing.seller_id,
+                  reason: reportReason,
+                  description: reportDescription,
+                  reporter_id: user.id,
+                  reporter_email: user.email,
+                  created_at: new Date().toISOString()
+                };
+
+                const { error } = await supabase
+                  .from("support_tickets")
+                  .insert({
+                    user_id: user.id,
+                    title: `REPORT_JSON:${JSON.stringify(reportPayload)}`,
+                    category: "report",
+                    status: "open"
+                  });
+
+                if (error) throw error;
+                toast.success("Listing reported successfully. Admins will review this shortly.");
+                setReportOpen(false);
+                setReportDescription("");
+              } catch (err: any) {
+                toast.error("Failed to submit report: " + err.message);
+              } finally {
+                setSubmittingReport(false);
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Reason</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden text-foreground"
+                >
+                  <option value="Fraud / Scam">Fraud / Scam</option>
+                  <option value="Misleading Description">Misleading Description</option>
+                  <option value="Inappropriate Content">Inappropriate Content</option>
+                  <option value="Intellectual Property Violation">Intellectual Property Violation</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Description / Details</label>
+                <textarea
+                  required
+                  placeholder="Provide supporting details..."
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  className="w-full h-24 p-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden text-foreground resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReportOpen(false)}
+                  className="h-9 px-4 rounded-lg border border-border hover:bg-surface text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReport}
+                  className="h-9 px-4 rounded-lg bg-destructive text-white text-xs font-bold hover:bg-destructive/90 transition-all active:scale-95 disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  {submittingReport && <Loader2 size={12} className="animate-spin" />}
+                  Submit Report
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );

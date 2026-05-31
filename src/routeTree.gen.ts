@@ -69,6 +69,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
 import { Route as AuthenticatedAdminPaymentsRouteImport } from './routes/_authenticated/admin.payments'
 import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin.listings'
+import { Route as AuthenticatedAdminEarningsRouteImport } from './routes/_authenticated/admin.earnings'
 import { Route as AuthenticatedAdminDisputesRouteImport } from './routes/_authenticated/admin.disputes'
 import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin.categories'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
@@ -404,6 +405,12 @@ const AuthenticatedAdminListingsRoute =
     path: '/listings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminEarningsRoute =
+  AuthenticatedAdminEarningsRouteImport.update({
+    id: '/earnings',
+    path: '/earnings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminDisputesRoute =
   AuthenticatedAdminDisputesRouteImport.update({
     id: '/disputes',
@@ -465,6 +472,7 @@ export interface FileRoutesByFullPath {
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
+  '/admin/earnings': typeof AuthenticatedAdminEarningsRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/payments': typeof AuthenticatedAdminPaymentsRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
@@ -529,6 +537,7 @@ export interface FileRoutesByTo {
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
+  '/admin/earnings': typeof AuthenticatedAdminEarningsRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/payments': typeof AuthenticatedAdminPaymentsRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
@@ -597,6 +606,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/_authenticated/admin/disputes': typeof AuthenticatedAdminDisputesRoute
+  '/_authenticated/admin/earnings': typeof AuthenticatedAdminEarningsRoute
   '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/_authenticated/admin/payments': typeof AuthenticatedAdminPaymentsRoute
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
@@ -665,6 +675,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/categories'
     | '/admin/disputes'
+    | '/admin/earnings'
     | '/admin/listings'
     | '/admin/payments'
     | '/admin/reports'
@@ -729,6 +740,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/categories'
     | '/admin/disputes'
+    | '/admin/earnings'
     | '/admin/listings'
     | '/admin/payments'
     | '/admin/reports'
@@ -796,6 +808,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/categories'
     | '/_authenticated/admin/disputes'
+    | '/_authenticated/admin/earnings'
     | '/_authenticated/admin/listings'
     | '/_authenticated/admin/payments'
     | '/_authenticated/admin/reports'
@@ -1282,6 +1295,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminListingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/earnings': {
+      id: '/_authenticated/admin/earnings'
+      path: '/earnings'
+      fullPath: '/admin/earnings'
+      preLoaderRoute: typeof AuthenticatedAdminEarningsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/disputes': {
       id: '/_authenticated/admin/disputes'
       path: '/disputes'
@@ -1324,6 +1344,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminCategoriesRoute: typeof AuthenticatedAdminCategoriesRoute
   AuthenticatedAdminDisputesRoute: typeof AuthenticatedAdminDisputesRoute
+  AuthenticatedAdminEarningsRoute: typeof AuthenticatedAdminEarningsRoute
   AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
   AuthenticatedAdminPaymentsRoute: typeof AuthenticatedAdminPaymentsRoute
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
@@ -1340,6 +1361,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminCategoriesRoute: AuthenticatedAdminCategoriesRoute,
   AuthenticatedAdminDisputesRoute: AuthenticatedAdminDisputesRoute,
+  AuthenticatedAdminEarningsRoute: AuthenticatedAdminEarningsRoute,
   AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
   AuthenticatedAdminPaymentsRoute: AuthenticatedAdminPaymentsRoute,
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
