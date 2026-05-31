@@ -120,15 +120,9 @@ export const updateUserRole = createServerFn({ method: "POST" })
         };
       }
 
-      // Insert new roles — store compatible role values (admin, buyer, seller) to bypass enum constraints
+      // Insert new roles directly (since public.user_roles.role column has been changed to TEXT)
       if (newRoles.length > 0) {
-        const mappedRoles = newRoles.map((r) => {
-          if (["staff", "moderator", "super_admin", "owner"].includes(r)) {
-            return "admin" as Role;
-          }
-          return r;
-        });
-        const uniqueRoles = Array.from(new Set(mappedRoles));
+        const uniqueRoles = Array.from(new Set(newRoles));
         const inserts = uniqueRoles.map((r) => ({ user_id: targetUserId, role: r }));
         const { error: insErr } = await activeClient.from("user_roles").insert(inserts);
         if (insErr) {
