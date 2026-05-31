@@ -5,6 +5,7 @@ import { Truck, Clock, CheckCircle2, XCircle, DollarSign, RefreshCw, ShoppingBag
 import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
+import { completeOrderAndCreditSeller } from "@/lib/wallet.functions";
 
 export const Route = createFileRoute("/_authenticated/seller/delivery")({
   head: () => ({ meta: [{ title: "Delivery Management — HUXZAIN Seller" }] }),
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/_authenticated/seller/delivery")({
 interface DeliveryOrder {
   id: string;
   buyer_id: string;
-  amount_total: number;
+  amount_inr: number;
   status: string;
   created_at: string;
   listings?: { title?: string | null } | null;
@@ -97,6 +98,7 @@ function Page() {
     const supabase = getSupabase();
     if (!supabase) return;
     try {
+      // 1. Update status to delivered and set delivered_at timestamp
       const { error } = await supabase
         .from("orders")
         .update({ status: "delivered", delivered_at: new Date().toISOString() })
@@ -104,10 +106,13 @@ function Page() {
 
       if (error) throw error;
 
-      toast.success("Order marked as Delivered successfully!");
+      // 2. Complete the order, calculate fees, credit the wallet, and create the transaction record
+      await completeOrderAndCreditSeller(orderId);
+
+      toast.success("Order delivered and earnings credited successfully!");
       void loadOrders();
     } catch (e: any) {
-      console.error(e);
+      console.error("[SellerDelivery] Fulfillment failed:", e);
       toast.error("Fulfillment failed: " + e.message);
     }
   };
@@ -188,7 +193,7 @@ function Page() {
                         {o.listings?.title ?? "Digital Item"}
                       </td>
                       <td className="py-3.5 text-right font-semibold">
-                        ₹{Number(o.amount_total).toFixed(2)}
+                        ₹{Number(o.amount_inr || 0).toFixed(2)}
                       </td>
                       <td className="py-3.5 pl-4">
                         <StatusPill status={statusLabel(o.status)} />
