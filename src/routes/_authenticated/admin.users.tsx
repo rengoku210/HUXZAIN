@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { useEffect, useState } from "react";
-import { updateUserRole, listAdminUsers } from "@/lib/admin/role.functions";
+import { listAdminUsers } from "@/lib/admin/role.functions";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
@@ -207,32 +207,36 @@ function Page() {
 
       const sb = getSupabase();
       if (!sb) throw new Error("Database client not configured");
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
 
-      // 2. Await the primary backend database save
-      const res = await updateUserRole({
-        data: {
-          targetUserId: userId,
-          newRoles: uniqueNewRoles,
-          token: session.access_token,
-        },
-      });
-
-      if (!res || !res.success) {
-        throw new Error(res?.error || "Unknown server error");
-      }
-
-      // 3. Compatibility fallback write: client-side update to profiles.role
-      const { data: profData, error: profErr } = await sb
+      // A. Update the profiles table role column directly
+      const { error: profErr } = await sb
         .from("profiles")
         .update({ role: newPrimaryRole })
-        .eq("id", userId)
-        .select();
+        .eq("id", userId);
 
-      console.log("[AdminUsers] Client-side profiles.role update response:", { profData, profErr });
       if (profErr) {
-        throw new Error(`Profile sync failed: ${profErr.message}`);
+        throw new Error(`Failed to update profile role: ${profErr.message}`);
+      }
+
+      // B. Update the user_roles table directly (since the column type is now TEXT)
+      // First, delete existing roles for this user
+      const { error: delErr } = await sb
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId);
+
+      if (delErr) {
+        throw new Error(`Failed to reset roles: ${delErr.message}`);
+      }
+
+      // Second, insert new roles
+      const inserts = uniqueNewRoles.map((r) => ({ user_id: userId, role: r }));
+      const { error: insErr } = await sb
+        .from("user_roles")
+        .insert(inserts);
+
+      if (insErr) {
+        throw new Error(`Failed to save roles: ${insErr.message}`);
       }
 
       toast.success("User role updated successfully!");
