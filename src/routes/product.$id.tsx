@@ -126,44 +126,52 @@ function ProductPage() {
   }, [id]);
 
   async function handleBuyNow() {
-    console.log("[BuyNow] Button click triggered", {
-      isAuthenticated,
-      userId: user?.id,
-      listingId: id,
-    });
-
-    if (!isAuthenticated || !user) {
-      toast.error("Please sign in to purchase.");
-      navigate({ to: "/login", search: { redirect: `/product/${id}` } });
-      return;
-    }
-    if (!listing?.seller_id) {
-      toast.error("This listing is missing seller information.");
-      return;
-    }
-    if (listing.seller_id === user.id) {
-      toast.error("You cannot buy your own listing.");
-      return;
-    }
-
-    const supabase = getSupabase();
-    if (!supabase) {
-      toast.error("Marketplace backend is not configured.");
-      return;
-    }
-
-    console.log("[BuyNow] Starting order creation:", {
-      buyer_id: user.id,
-      seller_id: listing.seller_id,
-      listing_id: listing.id,
-      listing_title: listing.title,
-    });
-
-    setOrdering(true);
     try {
+      console.log('STEP 1 Buy Now clicked', {
+        isAuthenticated,
+        userId: user?.id,
+        listingId: id,
+        listingSellerId: listing?.seller_id,
+        listingTitle: listing?.title,
+      });
+
+      if (!isAuthenticated || !user) {
+        console.log('STEP 1.1: Buyer not authenticated, redirecting to login...');
+        toast.error("Please sign in to purchase.");
+        navigate({ to: "/login", search: { redirect: `/product/${id}` } });
+        return;
+      }
+      if (!listing?.seller_id) {
+        console.log('STEP 1.2: Listing is missing seller_id.');
+        toast.error("This listing is missing seller information.");
+        return;
+      }
+      if (listing.seller_id === user.id) {
+        console.log('STEP 1.3: Seller trying to purchase their own listing.');
+        toast.error("You cannot buy your own listing.");
+        return;
+      }
+
+      const supabase = getSupabase();
+      if (!supabase) {
+        console.log('STEP 1.4: Supabase client is not configured.');
+        toast.error("Marketplace backend is not configured.");
+        return;
+      }
+
+      console.log('STEP 2 creating order', {
+        buyer_id: user.id,
+        seller_id: listing.seller_id,
+        listing_id: listing.id,
+        listing_title: listing.title,
+      });
+
+      setOrdering(true);
+      
       const price = listingPrice(listing);
 
       // Create order using correct live DB columns and enum values
+      console.log('STEP 2.1: Inserting order into Supabase...');
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -180,13 +188,19 @@ function ProductPage() {
         .single();
 
       if (orderError) {
-        console.error("[BuyNow] Supabase order insertion error object:", orderError);
+        console.error('STEP 2.2: Order insert failed with error:', orderError);
         throw orderError;
       }
 
-      console.log("[BuyNow] Created order successfully. ID:", order.id);
+      console.log('STEP 3 order created', order);
+
+      if (!order?.id) {
+        console.error('STEP 3.1: Returned order ID is missing/null!');
+        throw new Error("Returned order ID is missing.");
+      }
 
       // Insert transaction charge tracking
+      console.log('STEP 4 creating payment (transaction tracking)...');
       try {
         const amountCents = Math.round(price * 100);
         const { error: txError } = await supabase.from("transactions").insert({
@@ -200,6 +214,8 @@ function ProductPage() {
         });
         if (txError) {
           console.warn("[BuyNow] Transaction insert non-blocking error:", txError);
+        } else {
+          console.log("STEP 4.1: Transaction record inserted successfully.");
         }
       } catch (txEx) {
         console.warn("[BuyNow] Transaction insert non-blocking exception:", txEx);
@@ -219,7 +235,7 @@ function ProductPage() {
 
       const redirectPath = "/checkout/payment";
       const searchParams = { orderId: order.id, listingId: listing.id, price: String(price) };
-      console.log("[BuyNow] Redirecting buyer to checkout payment page:", {
+      console.log('STEP 5 navigating checkout', {
         path: redirectPath,
         search: searchParams,
       });
@@ -228,9 +244,11 @@ function ProductPage() {
         to: redirectPath,
         search: searchParams,
       });
-    } catch (e: any) {
-      console.error("[BuyNow] Unhandled checkout exception:", e);
-      toast.error("Unable to start checkout. Please try again.");
+      
+      console.log('STEP 6 navigation complete');
+    } catch (err: any) {
+      console.error('[BuyNow Error]', err);
+      toast.error(`Unable to start checkout: ${err?.message || "Unknown error"}`);
     } finally {
       setOrdering(false);
     }
