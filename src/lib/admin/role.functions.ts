@@ -319,8 +319,8 @@ export const listAdminUsers = createServerFn({ method: "POST" })
         const roles = roleMap[p.id] ?? [];
         const metaRole = p.role || metaRoleMap[p.id];
         
-        // Supplement with granular role if they are an admin
-        if (metaRole && roles.includes("admin")) {
+        // Supplement with granular role if it is a custom admin/staff/owner role
+        if (metaRole && ["admin", "staff", "moderator", "super_admin", "owner"].includes(metaRole)) {
           if (!roles.includes(metaRole)) {
             roles.push(metaRole);
           }

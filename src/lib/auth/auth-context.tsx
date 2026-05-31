@@ -168,14 +168,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 3. Ensure roles exist in DB
       const dbRoles = uniqueRoles((r ?? []) as { role: Role }[]);
 
-      // Supplement with granular role from profiles.role or user_metadata if they are an admin in DB
+      // Supplement with granular role from profiles.role or user_metadata
       const profileRole = (finalProfile as any)?.role as Role | undefined;
       const metaRole = (profileRole || fallbackUser?.user_metadata?.role) as Role | undefined;
-      if (metaRole && ["staff", "moderator", "super_admin", "owner"].includes(metaRole) && dbRoles.includes("admin")) {
+      if (metaRole && ["admin", "staff", "moderator", "super_admin", "owner"].includes(metaRole)) {
         if (metaRole === "staff") {
           const adminIdx = dbRoles.indexOf("admin");
           if (adminIdx !== -1) {
             dbRoles[adminIdx] = "staff"; // Replace 'admin' with 'staff' so they are not treated as full admins
+          } else if (!dbRoles.includes("staff")) {
+            dbRoles.push("staff");
           }
         } else {
           if (!dbRoles.includes(metaRole)) {

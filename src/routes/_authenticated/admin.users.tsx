@@ -110,7 +110,7 @@ function Page() {
         
         // Supplement with granular role from profiles.role if it exists
         const granularRole = p.role;
-        if (granularRole && ["staff", "moderator", "super_admin", "owner"].includes(granularRole)) {
+        if (granularRole && ["admin", "staff", "moderator", "super_admin", "owner"].includes(granularRole)) {
           if (!roles.includes(granularRole)) {
             roles.push(granularRole);
           }
