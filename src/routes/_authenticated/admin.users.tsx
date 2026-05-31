@@ -51,16 +51,29 @@ function Page() {
     try {
       setLoading(true);
       const sb = getSupabase();
-      if (!sb) return;
+      if (!sb) {
+        setLoading(false);
+        return;
+      }
 
       const { data: { session } } = await sb.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      if (!session?.access_token) {
+        toast.error("Not authenticated");
+        setLoading(false);
+        return;
+      }
 
-      const combined = await listAdminUsers({
+      const response = await listAdminUsers({
         data: { token: session.access_token }
       });
 
-      setUsers(combined as ManagedUser[]);
+      if (response && response.success && response.data) {
+        setUsers(response.data as ManagedUser[]);
+      } else {
+        const errStr = response?.error || "Unknown server error";
+        console.error("[AdminUsers] Server returned error:", errStr);
+        toast.error("Failed to fetch users: " + errStr);
+      }
     } catch (e: any) {
       console.error(e);
       toast.error("Failed to fetch users: " + e.message);
@@ -125,13 +138,17 @@ function Page() {
       if (!session?.access_token) throw new Error("Not authenticated");
 
       // 2. Await the primary backend database save
-      await updateUserRole({
+      const res = await updateUserRole({
         data: {
           targetUserId: userId,
           newRoles: uniqueNewRoles,
           token: session.access_token,
         },
       });
+
+      if (!res || !res.success) {
+        throw new Error(res?.error || "Unknown server error");
+      }
 
       // 3. Compatibility fallback write: non-blocking, client-side update to profiles.role
       try {

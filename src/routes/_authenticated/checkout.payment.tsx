@@ -79,11 +79,16 @@ function UnifiedPaymentPage() {
     const fetchListingData = async () => {
       setLoadingListing(true);
       try {
-        const { data: listData, error: listErr } = await supabase
-          .from("listings")
-          .select("*")
-          .eq("id", listingIdParam)
-          .maybeSingle();
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listingIdParam);
+        
+        let query = supabase.from("listings").select("*");
+        if (isUuid) {
+          query = query.eq("id", listingIdParam);
+        } else {
+          query = query.eq("slug", listingIdParam);
+        }
+
+        const { data: listData, error: listErr } = await query.maybeSingle();
 
         if (listErr) throw listErr;
         if (!listData) {
