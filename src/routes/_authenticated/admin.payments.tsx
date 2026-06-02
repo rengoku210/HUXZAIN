@@ -275,7 +275,9 @@ function AdminPayments() {
     if (activeProof && activeProof.order_id && !activeProof.order_data) {
       (async () => {
         try {
-          const { data } = await supabase
+          const sb = supabase;
+          if (!sb) return;
+          const { data } = await sb
             .from("orders")
             .select("*")
             .eq("id", activeProof.order_id)

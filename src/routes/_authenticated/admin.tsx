@@ -17,21 +17,42 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-const nav = [
-  { to: "/admin", label: "Overview", icon: Shield, end: true },
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/listings", label: "Listings", icon: List },
-  { to: "/admin/categories", label: "Categories", icon: List },
-  { to: "/admin/payments", label: "Payments", icon: CreditCard },
-  { to: "/admin/withdrawals", label: "Withdrawals", icon: CreditCard },
-  { to: "/admin/verifications", label: "Verifications", icon: Shield },
-  { to: "/admin/tickets", label: "Support Tickets", icon: AlertCircle },
-  { to: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
-  { to: "/admin/disputes", label: "Disputes", icon: AlertCircle },
-  { to: "/admin/reports", label: "Reports", icon: Flag },
-  { to: "/admin/earnings", label: "Earnings", icon: DollarSign },
-  { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
+type NavItem = { to: string; label: string; icon: any; end?: boolean };
+type NavGroup = { title: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
+  {
+    title: "Overview",
+    items: [{ to: "/admin", label: "Overview", icon: Shield, end: true }],
+  },
+  {
+    title: "Marketplace",
+    items: [
+      { to: "/admin/users", label: "Users", icon: Users },
+      { to: "/admin/listings", label: "Listings", icon: List },
+      { to: "/admin/categories", label: "Categories", icon: List },
+      { to: "/admin/disputes", label: "Disputes", icon: AlertCircle },
+      { to: "/admin/reports", label: "Reports", icon: Flag },
+    ],
+  },
+  {
+    title: "Finance",
+    items: [
+      { to: "/admin/payments", label: "Payments", icon: CreditCard },
+      { to: "/admin/withdrawals", label: "Withdrawals", icon: CreditCard },
+      { to: "/admin/earnings", label: "Earnings", icon: DollarSign },
+      { to: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { to: "/admin/verifications", label: "Verifications", icon: Shield },
+      { to: "/admin/tickets", label: "Support Tickets", icon: AlertCircle },
+      { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/admin/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 // Email-based admin whitelist (for accounts that may not have DB roles yet)
@@ -76,7 +97,9 @@ function AdminLayout() {
 
   if (!allowed) return null;
 
-  const filteredNav = nav.filter(n => {
+  const allItems = navGroups.flatMap((g) => g.items);
+
+  const filteredNav = allItems.filter((n) => {
     if (isStrictStaff) {
       return staffAllowedPaths.includes(n.to);
     }
@@ -85,6 +108,10 @@ function AdminLayout() {
     }
     return true;
   });
+
+  const filteredGroups: NavGroup[] = navGroups
+    .map((g) => ({ ...g, items: g.items.filter((i) => filteredNav.some((x) => x.to === i.to)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -97,31 +124,44 @@ function AdminLayout() {
               {auth.profile?.display_name ?? auth.user?.email}
             </div>
           </div>
-          <ul className="space-y-1">
-            {filteredNav.map((n) => {
-              const active = n.end
-                ? location.pathname === n.to
-                : location.pathname.startsWith(n.to);
-              return (
-                <li key={n.to}>
-                  <Link
-                    to={n.to}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${active ? "bg-gold/10 text-gold border border-gold/20" : "text-muted-foreground hover:text-foreground hover:bg-surface"}`}
-                  >
-                    <n.icon className="size-4" /> {n.label}
-                  </Link>
-                </li>
-              );
-            })}
-            <li>
+          <div className="space-y-4">
+            {filteredGroups.map((group) => (
+              <div key={group.title}>
+                <div className="px-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70 mb-1">
+                  {group.title}
+                </div>
+                <ul className="space-y-1">
+                  {group.items.map((n) => {
+                    const active = n.end
+                      ? location.pathname === n.to
+                      : location.pathname.startsWith(n.to);
+                    return (
+                      <li key={n.to}>
+                        <Link
+                          to={n.to}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                            active
+                              ? "bg-gold/10 text-gold border border-gold/20"
+                              : "text-muted-foreground hover:text-foreground hover:bg-surface"
+                          }`}
+                        >
+                          <n.icon className="size-4" /> {n.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+            <div className="border-t border-border/60 pt-3">
               <button
                 onClick={() => auth.signOut()}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-surface"
               >
                 <LogOut className="size-4" /> Logout
               </button>
-            </li>
-          </ul>
+            </div>
+          </div>
         </aside>
         <div>
           <Outlet />

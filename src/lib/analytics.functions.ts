@@ -6,7 +6,9 @@ import { createHash } from "crypto";
 
 export const trackVisit = createServerFn({ method: "POST" })
   .inputValidator((d: { path: string; referrer: string; device: string; browser: string }) => d)
-  .handler(async ({ data, request }) => {
+  .handler(async (ctx) => {
+    const { data } = ctx as any;
+    const request = (ctx as any).request as Request;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 
@@ -58,7 +60,8 @@ export const trackVisit = createServerFn({ method: "POST" })
   });
 
 export const getAnalyticsStats = createServerFn({ method: "GET" })
-  .handler(async ({ request }) => {
+  .handler(async (ctx) => {
+    const request = (ctx as any).request as Request;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseAdmin = createClient(supabaseUrl!, serviceKey!);

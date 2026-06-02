@@ -19,6 +19,7 @@ import {
   Volume2,
   X,
   Loader2,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
@@ -959,4 +960,3 @@ function MessagesPage() {
     </div>
   );
 }
-

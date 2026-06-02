@@ -63,14 +63,23 @@ export const triggerNotification = createServerFn({ method: "POST" })
         const { template, args } = emailPayload;
         const templateFn = emailTemplates[template];
         if (templateFn) {
-          // Fetch user email
-          const { data: profile, error: profErr } = await supabaseAdmin
-            .from("profiles")
-            .select("email")
-            .eq("id", userId)
-            .maybeSingle();
+          // Fetch user email (prefer Supabase Auth admin API; fall back to profiles.email if present)
+          let targetEmail: string | undefined;
+          try {
+            const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
+            targetEmail = u?.user?.email ?? undefined;
+          } catch (e) {
+            // ignore and try profiles fallback
+          }
+          if (!targetEmail) {
+            const { data: profile } = await supabaseAdmin
+              .from("profiles")
+              .select("email")
+              .eq("id", userId)
+              .maybeSingle();
+            targetEmail = (profile as any)?.email ?? undefined;
+          }
 
-          const targetEmail = profile?.email;
           if (targetEmail) {
             console.log(`[Notification] Sending Resend email to: ${targetEmail} using template: ${template}`);
             // Generate templated HTML
@@ -107,6 +116,60 @@ export const triggerNotification = createServerFn({ method: "POST" })
       return { success: true };
     } catch (e: any) {
       console.error("[Notification] Exception in triggerNotification:", e);
+      return { success: false, error: e.message || "Internal server error" };
+    }
+  });
+
+export const triggerRoleNotification = createServerFn({ method: "POST" })
+  .inputValidator(
+    (d: {
+      roles: string[]; // roles in user_roles.role
+      kind: string;
+      title: string;
+      body: string;
+    }) => d,
+  )
+  .handler(async ({ data }) => {
+    const { roles, kind, title, body } = data;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || (import.meta as any).env?.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL;
+
+    if (!supabaseUrl || !serviceKey) {
+      console.error("[Notification] Supabase configuration missing");
+      return { success: false, error: "Auth config missing" };
+    }
+
+    try {
+      const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+
+      const { data: roleRows, error } = await supabaseAdmin
+        .from("user_roles")
+        .select("user_id, role")
+        .in("role", roles);
+      if (error) throw error;
+
+      const userIds = Array.from(new Set((roleRows ?? []).map((r: any) => r.user_id)));
+      if (userIds.length === 0) return { success: true, notified: 0 };
+
+      const rows = userIds.map((id) => ({
+        user_id: id,
+        kind,
+        title,
+        body,
+        read_at: null,
+      }));
+
+      const { error: insErr } = await supabaseAdmin.from("notifications").insert(rows);
+      if (insErr) throw insErr;
+
+      return { success: true, notified: userIds.length };
+    } catch (e: any) {
+      console.error("[Notification] Exception in triggerRoleNotification:", e);
       return { success: false, error: e.message || "Internal server error" };
     }
   });

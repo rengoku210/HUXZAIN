@@ -15,6 +15,7 @@ import { type Role, hasAnyRole, hasPermission, type Permission } from "@/lib/rol
 export type Profile = {
   id: string;
   email?: string | null;
+  phone?: string | null;
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
@@ -28,6 +29,8 @@ export type Profile = {
   seller_approved?: boolean;
   subscription_tier?: string | null;
   subscription_expires_at?: string | null;
+  rating_avg?: number;
+  rating_count?: number;
   updated_at?: string | null;
   role?: string | null;
 };
@@ -171,7 +174,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Supplement with granular role from profiles.role or user_metadata
       const profileRole = (finalProfile as any)?.role as Role | undefined;
       const metaRole = (profileRole || fallbackUser?.user_metadata?.role) as Role | undefined;
-      if (metaRole && ["admin", "staff", "moderator", "super_admin", "owner"].includes(metaRole)) {
+      if (
+        metaRole &&
+        ["admin", "staff", "moderator", "manager", "employee", "developer", "super_admin", "owner"].includes(
+          metaRole,
+        )
+      ) {
         if (metaRole === "staff") {
           const adminIdx = dbRoles.indexOf("admin");
           if (adminIdx !== -1) {
@@ -362,11 +370,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       roles,
       isAuthenticated: !!user,
       hasRole: (r) => {
-        // Role hierarchy: super_admin/owner > admin > moderator > staff > seller > buyer
+        // Role hierarchy: super_admin/owner > admin > manager > moderator > staff > employee > seller > buyer
         if (roles.includes(r)) return true;
         // Elevated roles implicitly satisfy lower-level checks
         if (r === "admin" && roles.some(x => ["super_admin", "owner"].includes(x))) return true;
+        if (r === "manager" && roles.some(x => ["admin", "super_admin", "owner"].includes(x))) return true;
         if (r === "moderator" && roles.some(x => ["admin", "super_admin", "owner"].includes(x))) return true;
+        if (r === "staff" && roles.some(x => ["moderator", "manager", "admin", "super_admin", "owner"].includes(x)))
+          return true;
+        if (r === "employee" && roles.some(x => ["staff", "moderator", "manager", "admin", "super_admin", "owner"].includes(x)))
+          return true;
         return false;
       },
       hasAnyRole: (rs) => hasAnyRole(roles, rs),

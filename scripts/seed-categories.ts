@@ -37,68 +37,43 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   },
 });
 
-const parentCategories = [
-  { name: "Digital Products", slug: "digital-products", sort_order: 10, icon: "Monitor" },
-  { name: "Services", slug: "services", sort_order: 20, icon: "Cog" },
-  { name: "Hosting", slug: "hosting", sort_order: 30, icon: "Server" },
-  { name: "SEO", slug: "seo", sort_order: 40, icon: "Search" },
-  { name: "Design", slug: "design", sort_order: 50, icon: "Palette" },
-  { name: "Programming", slug: "programming", sort_order: 60, icon: "Code2" },
-  { name: "Marketing", slug: "marketing", sort_order: 70, icon: "Megaphone" },
-  { name: "Business", slug: "business", sort_order: 80, icon: "Building2" },
-  { name: "Gaming & Entertainment", slug: "gaming-entertainment", sort_order: 85, icon: "Gamepad2" },
-  { name: "More", slug: "more", sort_order: 90, icon: "Package" },
-];
-
-const childCategories = [
-  { name: "Gaming Accounts", slug: "accounts", sort_order: 10, icon: "Gamepad2" },
-  { name: "In-Game Currency", slug: "currency", sort_order: 20, icon: "Coins" },
+/**
+ * HUXZAIN approved homepage categories (premium set).
+ *
+ * NOTE:
+ * - This script assumes your `categories` table uses columns:
+ *   `name`, `slug`, `sort_order`, `icon`
+ * - If your table uses `title/sort` instead, update payload keys accordingly.
+ */
+const categories = [
+  { name: "Gaming Accounts", slug: "gaming-accounts", sort_order: 10, icon: "Gamepad2" },
+  { name: "In-Game Currency", slug: "in-game-currency", sort_order: 20, icon: "Gem" },
   { name: "Gift Cards", slug: "gift-cards", sort_order: 30, icon: "Gift" },
-  { name: "Boosting", slug: "boosting", sort_order: 40, icon: "Rocket" },
-  { name: "Coaching", slug: "coaching", sort_order: 50, icon: "GraduationCap" },
-  { name: "Subscriptions", slug: "subscriptions", sort_order: 60, icon: "Crown" },
+  { name: "Software & Tools", slug: "software-tools", sort_order: 40, icon: "Laptop" },
+  { name: "Subscriptions", slug: "subscriptions", sort_order: 50, icon: "Crown" },
+  { name: "Coaching Services", slug: "coaching-services", sort_order: 60, icon: "GraduationCap" },
+  { name: "Boosting Services", slug: "boosting-services", sort_order: 70, icon: "Rocket" },
+  { name: "Game Buddies", slug: "game-buddies", sort_order: 80, icon: "Users2" },
+  { name: "Freelance Services", slug: "freelance-services", sort_order: 90, icon: "Briefcase" },
+  { name: "Editing & Design", slug: "editing-design", sort_order: 100, icon: "Palette" },
+  { name: "Advertising Services", slug: "advertising-services", sort_order: 110, icon: "Megaphone" },
+  { name: "Digital Marketplace", slug: "digital-marketplace", sort_order: 120, icon: "Store" },
 ];
 
 async function seed() {
-  console.log("Seeding parent categories into Supabase database...");
+  console.log("Seeding HUXZAIN approved categories into Supabase database...");
   
-  const { data: parentData, error: parentError } = await supabase
+  const { data: upserted, error: upsertError } = await supabase
     .from("categories")
-    .upsert(parentCategories, { onConflict: "slug" })
+    .upsert(categories, { onConflict: "slug" })
     .select();
 
-  if (parentError) {
-    console.error("Error seeding parent categories:", parentError);
+  if (upsertError) {
+    console.error("Error seeding categories:", upsertError);
     process.exit(1);
   }
 
-  console.log("Successfully seeded parent categories!");
-
-  // Find Gaming & Entertainment ID
-  const gamingEnt = parentData.find((c: any) => c.slug === "gaming-entertainment");
-  if (!gamingEnt) {
-    console.error("Could not find gaming-entertainment category after seeding!");
-    process.exit(1);
-  }
-
-  console.log(`Found gaming-entertainment ID: ${gamingEnt.id}. Seeding child categories...`);
-
-  const childCategoriesWithParent = childCategories.map((c) => ({
-    ...c,
-    parent_id: gamingEnt.id,
-  }));
-
-  const { data: childData, error: childError } = await supabase
-    .from("categories")
-    .upsert(childCategoriesWithParent, { onConflict: "slug" })
-    .select();
-
-  if (childError) {
-    console.error("Error seeding child categories:", childError);
-    process.exit(1);
-  }
-
-  console.log("Successfully seeded child categories!");
+  console.log(`Successfully seeded ${upserted?.length ?? categories.length} categories!`);
 }
 
 void seed();

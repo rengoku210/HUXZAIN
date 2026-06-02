@@ -102,6 +102,7 @@ function Home() {
         <PopularCategories counts={counts} />
         <TrustStrip />
         <FeaturedSection activeSearch={activeSearch} onClearSearch={() => setActiveSearch("")} />
+        <TrendingSection hide={!!activeSearch} />
         <ProtectionStrip />
         <HowItWorks />
         <BigStats counts={counts} />
@@ -132,7 +133,7 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
       <div className="container-page py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center overflow-x-hidden">
         <div>
           <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight break-words">
-            India's Modern Digital Marketplace 🇮🇳
+            India's Modern Digital Marketplace
           </h1>
           <p className="mt-5 text-muted-foreground max-w-lg text-sm sm:text-base">
             A secure and trusted marketplace for digital products, services and gaming essentials.
@@ -454,6 +455,136 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
   );
 }
 
+function TrendingSection({ hide }: { hide?: boolean }) {
+  const [trending, setTrending] = useState<ListingLike[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (hide) return;
+    const supabase = getSupabase();
+    if (!supabase) {
+      setTrending([]);
+      setLoading(false);
+      return;
+    }
+    const sb = supabase;
+
+    let active = true;
+    async function loadTrending() {
+      setLoading(true);
+      try {
+        const since = new Date();
+        since.setDate(since.getDate() - 7);
+
+        // Pull recent orders and compute trending listing IDs.
+        const { data: orders, error: ordErr } = await sb
+          .from("orders")
+          .select("listing_id, created_at")
+          .gte("created_at", since.toISOString())
+          .limit(2500);
+
+        if (ordErr) throw ordErr;
+
+        const counts = new Map<string, number>();
+        for (const o of (orders ?? []) as any[]) {
+          const id = o.listing_id as string | null;
+          if (!id) continue;
+          counts.set(id, (counts.get(id) ?? 0) + 1);
+        }
+
+        const topIds = [...counts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([id]) => id);
+
+        // If there aren't enough orders yet, fall back to newest active listings.
+        if (topIds.length === 0) {
+          const { data: fallback, error: fbErr } = await sb
+            .from("listings")
+            .select("*")
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .limit(10);
+          if (fbErr) throw fbErr;
+          if (!active) return;
+          setTrending((fallback as ListingLike[]) ?? []);
+          return;
+        }
+
+        const { data: listingRows, error: listErr } = await sb
+          .from("listings")
+          .select("*")
+          .in("id", topIds)
+          .eq("status", "active");
+        if (listErr) throw listErr;
+
+        // Keep trending order stable based on computed counts
+        const map = new Map<string, ListingLike>();
+        for (const l of (listingRows ?? []) as any[]) map.set(l.id, l as ListingLike);
+        const ordered = topIds.map((id) => map.get(id)).filter(Boolean) as ListingLike[];
+
+        if (!active) return;
+        setTrending(ordered);
+      } catch (e) {
+        console.error("Error loading trending listings:", e);
+        if (!active) return;
+        setTrending([]);
+      } finally {
+        if (!active) return;
+        setLoading(false);
+      }
+    }
+
+    void loadTrending();
+    return () => {
+      active = false;
+    };
+  }, [hide]);
+
+  if (hide) return null;
+
+  return (
+    <section className="container-page pb-14">
+      <div className="flex items-end justify-between mb-8">
+        <h2 className="font-display text-2xl sm:text-3xl font-bold">Trending This Week</h2>
+        <Link to="/categories" className="text-sm text-gold inline-flex items-center gap-1.5 hover:underline">
+          Browse All <ArrowRight className="size-3.5" />
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-border bg-surface/30 animate-pulse overflow-hidden"
+            >
+              <div className="h-32 bg-surface" />
+              <div className="p-3 space-y-2">
+                <div className="h-3 rounded bg-surface w-3/4" />
+                <div className="h-3 rounded bg-surface w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : !trending || trending.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-surface/40 py-12 text-center">
+          <p className="text-muted-foreground font-medium">No trending data yet</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Trending listings will automatically appear based on purchases and activity.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {trending.map((l) => (
+            <ListingCard key={l.id} l={{ ...l, badge: "Trending" } as any} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ProtectionStrip() {
   const icons = [ShieldCheck, BadgeCheck, Headphones, Scale];
   return (
@@ -484,17 +615,20 @@ function HowItWorks() {
       <h2 className="font-display text-3xl font-bold">
         How <span className="text-gold">HUXZAIN</span> Works
       </h2>
-      <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-8 relative">
+      <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative">
         {howSteps.map((s) => (
-          <div key={s.n} className="flex flex-col items-center">
-            <div className="size-16 rounded-full border border-gold/30 bg-gold/5 flex items-center justify-center mb-4 relative">
+          <div
+            key={s.n}
+            className="group rounded-2xl border border-border bg-surface/30 p-6 flex flex-col items-center transition-all hover:border-gold/50 hover:shadow-[0_0_0_1px_rgba(212,160,23,0.25),0_0_28px_rgba(212,160,23,0.14)]"
+          >
+            <div className="size-16 rounded-full border border-gold/30 bg-gold/5 flex items-center justify-center mb-4 relative group-hover:bg-gold/10 transition-colors">
               <s.icon className="size-6 text-gold" />
               <span className="absolute -bottom-1 -right-1 size-6 rounded-full bg-gold text-primary-foreground text-xs font-bold flex items-center justify-center">
                 {s.n}
               </span>
             </div>
             <div className="font-semibold mb-2">{s.title}</div>
-            <p className="text-xs text-muted-foreground max-w-[180px] leading-relaxed">{s.desc}</p>
+            <p className="text-xs text-muted-foreground max-w-[220px] leading-relaxed">{s.desc}</p>
           </div>
         ))}
       </div>

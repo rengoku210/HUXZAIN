@@ -7,8 +7,11 @@
 export const ROLES = [
   "buyer",
   "seller",
+  "employee",
+  "manager",
   "moderator",
   "staff",
+  "developer",
   "admin",
   "super_admin",
   "owner",
@@ -41,6 +44,9 @@ export const PERMISSIONS = [
   "analytics:platform",
   // Payment verification
   "payment:verify",
+  // Technical / developer
+  "developer:deploy",
+  "developer:logs",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -48,8 +54,11 @@ export type Permission = (typeof PERMISSIONS)[number];
 const rolePerms: Record<Role, Permission[]> = {
   buyer: ["order:view_own"],
   seller: ["listing:create", "listing:update_own", "order:view_own", "wallet:withdraw"],
+  employee: ["order:view_any", "report:view"],
+  manager: ["order:view_any", "report:view", "dispute:resolve", "user:suspend"],
   moderator: ["listing:approve", "dispute:resolve", "report:view", "order:view_any"],
   staff: ["report:view", "order:view_any", "dispute:resolve", "payment:verify"],
+  developer: ["developer:deploy", "developer:logs", "report:view"],
   admin: [
     "listing:approve",
     "listing:update_any",
@@ -62,6 +71,8 @@ const rolePerms: Record<Role, Permission[]> = {
     "user:suspend",
     "user:manage",
     "analytics:platform",
+    "platform:configure",
+    "role:assign",
   ],
   super_admin: [],
   owner: [...PERMISSIONS],
@@ -91,8 +102,11 @@ export function hasPermission(userRoles: Role[], p: Permission): boolean {
 export const ROLE_LABELS: Record<Role, string> = {
   buyer: "Buyer",
   seller: "Seller",
+  employee: "Employee",
+  manager: "Manager",
   moderator: "Moderator",
   staff: "Staff",
+  developer: "Developer",
   admin: "Admin",
   super_admin: "Super Admin",
   owner: "Owner",

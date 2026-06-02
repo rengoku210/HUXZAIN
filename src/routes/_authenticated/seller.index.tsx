@@ -320,7 +320,7 @@ function Overview() {
         <StatCard
           label="Avg. Rating"
           value={profile?.rating_count && profile.rating_count > 0 
-            ? `${profile.rating_avg.toFixed(1)} ★ (${profile.rating_count} reviews)` 
+            ? `${(profile.rating_avg ?? 0).toFixed(1)} ★ (${profile.rating_count} reviews)` 
             : "No reviews yet"}
           icon={Star}
         />

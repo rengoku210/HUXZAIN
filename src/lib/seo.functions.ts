@@ -35,7 +35,9 @@ export const savePageSeo = createServerFn({ method: "POST" })
       schemaJson?: any;
     }) => d
   )
-  .handler(async ({ data, request }) => {
+  .handler(async (ctx) => {
+    const { data } = ctx as any;
+    const request = (ctx as any).request as Request;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseAdmin = createClient(supabaseUrl!, serviceKey!);

@@ -97,7 +97,7 @@ function Page() {
         setFeaturedListingId("");
         setSendEnabled(false);
       } else {
-        toast.error("Failed to broadcast email: " + (res?.error || "Unknown error"));
+        toast.error("Failed to broadcast email campaign.");
       }
     } catch (err: any) {
       toast.error("Campaign broadcast failed: " + err.message);

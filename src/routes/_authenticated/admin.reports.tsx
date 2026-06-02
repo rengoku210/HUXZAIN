@@ -219,7 +219,8 @@ function ReportsDesk() {
                     Flagged:{" "}
                     {r.target_type === "listing" ? (
                       <Link
-                        to={`/product/${r.target_id}`}
+                        to="/product/$id"
+                        params={{ id: r.target_id }}
                         className="text-gold hover:underline hover:brightness-110"
                       >
                         {r.target_title}
@@ -251,7 +252,8 @@ function ReportsDesk() {
               <div className="flex md:flex-col gap-2 shrink-0 md:justify-end">
                 {r.target_type === "listing" && (
                   <Link
-                    to={`/product/${r.target_id}`}
+                    to="/product/$id"
+                    params={{ id: r.target_id }}
                     className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl border border-border hover:bg-surface text-xs font-semibold text-muted-foreground hover:text-foreground"
                   >
                     <Eye size={12} /> View Listing

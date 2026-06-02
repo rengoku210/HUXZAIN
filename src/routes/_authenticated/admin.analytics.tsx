@@ -17,6 +17,7 @@ type UserProfile = {
 
 type OrderRow = {
   id: string;
+  order_number?: string | null;
   amount_inr: number;
   commission_inr: number;
   seller_payout_inr: number;

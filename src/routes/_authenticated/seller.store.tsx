@@ -12,12 +12,19 @@ export const Route = createFileRoute("/_authenticated/seller/store")({
   component: Page,
 });
 
-const themes = [
+const themes: Array<{
+  id: string;
+  name: string;
+  bg: string;
+  surface: string;
+  text: string;
+  min?: "pro" | "elite";
+}> = [
   { id: "midnight", name: "Midnight Gold", bg: "#0e0e12", surface: "#1a1a22", text: "#d4b46a" },
   { id: "noir", name: "Noir Ember", bg: "#0a0a0a", surface: "#2d2d2d", text: "#e85d3a" },
-  { id: "indigo", name: "Indigo Royal", bg: "#0a0a1a", surface: "#1e1e5a", text: "#4f46e5" },
-  { id: "platinum", name: "Platinum", bg: "#1a1a1a", surface: "#d1d5db", text: "#fafafa" },
-  { id: "violet", name: "Violet Suite", bg: "#1a0e2e", surface: "#5b21b6", text: "#c4b5fd" },
+  { id: "indigo", name: "Indigo Royal", bg: "#0a0a1a", surface: "#1e1e5a", text: "#4f46e5", min: "pro" },
+  { id: "platinum", name: "Platinum", bg: "#1a1a1a", surface: "#d1d5db", text: "#fafafa", min: "pro" },
+  { id: "violet", name: "Violet Suite", bg: "#1a0e2e", surface: "#5b21b6", text: "#c4b5fd", min: "pro" },
 ];
 
 function Page() {

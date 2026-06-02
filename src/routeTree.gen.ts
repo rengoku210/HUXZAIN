@@ -11,25 +11,33 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TeamLoginRouteImport } from './routes/team-login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SellerPanelRouteImport } from './routes/seller-panel'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PagesRouteImport } from './routes/pages'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
+import { Route as GameBuddiesRouteImport } from './routes/game-buddies'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as CoachingRouteImport } from './routes/coaching'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as CareersRouteImport } from './routes/careers'
 import { Route as BlogRouteImport } from './routes/blog'
+import { Route as BecomeGameBuddyRouteImport } from './routes/become-game-buddy'
+import { Route as BecomeCoachRouteImport } from './routes/become-coach'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
+import { Route as GameBuddiesIdRouteImport } from './routes/game-buddies.$id'
+import { Route as CoachingIdRouteImport } from './routes/coaching.$id'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthVerifiedRouteImport } from './routes/auth.verified'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
@@ -88,6 +96,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamLoginRoute = TeamLoginRouteImport.update({
+  id: '/team-login',
+  path: '/team-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -113,6 +126,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PagesRoute = PagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersRoute = OrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -126,6 +144,11 @@ const LoginRoute = LoginRouteImport.update({
 const HowItWorksRoute = HowItWorksRouteImport.update({
   id: '/how-it-works',
   path: '/how-it-works',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GameBuddiesRoute = GameBuddiesRouteImport.update({
+  id: '/game-buddies',
+  path: '/game-buddies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -143,6 +166,11 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CoachingRoute = CoachingRouteImport.update({
+  id: '/coaching',
+  path: '/coaching',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategoriesRoute = CategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -156,6 +184,16 @@ const CareersRoute = CareersRouteImport.update({
 const BlogRoute = BlogRouteImport.update({
   id: '/blog',
   path: '/blog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BecomeGameBuddyRoute = BecomeGameBuddyRouteImport.update({
+  id: '/become-game-buddy',
+  path: '/become-game-buddy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BecomeCoachRoute = BecomeCoachRouteImport.update({
+  id: '/become-coach',
+  path: '/become-coach',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -181,6 +219,16 @@ const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const GameBuddiesIdRoute = GameBuddiesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => GameBuddiesRoute,
+} as any)
+const CoachingIdRoute = CoachingIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => CoachingRoute,
 } as any)
 const CategorySlugRoute = CategorySlugRouteImport.update({
   id: '/category/$slug',
@@ -459,20 +507,26 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
+  '/become-coach': typeof BecomeCoachRoute
+  '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
   '/careers': typeof CareersRoute
   '/categories': typeof CategoriesRoute
+  '/coaching': typeof CoachingRouteWithChildren
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/game-buddies': typeof GameBuddiesRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
+  '/pages': typeof PagesRoute
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
+  '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -481,6 +535,8 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
   '/category/$slug': typeof CategorySlugRoute
+  '/coaching/$id': typeof CoachingIdRoute
+  '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
@@ -528,26 +584,34 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
+  '/become-coach': typeof BecomeCoachRoute
+  '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
   '/careers': typeof CareersRoute
   '/categories': typeof CategoriesRoute
+  '/coaching': typeof CoachingRouteWithChildren
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/game-buddies': typeof GameBuddiesRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
+  '/pages': typeof PagesRoute
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
+  '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
   '/category/$slug': typeof CategorySlugRoute
+  '/coaching/$id': typeof CoachingIdRoute
+  '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
@@ -597,20 +661,26 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
+  '/become-coach': typeof BecomeCoachRoute
+  '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
   '/careers': typeof CareersRoute
   '/categories': typeof CategoriesRoute
+  '/coaching': typeof CoachingRouteWithChildren
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/game-buddies': typeof GameBuddiesRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
+  '/pages': typeof PagesRoute
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
+  '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -619,6 +689,8 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
   '/category/$slug': typeof CategorySlugRoute
+  '/coaching/$id': typeof CoachingIdRoute
+  '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
@@ -668,20 +740,26 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/account'
+    | '/become-coach'
+    | '/become-game-buddy'
     | '/blog'
     | '/careers'
     | '/categories'
+    | '/coaching'
     | '/contact'
     | '/dashboard'
     | '/forgot-password'
+    | '/game-buddies'
     | '/how-it-works'
     | '/login'
     | '/orders'
+    | '/pages'
     | '/privacy'
     | '/refund-policy'
     | '/reset-password'
     | '/seller-panel'
     | '/signup'
+    | '/team-login'
     | '/terms'
     | '/verify-email'
     | '/admin'
@@ -690,6 +768,8 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/auth/verified'
     | '/category/$slug'
+    | '/coaching/$id'
+    | '/game-buddies/$id'
     | '/product/$id'
     | '/admin/analytics'
     | '/admin/categories'
@@ -737,26 +817,34 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/account'
+    | '/become-coach'
+    | '/become-game-buddy'
     | '/blog'
     | '/careers'
     | '/categories'
+    | '/coaching'
     | '/contact'
     | '/dashboard'
     | '/forgot-password'
+    | '/game-buddies'
     | '/how-it-works'
     | '/login'
     | '/orders'
+    | '/pages'
     | '/privacy'
     | '/refund-policy'
     | '/reset-password'
     | '/seller-panel'
     | '/signup'
+    | '/team-login'
     | '/terms'
     | '/verify-email'
     | '/messages'
     | '/auth/callback'
     | '/auth/verified'
     | '/category/$slug'
+    | '/coaching/$id'
+    | '/game-buddies/$id'
     | '/product/$id'
     | '/admin/analytics'
     | '/admin/categories'
@@ -805,20 +893,26 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/about'
     | '/account'
+    | '/become-coach'
+    | '/become-game-buddy'
     | '/blog'
     | '/careers'
     | '/categories'
+    | '/coaching'
     | '/contact'
     | '/dashboard'
     | '/forgot-password'
+    | '/game-buddies'
     | '/how-it-works'
     | '/login'
     | '/orders'
+    | '/pages'
     | '/privacy'
     | '/refund-policy'
     | '/reset-password'
     | '/seller-panel'
     | '/signup'
+    | '/team-login'
     | '/terms'
     | '/verify-email'
     | '/_authenticated/admin'
@@ -827,6 +921,8 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/auth/verified'
     | '/category/$slug'
+    | '/coaching/$id'
+    | '/game-buddies/$id'
     | '/product/$id'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/categories'
@@ -876,20 +972,26 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AboutRoute: typeof AboutRoute
   AccountRoute: typeof AccountRoute
+  BecomeCoachRoute: typeof BecomeCoachRoute
+  BecomeGameBuddyRoute: typeof BecomeGameBuddyRoute
   BlogRoute: typeof BlogRoute
   CareersRoute: typeof CareersRoute
   CategoriesRoute: typeof CategoriesRoute
+  CoachingRoute: typeof CoachingRouteWithChildren
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  GameBuddiesRoute: typeof GameBuddiesRouteWithChildren
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
   OrdersRoute: typeof OrdersRoute
+  PagesRoute: typeof PagesRoute
   PrivacyRoute: typeof PrivacyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SellerPanelRoute: typeof SellerPanelRoute
   SignupRoute: typeof SignupRoute
+  TeamLoginRoute: typeof TeamLoginRoute
   TermsRoute: typeof TermsRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
@@ -912,6 +1014,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team-login': {
+      id: '/team-login'
+      path: '/team-login'
+      fullPath: '/team-login'
+      preLoaderRoute: typeof TeamLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -949,6 +1058,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pages': {
+      id: '/pages'
+      path: '/pages'
+      fullPath: '/pages'
+      preLoaderRoute: typeof PagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orders': {
       id: '/orders'
       path: '/orders'
@@ -968,6 +1084,13 @@ declare module '@tanstack/react-router' {
       path: '/how-it-works'
       fullPath: '/how-it-works'
       preLoaderRoute: typeof HowItWorksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/game-buddies': {
+      id: '/game-buddies'
+      path: '/game-buddies'
+      fullPath: '/game-buddies'
+      preLoaderRoute: typeof GameBuddiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -991,6 +1114,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/coaching': {
+      id: '/coaching'
+      path: '/coaching'
+      fullPath: '/coaching'
+      preLoaderRoute: typeof CoachingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/categories': {
       id: '/categories'
       path: '/categories'
@@ -1010,6 +1140,20 @@ declare module '@tanstack/react-router' {
       path: '/blog'
       fullPath: '/blog'
       preLoaderRoute: typeof BlogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/become-game-buddy': {
+      id: '/become-game-buddy'
+      path: '/become-game-buddy'
+      fullPath: '/become-game-buddy'
+      preLoaderRoute: typeof BecomeGameBuddyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/become-coach': {
+      id: '/become-coach'
+      path: '/become-coach'
+      fullPath: '/become-coach'
+      preLoaderRoute: typeof BecomeCoachRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -1046,6 +1190,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/product/$id'
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/game-buddies/$id': {
+      id: '/game-buddies/$id'
+      path: '/$id'
+      fullPath: '/game-buddies/$id'
+      preLoaderRoute: typeof GameBuddiesIdRouteImport
+      parentRoute: typeof GameBuddiesRoute
+    }
+    '/coaching/$id': {
+      id: '/coaching/$id'
+      path: '/$id'
+      fullPath: '/coaching/$id'
+      preLoaderRoute: typeof CoachingIdRouteImport
+      parentRoute: typeof CoachingRoute
     }
     '/category/$slug': {
       id: '/category/$slug'
@@ -1498,25 +1656,55 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface CoachingRouteChildren {
+  CoachingIdRoute: typeof CoachingIdRoute
+}
+
+const CoachingRouteChildren: CoachingRouteChildren = {
+  CoachingIdRoute: CoachingIdRoute,
+}
+
+const CoachingRouteWithChildren = CoachingRoute._addFileChildren(
+  CoachingRouteChildren,
+)
+
+interface GameBuddiesRouteChildren {
+  GameBuddiesIdRoute: typeof GameBuddiesIdRoute
+}
+
+const GameBuddiesRouteChildren: GameBuddiesRouteChildren = {
+  GameBuddiesIdRoute: GameBuddiesIdRoute,
+}
+
+const GameBuddiesRouteWithChildren = GameBuddiesRoute._addFileChildren(
+  GameBuddiesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AboutRoute: AboutRoute,
   AccountRoute: AccountRoute,
+  BecomeCoachRoute: BecomeCoachRoute,
+  BecomeGameBuddyRoute: BecomeGameBuddyRoute,
   BlogRoute: BlogRoute,
   CareersRoute: CareersRoute,
   CategoriesRoute: CategoriesRoute,
+  CoachingRoute: CoachingRouteWithChildren,
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  GameBuddiesRoute: GameBuddiesRouteWithChildren,
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,
   OrdersRoute: OrdersRoute,
+  PagesRoute: PagesRoute,
   PrivacyRoute: PrivacyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SellerPanelRoute: SellerPanelRoute,
   SignupRoute: SignupRoute,
+  TeamLoginRoute: TeamLoginRoute,
   TermsRoute: TermsRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   AuthCallbackRoute: AuthCallbackRoute,

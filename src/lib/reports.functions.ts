@@ -13,7 +13,9 @@ export const submitReport = createServerFn({ method: "POST" })
       screenshotUrl?: string;
     }) => d
   )
-  .handler(async ({ data, request }) => {
+  .handler(async (ctx) => {
+    const { data } = ctx as any;
+    const request = (ctx as any).request as Request;
     // Authenticate user
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -76,10 +78,12 @@ export const submitReport = createServerFn({ method: "POST" })
   });
 
 export const getReportsList = createServerFn({ method: "GET" })
-  .handler(async ({ request }) => {
+  .handler(async (ctx) => {
+    const request = (ctx as any).request as Request;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey!);
+    if (!supabaseUrl || !serviceKey) throw new Error("Supabase configuration missing");
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Ensure staff
     const authHeader = request.headers.get("Authorization") || "";
@@ -114,10 +118,13 @@ export const getReportsList = createServerFn({ method: "GET" })
 
 export const updateReportStatus = createServerFn({ method: "POST" })
   .inputValidator((d: { reportId: string; status: "resolved" | "dismissed" }) => d)
-  .handler(async ({ data, request }) => {
+  .handler(async (ctx) => {
+    const { data } = ctx as any;
+    const request = (ctx as any).request as Request;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey!);
+    if (!supabaseUrl || !serviceKey) throw new Error("Supabase configuration missing");
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Ensure staff
     const authHeader = request.headers.get("Authorization") || "";

@@ -71,7 +71,7 @@ export const updateUserRole = createServerFn({ method: "POST" })
       const isEmailWhitelist = ADMIN_EMAILS.includes(callerEmail.toLowerCase());
 
       const isSuperAdmin = callerRoles.includes("super_admin") || callerRoles.includes("owner") || isEmailWhitelist;
-      const isAdmin = callerRoles.includes("admin") || callerRoles.includes("moderator") || isEmailWhitelist;
+      const isAdmin = callerRoles.includes("admin") || isEmailWhitelist;
 
       if (!isSuperAdmin && !isAdmin) {
         return {
@@ -88,6 +88,14 @@ export const updateUserRole = createServerFn({ method: "POST" })
         return {
           success: false,
           error: "Security Alert: Only Super Admins can assign Super Admin or Owner roles."
+        };
+      }
+
+      // Non-super admins cannot assign "admin" either (prevents privilege escalation)
+      if (!isSuperAdmin && newRoles.includes("admin")) {
+        return {
+          success: false,
+          error: "Security Alert: Only Super Admins can assign the Admin role."
         };
       }
 
@@ -162,6 +170,24 @@ export const updateUserRole = createServerFn({ method: "POST" })
       }
 
       console.log(`[RoleFunctions] Successfully updated roles for ${targetUserId} to:`, newRoles);
+
+      // 7. Activity log (best-effort; do not fail role update if logs table isn't deployed yet)
+      try {
+        await activeClient.from("activity_logs").insert({
+          actor_user_id: callerId,
+          action: "roles.update",
+          entity_type: "user",
+          entity_id: targetUserId,
+          meta: {
+            new_roles: newRoles,
+            caller_roles: callerRoles,
+            caller_email: callerEmail,
+          },
+        } as any);
+      } catch (e: any) {
+        console.warn("[RoleFunctions] activity_logs insert failed (safe to ignore until DB is updated):", e?.message || e);
+      }
+
       return { success: true };
     } catch (globalErr: any) {
       console.error("[updateUserRole] Unhandled exception:", globalErr);
@@ -314,7 +340,12 @@ export const listAdminUsers = createServerFn({ method: "POST" })
         const metaRole = p.role || metaRoleMap[p.id];
         
         // Supplement with granular role if it is a custom admin/staff/owner role
-        if (metaRole && ["admin", "staff", "moderator", "super_admin", "owner"].includes(metaRole)) {
+        if (
+          metaRole &&
+          ["admin", "staff", "employee", "manager", "moderator", "developer", "super_admin", "owner"].includes(
+            metaRole,
+          )
+        ) {
           if (!roles.includes(metaRole)) {
             roles.push(metaRole);
           }

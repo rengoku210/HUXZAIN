@@ -4,6 +4,7 @@ import { PanelCard, StatusPill } from "@/components/seller/SellerShell";
 import { LifeBuoy, Plus, Inbox, Send, RefreshCw, QrCode, Upload, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
+import { triggerNotification, triggerRoleNotification } from "@/lib/notifications.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/seller/support")({
@@ -190,6 +191,42 @@ function Page() {
       }
 
       toast.success(category === "top_up" ? "Top up ticket created! Balance will increase upon admin approval." : "Ticket opened successfully!");
+
+      // 4. Notify seller + operations team (owner/admin/staff)
+      try {
+        await triggerNotification({
+          data: {
+            userId: user.id,
+            kind: "ticket.created",
+            title: "Support ticket created",
+            body: `Your ticket "${finalTitle}" was created successfully.`,
+          },
+        });
+
+        // Staff-level notification
+        await triggerRoleNotification({
+          data: {
+            roles: ["super_admin", "admin", "manager", "moderator", "staff"],
+            kind: "ticket.created",
+            title: "New support ticket",
+            body: `${finalTitle} — from ${user.email ?? user.id} (ticket ${ticket.id})`,
+          },
+        });
+
+        // Owner notification (categorized so Owner can filter without being spammed)
+        await triggerRoleNotification({
+          data: {
+            roles: ["owner"],
+            kind: "owner.support.ticket_created",
+            title: "Support: New ticket",
+            body: `${finalTitle} — from ${user.email ?? user.id} (ticket ${ticket.id})`,
+          },
+        });
+      } catch (e) {
+        // Don't block UX on notifications
+        console.warn("Ticket notifications failed:", e);
+      }
+
       setTitle("");
       setAmount("");
       setScreenshotUrl("");

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { useEffect, useState } from "react";
-import { listAdminUsers } from "@/lib/admin/role.functions";
+import { listAdminUsers, updateUserRole } from "@/lib/admin/role.functions";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
@@ -27,17 +27,25 @@ interface ManagedUser {
 
 const ADMIN_ROLE_OPTIONS = [
   { value: "buyer", label: "User" },
+  { value: "employee", label: "Employee" },
   { value: "staff", label: "Staff" },
-  { value: "moderator", label: "Sub Admin" },
-  { value: "admin", label: "Admin" },
+  { value: "moderator", label: "Moderator" },
+  { value: "manager", label: "Manager" },
+  { value: "developer", label: "Developer" },
+  { value: "admin", label: "Administrator" },
   { value: "super_admin", label: "Super Admin" },
+  { value: "owner", label: "Owner" },
 ];
 
 function getPrimaryRole(roles: Role[]): string {
+  if (roles.includes("owner")) return "owner";
   if (roles.includes("super_admin")) return "super_admin";
+  if (roles.includes("admin")) return "admin";
+  if (roles.includes("manager")) return "manager";
   if (roles.includes("moderator")) return "moderator";
   if (roles.includes("staff")) return "staff";
-  if (roles.includes("admin")) return "admin";
+  if (roles.includes("employee")) return "employee";
+  if (roles.includes("developer")) return "developer";
   return "buyer";
 }
 
@@ -46,6 +54,7 @@ function Page() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const isSuper = auth.roles.includes("owner") || auth.roles.includes("super_admin");
 
   const fetchUsers = async () => {
     try {
@@ -110,7 +119,12 @@ function Page() {
         
         // Supplement with granular role from profiles.role if it exists
         const granularRole = p.role;
-        if (granularRole && ["admin", "staff", "moderator", "super_admin", "owner"].includes(granularRole)) {
+        if (
+          granularRole &&
+          ["admin", "staff", "employee", "manager", "moderator", "developer", "super_admin", "owner"].includes(
+            granularRole,
+          )
+        ) {
           if (!roles.includes(granularRole)) {
             roles.push(granularRole);
           }
@@ -163,15 +177,15 @@ function Page() {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
 
-    // Self-demotion protection check
+    // Self-demotion protection check (prevents locking out last admin)
     if (userId === auth.user?.id) {
-      const isDemoting = !["admin", "super_admin"].includes(newPrimaryRole);
+      const isDemoting = !["admin", "super_admin", "owner"].includes(newPrimaryRole);
       if (isDemoting) {
         // Count other admins
         const otherAdmins = users.filter(
           (u) =>
             u.id !== auth.user?.id &&
-            (u.roles.includes("admin") || u.roles.includes("super_admin"))
+            (u.roles.includes("admin") || u.roles.includes("super_admin") || u.roles.includes("owner"))
         ).length;
 
         if (otherAdmins === 0) {
@@ -207,36 +221,19 @@ function Page() {
 
       const sb = getSupabase();
       if (!sb) throw new Error("Database client not configured");
+      const { data: { session } } = await sb.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not authenticated");
 
-      // A. Update the profiles table role column directly
-      const { error: profErr } = await sb
-        .from("profiles")
-        .update({ role: newPrimaryRole })
-        .eq("id", userId);
-
-      if (profErr) {
-        throw new Error(`Failed to update profile role: ${profErr.message}`);
-      }
-
-      // B. Update the user_roles table directly (since the column type is now TEXT)
-      // First, delete existing roles for this user
-      const { error: delErr } = await sb
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId);
-
-      if (delErr) {
-        throw new Error(`Failed to reset roles: ${delErr.message}`);
-      }
-
-      // Second, insert new roles
-      const inserts = uniqueNewRoles.map((r) => ({ user_id: userId, role: r }));
-      const { error: insErr } = await sb
-        .from("user_roles")
-        .insert(inserts);
-
-      if (insErr) {
-        throw new Error(`Failed to save roles: ${insErr.message}`);
+      const res = await updateUserRole({
+        data: {
+          targetUserId: userId,
+          newRoles: uniqueNewRoles,
+          token,
+        },
+      });
+      if (!res?.success) {
+        throw new Error(res?.error || "Failed to update roles");
       }
 
       toast.success("User role updated successfully!");
@@ -379,6 +376,11 @@ function Page() {
                   const primaryRole = getPrimaryRole(user.roles);
                   const isSuspended = !!user.suspended_at;
                   const isMe = user.id === auth.user?.id;
+                  const targetIsRestricted = user.roles.some((r) => ["owner", "super_admin"].includes(r));
+                  const canEditTarget = isSuper || !targetIsRestricted;
+                  const roleOptions = isSuper
+                    ? ADMIN_ROLE_OPTIONS
+                    : ADMIN_ROLE_OPTIONS.filter((o) => !["admin", "super_admin", "owner"].includes(o.value));
 
                   return (
                     <tr key={user.id} className="border-b border-border/50 hover:bg-surface/30 transition-colors">
@@ -431,14 +433,20 @@ function Page() {
                         <select
                           value={primaryRole}
                           onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                          className="bg-surface/80 border border-border/80 rounded-xl px-2.5 py-1 text-xs text-foreground font-medium outline-none focus:border-gold/50 cursor-pointer"
+                          disabled={!canEditTarget}
+                          className="bg-surface/80 border border-border/80 rounded-xl px-2.5 py-1 text-xs text-foreground font-medium outline-none focus:border-gold/50 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          {ADMIN_ROLE_OPTIONS.map((opt) => (
+                          {roleOptions.map((opt) => (
                             <option key={opt.value} value={opt.value} className="bg-background">
                               {opt.label}
                             </option>
                           ))}
                         </select>
+                        {!canEditTarget ? (
+                          <div className="text-[10px] text-muted-foreground mt-1">
+                            Only Super Admin can edit Super Admin / Owner roles.
+                          </div>
+                        ) : null}
                       </td>
                       <td className="py-4.5 text-right">
                         <div className="flex items-center justify-end gap-2">

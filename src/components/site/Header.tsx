@@ -310,8 +310,16 @@ export function Header() {
     void loadNavData();
   }, []);
 
+  const isAdmin =
+    roles.some((r) => ["admin", "super_admin", "owner", "staff", "moderator"].includes(r)) ||
+    ADMIN_EMAILS.includes(user?.email ?? "");
+  const isSeller = roles.some((r) => ["seller", "admin", "super_admin", "owner"].includes(r));
+
   const navItems = [
     { to: "/", label: "Home" },
+    { to: "/game-buddies", label: "Game Buddies" },
+    { to: "/coaching", label: "Coaching" },
+    ...(isAdmin ? [{ to: "/pages", label: "All Pages" }] : []),
     ...navCategories.map((c) => ({
       to: "/category/$slug",
       params: { slug: c.slug },
@@ -334,11 +342,6 @@ export function Header() {
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
   }, []);
-
-  const isAdmin =
-    roles.some((r) => ["admin", "super_admin", "owner", "staff", "moderator"].includes(r)) ||
-    ADMIN_EMAILS.includes(user?.email ?? "");
-  const isSeller = roles.some((r) => ["seller", "admin", "super_admin", "owner"].includes(r));
 
   const displayName =
     profile?.display_name ?? user?.user_metadata?.display_name ?? user?.email ?? "Account";
