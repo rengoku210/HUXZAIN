@@ -150,6 +150,31 @@ export interface Notification {
   created_at: Timestamp;
 }
 
+export interface EscrowHold {
+  id: Uuid;
+  order_id: Uuid;
+  amount_cents: number;
+  currency: string;
+  hold_until: Timestamp;
+  status: "held" | "released" | "cancelled";
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface Report {
+  id: Uuid;
+  reporter_id: Uuid;
+  target_type: "listing" | "seller";
+  target_id: string;
+  reason: string;
+  note: string | null;
+  screenshot_url: string | null;
+  status: "open" | "resolved" | "dismissed";
+  resolved_by: Uuid | null;
+  resolved_at: Timestamp | null;
+  created_at: Timestamp;
+}
+
 export interface Subscription {
   id: Uuid;
   user_id: Uuid;
