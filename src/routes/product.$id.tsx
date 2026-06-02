@@ -28,6 +28,7 @@ import {
   listingSellerName,
   type ListingLike,
 } from "@/lib/marketplace/listing-adapter";
+import { submitReport } from "@/lib/reports.functions";
 
 export const Route = createFileRoute("/product/$id")({
   head: () => ({ meta: [{ title: "Listing - HUXZAIN" }] }),
@@ -61,8 +62,10 @@ function ProductPage() {
   const [ordering, setOrdering] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(wishlistStore.isWishlisted(id));
   const [reportOpen, setReportOpen] = useState(false);
+  const [reportTargetType, setReportTargetType] = useState<"listing" | "seller">("listing");
   const [reportReason, setReportReason] = useState("Fraud / Scam");
   const [reportDescription, setReportDescription] = useState("");
+  const [reportScreenshotFile, setReportScreenshotFile] = useState<File | null>(null);
   const [submittingReport, setSubmittingReport] = useState(false);
 
   useEffect(() => {
@@ -456,8 +459,23 @@ function ProductPage() {
                     <span className="font-semibold text-foreground">{rating ? rating.toFixed(1) : "New"}</span>
                     <span className="text-muted-foreground">({reviews} reviews)</span>
                   </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                    Verified Digital Merchant
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2">
+                    <span>Verified Digital Merchant</span>
+                    <span className="text-muted-foreground/30">|</span>
+                    <button
+                      onClick={() => {
+                        if (!isAuthenticated || !user) {
+                          toast.error("Please sign in to report a seller.");
+                          navigate({ to: "/login", search: { redirect: `/product/${id}` } });
+                          return;
+                        }
+                        setReportTargetType("seller");
+                        setReportOpen(true);
+                      }}
+                      className="text-[9px] text-destructive/80 hover:text-destructive hover:underline lowercase font-semibold cursor-pointer"
+                    >
+                      report seller
+                    </button>
                   </div>
                 </div>
               </div>
@@ -523,6 +541,7 @@ function ProductPage() {
                     navigate({ to: "/login", search: { redirect: `/product/${id}` } });
                     return;
                   }
+                  setReportTargetType("listing");
                   setReportOpen(true);
                 }}
                 className="text-gold hover:underline font-semibold cursor-pointer"
@@ -564,9 +583,9 @@ function ProductPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReportOpen(false)} />
           <div className="relative w-full max-w-md bg-surface border border-border rounded-2xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
-            <h3 className="font-display font-bold text-lg text-white mb-2">Report Listing</h3>
+            <h3 className="font-display font-bold text-lg text-white mb-2">Report {reportTargetType === "listing" ? "Listing" : "Seller"}</h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Please specify the reason for reporting <span className="text-gold font-semibold">"{title}"</span>.
+              Please specify the reason for reporting this {reportTargetType === "listing" ? `listing "${title}"` : `seller "${seller}"`}.
             </p>
             <form onSubmit={async (e) => {
               e.preventDefault();
@@ -575,30 +594,35 @@ function ProductPage() {
                 const supabase = getSupabase();
                 if (!supabase || !user) throw new Error("Authentication required");
 
-                const reportPayload = {
-                  listing_id: listing.id,
-                  listing_title: listing.title,
-                  seller_id: listing.seller_id,
-                  reason: reportReason,
-                  description: reportDescription,
-                  reporter_id: user.id,
-                  reporter_email: user.email,
-                  created_at: new Date().toISOString()
-                };
+                let screenshotUrl = "";
+                if (reportScreenshotFile) {
+                  const fileExt = reportScreenshotFile.name.split(".").pop();
+                  const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+                  const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from("report-screenshots")
+                    .upload(filePath, reportScreenshotFile);
+                  if (uploadError) throw uploadError;
+                  const { data: publicUrlData } = supabase.storage
+                    .from("report-screenshots")
+                    .getPublicUrl(filePath);
+                  screenshotUrl = publicUrlData.publicUrl;
+                }
 
-                const { error } = await supabase
-                  .from("support_tickets")
-                  .insert({
-                    user_id: user.id,
-                    title: `REPORT_JSON:${JSON.stringify(reportPayload)}`,
-                    category: "report",
-                    status: "open"
-                  });
+                const res = await submitReport({
+                  data: {
+                    targetType: reportTargetType,
+                    targetId: reportTargetType === "listing" ? listing.id : (listing.seller_id || ""),
+                    reason: reportReason,
+                    note: reportDescription,
+                    screenshotUrl: screenshotUrl || undefined
+                  }
+                });
 
-                if (error) throw error;
-                toast.success("Listing reported successfully. Admins will review this shortly.");
+                if (res.error) throw new Error(res.error);
+                toast.success(`${reportTargetType === "listing" ? "Listing" : "Seller"} reported successfully. Admins will review this shortly.`);
                 setReportOpen(false);
                 setReportDescription("");
+                setReportScreenshotFile(null);
               } catch (err: any) {
                 toast.error("Failed to submit report: " + err.message);
               } finally {
@@ -613,9 +637,15 @@ function ProductPage() {
                   className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden text-foreground"
                 >
                   <option value="Fraud / Scam">Fraud / Scam</option>
-                  <option value="Misleading Description">Misleading Description</option>
-                  <option value="Inappropriate Content">Inappropriate Content</option>
-                  <option value="Intellectual Property Violation">Intellectual Property Violation</option>
+                  <option value="Fake Listing">Fake Listing</option>
+                  <option value="Wrong Product Description">Wrong Product Description</option>
+                  <option value="Seller Not Responding">Seller Not Responding</option>
+                  <option value="Delivery Issue">Delivery Issue</option>
+                  <option value="Payment Issue">Payment Issue</option>
+                  <option value="Suspicious Activity">Suspicious Activity</option>
+                  <option value="Copyright Violation">Copyright Violation</option>
+                  <option value="Abuse / Harassment">Abuse / Harassment</option>
+                  <option value="Spam">Spam</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
@@ -627,6 +657,19 @@ function ProductPage() {
                   value={reportDescription}
                   onChange={(e) => setReportDescription(e.target.value)}
                   className="w-full h-24 p-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden text-foreground resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Screenshot Proof (Optional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setReportScreenshotFile(e.target.files[0]);
+                    }
+                  }}
+                  className="w-full text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gold/10 file:text-gold file:cursor-pointer hover:file:bg-gold/20"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">

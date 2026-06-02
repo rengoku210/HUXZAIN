@@ -56,6 +56,17 @@ function getCategoryIcon(slug: string, dbIcon?: string | null): typeof LucideIco
     "rank-boosting": LucideIcons.Rocket,
     "coaching": LucideIcons.GraduationCap,
     "subscriptions": LucideIcons.Crown,
+    // Approved HUXZAIN categories
+    "gaming-accounts": LucideIcons.Gamepad2,
+    "in-game-currency": LucideIcons.Gem,
+    "software-tools": LucideIcons.Laptop,
+    "coaching-services": LucideIcons.GraduationCap,
+    "boosting-services": LucideIcons.Rocket,
+    "game-buddies": LucideIcons.Users2,
+    "freelance-services": LucideIcons.Briefcase,
+    "editing-design": LucideIcons.Palette,
+    "advertising-services": LucideIcons.Megaphone,
+    "digital-marketplace": LucideIcons.Store,
   };
   return map[slug] ?? LucideIcons.Package;
 }

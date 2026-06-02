@@ -68,6 +68,9 @@ function ListingModal({
   const [categoryId, setCategoryId] = useState(listing?.category_id ?? "");
   const [deliveryType, setDeliveryType] = useState<"instant" | "manual">(listing?.delivery_type ?? "manual");
   const [deliveryTime, setDeliveryTime] = useState(listing?.delivery_time ? listing.delivery_time.replace(/\D/g, '') || "24" : "24");
+  const [seoTitle, setSeoTitle] = useState((listing as any)?.seo_title ?? "");
+  const [seoDescription, setSeoDescription] = useState((listing as any)?.seo_description ?? "");
+  const [seoKeywords, setSeoKeywords] = useState((listing as any)?.seo_keywords ?? "");
   
   const [gallery, setGallery] = useState<{ id: string; file?: File; url: string }[]>(() => {
     const urls = listing?.gallery_urls && listing.gallery_urls.length > 0 
@@ -242,6 +245,9 @@ function ListingModal({
         images: imageUrls,
         category_id: finalCategoryId,
         attributes: {},
+        seo_title: seoTitle.trim() || null,
+        seo_description: seoDescription.trim() || null,
+        seo_keywords: seoKeywords.trim() || null,
       };
 
       console.log("[Rebuild Listing Flow] Database payload:", JSON.stringify(payload, null, 2));
@@ -454,6 +460,67 @@ function ListingModal({
                 placeholder="Add tag..."
                 className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
               />
+            </div>
+
+            <div className="border border-border rounded-2xl p-4 bg-surface/30 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-white">Search Engine Optimization (SEO)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const categoryObj = categories.find(c => c.id === categoryId);
+                    const categoryName = categoryObj ? categoryObj.name : "Digital Product";
+                    setSeoTitle(title ? `${title} | Buy ${categoryName} on HUXZAIN` : "");
+                    setSeoDescription(description ? `${description.slice(0, 150)}... Buy secure digital items on HUXZAIN.` : "");
+                    setSeoKeywords(title ? `${title.toLowerCase().split(" ").join(", ")}, huxzain, buy ${categoryName.toLowerCase()}` : "");
+                    toast.success("Listing SEO fields generated!");
+                  }}
+                  className="text-xs text-gold hover:underline font-bold cursor-pointer"
+                >
+                  Auto Generate SEO
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">SEO Slug Preview</label>
+                  <div className="px-3 py-1.5 rounded-lg bg-background text-[10px] text-muted-foreground select-all border border-border/40 font-mono truncate">
+                    https://huxzain.shop/product/<span className="text-gold font-semibold">{title ? slugify(title) : "url-slug"}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">SEO Meta Title</label>
+                    <input
+                      value={seoTitle}
+                      onChange={(e) => setSeoTitle(e.target.value)}
+                      placeholder="e.g. Valorant Account | HUXZAIN"
+                      className="w-full h-10 px-3 rounded-xl border border-border bg-surface/60 text-xs text-foreground focus:outline-none focus:border-gold/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">SEO Keywords</label>
+                    <input
+                      value={seoKeywords}
+                      onChange={(e) => setSeoKeywords(e.target.value)}
+                      placeholder="e.g. skin, valorant, account"
+                      className="w-full h-10 px-3 rounded-xl border border-border bg-surface/60 text-xs text-foreground focus:outline-none focus:border-gold/50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">SEO Description</label>
+                  <textarea
+                    value={seoDescription}
+                    onChange={(e) => setSeoDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Search engine meta description..."
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-xs text-foreground focus:outline-none focus:border-gold/50 resize-none"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>

@@ -4,9 +4,12 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { trackVisit } from "@/lib/analytics.functions";
 
 import "../styles.css";
 import { AuthProvider } from "@/lib/auth/auth-context";

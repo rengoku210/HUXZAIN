@@ -7,40 +7,49 @@ import {
   MessageCircle,
   Mail,
   Lock,
-  Heart,
+  CreditCard,
 } from "lucide-react";
-import logo from "@/assets/huxzain-logo.png";
 import mark from "@/assets/huxzain-mark.png";
 
 const groups = [
   {
     title: "Marketplace",
     links: [
-      { l: "Digital Products", to: "/category/$slug", p: { slug: "digital-products" } },
-      { l: "Services", to: "/category/$slug", p: { slug: "services" } },
-      { l: "All Categories", to: "/categories" },
-      { l: "How It Works", to: "/how-it-works" },
-      { l: "Become a Seller", to: "/seller-panel" },
+      { l: "Browse Listings", to: "/categories" },
+      { l: "Digital Products", to: "/category/$slug", p: { slug: "digital-marketplace" } },
+      { l: "Gaming Accounts", to: "/category/$slug", p: { slug: "gaming-accounts" } },
+      { l: "Gift Cards", to: "/category/$slug", p: { slug: "gift-cards" } },
+      { l: "Software & Tools", to: "/category/$slug", p: { slug: "software-tools" } },
     ],
   },
   {
-    title: "Support",
+    title: "Services",
     links: [
-      { l: "Contact Us", to: "/contact" },
-      { l: "How It Works", to: "/how-it-works" },
-      { l: "Terms of Service", to: "/terms" },
-      { l: "Refund Policy", to: "/refund-policy" },
-      { l: "Privacy Policy", to: "/privacy" },
+      { l: "Game Buddies", to: "/category/$slug", p: { slug: "game-buddies" } },
+      { l: "Coaching", to: "/category/$slug", p: { slug: "coaching-services" } },
+      { l: "Boosting", to: "/category/$slug", p: { slug: "boosting-services" } },
+      { l: "Freelance", to: "/category/$slug", p: { slug: "freelance-services" } },
+      { l: "Advertising", to: "/category/$slug", p: { slug: "advertising-services" } },
     ],
   },
   {
     title: "Company",
     links: [
       { l: "About Us", to: "/about" },
-      { l: "Blog", to: "/blog" },
       { l: "Careers", to: "/careers" },
+      { l: "Blog", to: "/blog" },
+      { l: "Press", to: "/about" },
       { l: "Contact", to: "/contact" },
+    ],
+  },
+  {
+    title: "Support & Legal",
+    links: [
+      { l: "Help Center", to: "/how-it-works" },
+      { l: "Dispute Policy", to: "/how-it-works" },
       { l: "Privacy Policy", to: "/privacy" },
+      { l: "Terms of Service", to: "/terms" },
+      { l: "Refund Policy", to: "/refund-policy" },
     ],
   },
 ];
@@ -77,7 +86,7 @@ export function Footer() {
         </div>
       </div>
 
-      <div className="container-page py-14 grid gap-10 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
+      <div className="container-page py-14 grid gap-10 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
         <div>
           <img 
             src={mark} 
@@ -85,7 +94,7 @@ export function Footer() {
             className="h-11 w-auto mb-5 bg-transparent select-none pointer-events-none object-contain" 
           />
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-            The most secure marketplace for digital products and services.
+            India's Modern Digital Marketplace
           </p>
           <div className="flex gap-2 mt-5">
             {[Facebook, Twitter, Instagram, Youtube, MessageCircle].map((Icon, i) => (
@@ -120,13 +129,28 @@ export function Footer() {
       </div>
 
       <div className="border-t border-border/60">
-        <div className="container-page py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+        <div className="container-page py-5 flex flex-col lg:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
           <p>© {new Date().getFullYear()} HUXZAIN. All rights reserved.</p>
-          <div className="flex items-center gap-2">
-            <Lock className="size-3.5 text-gold" /> Secure Marketplace
+
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/30 px-3 py-1">
+              <Lock className="size-3.5 text-gold" /> SSL Secured
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/30 px-3 py-1">
+              ★ 99.8% Positive Feedback
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            Made with <Heart className="size-3.5 fill-gold text-gold" /> for our community
+
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/30 px-3 py-1">
+              <CreditCard className="size-3.5 text-gold" /> Razorpay
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/30 px-3 py-1">
+              UPI
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/30 px-3 py-1">
+              Card
+            </span>
           </div>
         </div>
       </div>

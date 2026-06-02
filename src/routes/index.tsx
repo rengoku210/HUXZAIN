@@ -8,12 +8,13 @@ import {
   Scale,
   ArrowRight,
   ShoppingCart,
+  Shield,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { ListingCard } from "@/components/site/ListingCard";
 import { useAuth } from "@/lib/auth/auth-context";
-import shield from "@/assets/hero-shield.png";
+import HeroLogo from "@/components/HeroLogo";
 import { getSupabase } from "@/lib/supabase-client";
 import type { ListingLike } from "@/lib/marketplace/listing-adapter";
 import {
@@ -131,12 +132,10 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
       <div className="container-page py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center overflow-x-hidden">
         <div>
           <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight break-words">
-            Buy, Sell &amp; Grow
-            <br />
-            Safely with <span className="text-gold">HUXZAIN</span>
+            India's Modern Digital Marketplace 🇮🇳
           </h1>
           <p className="mt-5 text-muted-foreground max-w-lg text-sm sm:text-base">
-            A secure marketplace for digital products and services.
+            A secure and trusted marketplace for digital products, services and gaming essentials.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs sm:text-sm">
@@ -185,13 +184,7 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
             className="absolute inset-0 -m-10 bg-[radial-gradient(circle_at_center,oklch(0.82_0.13_82/0.22),transparent_60%)]"
             aria-hidden
           />
-          <img
-            src={shield}
-            alt="HUXZAIN secure marketplace shield"
-            width={1024}
-            height={1024}
-            className="relative z-10 w-full max-w-md mx-auto drop-shadow-[0_40px_60px_oklch(0.82_0.13_82/0.25)]"
-          />
+          <HeroLogo />
         </div>
       </div>
     </section>
@@ -199,32 +192,29 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
 }
 
 function PopularCategories({ counts }: { counts: any }) {
-  const getCatCountString = (slug: string) => {
-    const count = counts.categoryCounts[slug] ?? 0;
-    return `${count} ${count === 1 ? 'Listing' : 'Listings'}`;
-  };
-
   return (
     <section className="container-page py-14">
       <div className="flex items-end justify-between mb-8">
-        <h2 className="font-display text-3xl font-bold">Popular Categories</h2>
+        <h2 className="font-display text-3xl font-bold">Categories</h2>
         <Link to="/categories" className="text-sm text-gold inline-flex items-center gap-1.5 hover:underline">
           View All <ArrowRight className="size-3.5" />
         </Link>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {primaryCategories.map((c) => (
           <Link
             key={c.slug}
             to="/category/$slug"
             params={{ slug: c.slug }}
-            className="group rounded-2xl border border-border bg-surface/40 p-5 text-center hover:border-gold/40 hover:bg-surface-elevated transition-all"
+            className="group rounded-2xl border border-border bg-[#1A1A1A] p-5 text-center transition-all hover:border-gold/50 hover:shadow-[0_0_0_1px_rgba(212,160,23,0.35),0_0_24px_rgba(212,160,23,0.12)] hover:scale-[1.03]"
           >
             <div className="size-12 mx-auto rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center mb-3 group-hover:bg-gold/20 transition-colors">
               <c.icon className="size-5 text-gold" />
             </div>
             <div className="text-sm font-medium">{c.title}</div>
-            <div className="text-[11px] text-muted-foreground mt-1">{getCatCountString(c.slug)}</div>
+            <div className="text-[11px] text-muted-foreground mt-1 leading-snug">
+              {(c as any).desc ?? (c as any).count ?? ""}
+            </div>
           </Link>
         ))}
       </div>
@@ -234,19 +224,36 @@ function PopularCategories({ counts }: { counts: any }) {
 
 function TrustStrip() {
   return (
-    <section className="container-page">
-      <div className="rounded-2xl border border-border bg-surface/40 px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <section className="container-page py-2">
+      <div className="mb-6">
+        <h2 className="font-display text-2xl sm:text-3xl font-bold">
+          Why Thousands Trust <span className="text-gold">HUXZAIN</span>
+        </h2>
+        <div className="mt-3 h-1 w-24 bg-gold rounded-full" />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {trustFeatures.map((f) => (
-          <div key={f.title} className="flex items-start gap-3">
-            <div className="size-10 rounded-lg border border-gold/25 bg-gold/10 flex items-center justify-center shrink-0">
-              <f.icon className="size-5 text-gold" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold">{f.title}</div>
-              <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{f.desc}</div>
+          <div
+            key={f.title}
+            className="rounded-2xl border border-border bg-[#141414] p-5 hover:border-gold/40 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="size-10 rounded-lg border border-gold/25 bg-gold/10 flex items-center justify-center shrink-0">
+                <f.icon className="size-5 text-gold" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">{f.title}</div>
+                <div className="text-xs text-muted-foreground mt-1 leading-relaxed">{f.desc}</div>
+              </div>
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+        <Shield className="size-4 text-emerald-400" />
+        <span>All sellers are verified and monitored for your safety.</span>
       </div>
     </section>
   );
