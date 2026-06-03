@@ -5,6 +5,7 @@ import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Lock, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
+import { logTeamLoginAttempt } from "@/lib/auth/employee-auth";
 
 export const Route = createFileRoute("/team-login")({
   head: () => ({
@@ -14,19 +15,20 @@ export const Route = createFileRoute("/team-login")({
 });
 
 const TEAM_ROLES = [
-  { key: "staff", label: "Employee / Staff" },
+  { key: "payment_reviewer", label: "Payment Reviewer" },
+  { key: "dispute_manager", label: "Dispute Manager" },
+  { key: "support_agent", label: "Support Agent" },
+  { key: "verification_officer", label: "Verification Officer" },
   { key: "moderator", label: "Moderator" },
-  { key: "manager", label: "Manager" },
   { key: "admin", label: "Admin" },
   { key: "super_admin", label: "Super Admin" },
-  { key: "owner", label: "Owner" },
 ] as const;
 
 function TeamLogin() {
   const auth = useAuth();
   const nav = useNavigate();
 
-  const [role, setRole] = useState<(typeof TEAM_ROLES)[number]["key"]>("staff");
+  const [role, setRole] = useState<(typeof TEAM_ROLES)[number]["key"]>("payment_reviewer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +47,7 @@ function TeamLogin() {
     }
 
     // Route user based on privileges
-    if (auth.roles.some((r) => ["admin", "super_admin", "owner", "moderator", "staff", "manager"].includes(r))) {
+    if (auth.roles.some((r) => ["admin", "super_admin", "owner", "moderator", "payment_reviewer", "dispute_manager", "support_agent", "verification_officer"].includes(r))) {
       nav({ to: "/admin" });
     } else {
       nav({ to: "/dashboard" });
@@ -57,9 +59,18 @@ function TeamLogin() {
     if (!email.trim() || !password) return;
     try {
       setSubmitting(true);
+      
+      const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+      
       await auth.signInWithPassword(email.trim(), password);
+      
+      await logTeamLoginAttempt({ data: { email: email.trim(), success: true, device, role, ip: "" } });
+      
       // The redirect happens in useEffect after roles load.
     } catch (err: any) {
+      const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+      await logTeamLoginAttempt({ data: { email: email.trim(), success: false, device, role, ip: "" } });
+      
       toast.error(err.message || "Login failed");
     } finally {
       setSubmitting(false);

@@ -14,7 +14,7 @@ import {
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 type NavItem = { to: string; label: string; icon: any; end?: boolean };
@@ -67,8 +67,12 @@ function AdminLayout() {
   const auth = useAuth();
   const nav2 = useNavigate();
   const { location } = useRouterState();
+  const isPaymentReviewer = auth.hasRole("payment_reviewer");
+  const isDisputeManager = auth.hasRole("dispute_manager");
+  const isSupportAgent = auth.hasRole("support_agent");
+  const isVerificationOfficer = auth.hasRole("verification_officer");
   
-  const isStaff = auth.hasRole("staff");
+  const isStaff = auth.hasRole("staff") || isPaymentReviewer || isDisputeManager || isSupportAgent || isVerificationOfficer;
   const isModerator = auth.hasRole("moderator");
   const isAdminOrSuper = auth.hasAnyRole(["admin", "super_admin", "owner"]);
   const isEmailWhitelist = ADMIN_EMAILS.includes(auth.user?.email ?? "");
@@ -76,24 +80,33 @@ function AdminLayout() {
   const allowed = isStaff || isModerator || isAdminOrSuper || isEmailWhitelist;
   const isStrictStaff = isStaff && !isModerator && !isAdminOrSuper && !isEmailWhitelist;
   
-  const staffAllowedPaths = ["/admin/payments", "/admin/subscriptions", "/admin/tickets"];
+  // Dynamic staff allowed paths based on specific role
+  const staffAllowedPaths = useMemo(() => {
+    let paths: string[] = [];
+    if (isPaymentReviewer) paths.push("/admin/payments", "/admin/withdrawals", "/admin/earnings");
+    if (isDisputeManager) paths.push("/admin/disputes", "/admin/tickets");
+    if (isSupportAgent) paths.push("/admin/tickets");
+    if (isVerificationOfficer) paths.push("/admin/verifications");
+    if (auth.hasRole("staff") && paths.length === 0) paths.push("/admin/payments", "/admin/subscriptions", "/admin/tickets"); // fallback
+    return paths;
+  }, [isPaymentReviewer, isDisputeManager, isSupportAgent, isVerificationOfficer, auth]);
 
   useEffect(() => {
     if (auth.ready && auth.isAuthenticated) {
       if (!allowed) {
         nav2({ to: "/dashboard" });
-      } else if (location.pathname === "/admin/earnings" && !(auth.hasRole("owner") || auth.user?.email === "admin@admin.com")) {
+      } else if (location.pathname === "/admin/earnings" && !(auth.hasRole("owner") || isPaymentReviewer || auth.user?.email === "admin@admin.com")) {
         nav2({ to: "/admin" });
       } else if (isStrictStaff) {
         // Redirect staff if they try to access non-payment/subscription routes
         const currentPath = location.pathname;
         const isPathAllowed = staffAllowedPaths.some(p => currentPath === p || currentPath.startsWith(p + "/"));
-        if (!isPathAllowed) {
-          nav2({ to: "/admin/payments" });
+        if (!isPathAllowed && staffAllowedPaths.length > 0) {
+          nav2({ to: staffAllowedPaths[0] });
         }
       }
     }
-  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2, auth.roles]);
+  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2, auth.roles, staffAllowedPaths, isPaymentReviewer]);
 
   if (!allowed) return null;
 

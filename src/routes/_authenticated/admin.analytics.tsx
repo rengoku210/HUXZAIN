@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { BarChart3, Users as UsersIcon, ShoppingBag, DollarSign, Loader2, ArrowRightLeft, TrendingUp, HelpCircle } from "lucide-react";
+import { BarChart3, Users as UsersIcon, ShoppingBag, DollarSign, Loader2, ArrowRightLeft, TrendingUp, HelpCircle, Activity, Globe } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 
@@ -31,7 +31,7 @@ function formatINR(amount: number) {
 
 function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"users" | "sales" | "earnings">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "sales" | "earnings" | "traffic">("users");
 
   // Collected Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -163,6 +163,16 @@ function AnalyticsPage() {
           }`}
         >
           <DollarSign size={14} /> Earnings & Revenue
+        </button>
+        <button
+          onClick={() => setActiveTab("traffic")}
+          className={`px-6 py-3 font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === "traffic"
+              ? "border-gold text-gold bg-gold/5"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Activity size={14} /> Traffic & SEO
         </button>
       </div>
 
@@ -344,6 +354,116 @@ function AnalyticsPage() {
           </div>
         </div>
       )}
+
+      {activeTab === "traffic" && (
+        <TrafficAnalyticsTab />
+      )}
+    </div>
+  );
+}
+
+function TrafficAnalyticsTab() {
+  const [analytics, setAnalytics] = useState<{ logs: any[], keywords: any[] }>({ logs: [], keywords: [] });
+
+  useEffect(() => {
+    // Dynamic import to avoid SSR issues if any
+    import("@/lib/traffic-store").then(({ getSearchAnalytics }) => {
+      setAnalytics(getSearchAnalytics());
+    });
+  }, []);
+
+  const totalViews = analytics.logs.length;
+  const uniqueSessions = new Set(analytics.logs.map(l => l.sessionToken)).size;
+  
+  // Sort keywords by volume
+  const topKeywords = [...analytics.keywords].sort((a, b) => b.searchVolume - a.searchVolume).slice(0, 10);
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-border bg-surface/40 p-5 ring-1 ring-gold/10">
+          <div className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>Total Page Views</span>
+            <Activity size={12} className="text-gold" />
+          </div>
+          <div className="font-display text-2xl font-extrabold mt-2 text-white">{totalViews}</div>
+          <div className="text-[10px] text-muted-foreground mt-1.5">Tracked views locally</div>
+        </div>
+        <div className="rounded-2xl border border-border bg-surface/40 p-5">
+          <div className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>Unique Sessions</span>
+            <UsersIcon size={12} className="text-sky-400" />
+          </div>
+          <div className="font-display text-2xl font-extrabold mt-2 text-sky-400">{uniqueSessions}</div>
+          <div className="text-[10px] text-muted-foreground mt-1.5">Estimated unique visitors</div>
+        </div>
+        <div className="rounded-2xl border border-border bg-surface/40 p-5">
+          <div className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>Tracked Keywords</span>
+            <Globe size={12} className="text-purple-400" />
+          </div>
+          <div className="font-display text-2xl font-extrabold mt-2 text-purple-400">{analytics.keywords.length}</div>
+          <div className="text-[10px] text-muted-foreground mt-1.5">Unique search queries logged</div>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="rounded-2xl border border-border bg-surface/40 p-5">
+          <h3 className="font-semibold text-sm mb-4">Trending Search Keywords</h3>
+          {topKeywords.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No search keywords logged yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="text-muted-foreground border-b border-border pb-2">
+                    <th className="py-2 font-medium">Keyword</th>
+                    <th className="font-medium text-right">Volume</th>
+                    <th className="font-medium text-right text-emerald-400">Conv. Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topKeywords.map(k => (
+                    <tr key={k.query} className="border-b border-border/30 hover:bg-surface/20">
+                      <td className="py-2.5 text-zinc-300 font-medium">{k.query}</td>
+                      <td className="text-right font-mono">{k.searchVolume}</td>
+                      <td className="text-right text-emerald-400 font-semibold">{k.conversionRate.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-border bg-surface/40 p-5">
+          <h3 className="font-semibold text-sm mb-4">Recent Traffic Log</h3>
+          {analytics.logs.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No traffic logs found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="text-muted-foreground border-b border-border pb-2">
+                    <th className="py-2 font-medium">Path</th>
+                    <th className="font-medium">Device</th>
+                    <th className="font-medium">Referrer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.logs.slice(-10).reverse().map((l, i) => (
+                    <tr key={i} className="border-b border-border/30 hover:bg-surface/20">
+                      <td className="py-2.5 font-mono text-zinc-400 max-w-[150px] truncate">{l.path}</td>
+                      <td className="capitalize text-muted-foreground">{l.device}</td>
+                      <td className="text-muted-foreground truncate max-w-[150px]">{l.referrer}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

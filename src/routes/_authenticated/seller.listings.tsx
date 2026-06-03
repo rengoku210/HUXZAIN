@@ -491,16 +491,22 @@ function ListingModal({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-1">SEO Meta Title</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs text-muted-foreground">SEO Meta Title</label>
+                      <span className={`text-[10px] ${seoTitle.length > 60 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoTitle.length}/60</span>
+                    </div>
                     <input
                       value={seoTitle}
                       onChange={(e) => setSeoTitle(e.target.value)}
+                      maxLength={60}
                       placeholder="e.g. Valorant Account | HUXZAIN"
-                      className="w-full h-10 px-3 rounded-xl border border-border bg-surface/60 text-xs text-foreground focus:outline-none focus:border-gold/50"
+                      className={`w-full h-10 px-3 rounded-xl border ${seoTitle.length > 60 ? 'border-red-500/50 focus:border-red-500' : 'border-border focus:border-gold/50'} bg-surface/60 text-xs text-foreground focus:outline-none`}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-1">SEO Keywords</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs text-muted-foreground">SEO Keywords</label>
+                    </div>
                     <input
                       value={seoKeywords}
                       onChange={(e) => setSeoKeywords(e.target.value)}
@@ -511,13 +517,17 @@ function ListingModal({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">SEO Description</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs text-muted-foreground">SEO Description</label>
+                    <span className={`text-[10px] ${seoDescription.length > 160 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoDescription.length}/160</span>
+                  </div>
                   <textarea
                     value={seoDescription}
                     onChange={(e) => setSeoDescription(e.target.value)}
+                    maxLength={160}
                     rows={2}
                     placeholder="Search engine meta description..."
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-xs text-foreground focus:outline-none focus:border-gold/50 resize-none"
+                    className={`w-full px-3 py-2 rounded-xl border ${seoDescription.length > 160 ? 'border-red-500/50 focus:border-red-500' : 'border-border focus:border-gold/50'} bg-surface/60 text-xs text-foreground focus:outline-none resize-none`}
                   />
                 </div>
               </div>
