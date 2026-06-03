@@ -37,6 +37,7 @@ function CategoriesPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [listingsCounts, setListingsCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -149,18 +150,23 @@ function CategoriesPage() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 container-page py-14">
-        {/* Hero */}
+        {/* Hero & Search */}
         <div className="mb-12 text-center">
           <div className="size-16 rounded-2xl border border-gold/30 bg-gold/10 flex items-center justify-center mx-auto mb-5">
             <LayoutGrid className="size-7 text-gold" />
           </div>
-          <h1 className="font-display text-4xl font-bold mb-3">
+          <h1 className="font-display text-4xl font-bold mb-6">
             All <span className="text-gold">Categories</span>
           </h1>
-          <p className="text-muted-foreground max-w-xl mx-auto text-sm leading-relaxed">
-            Explore our full range of digital products, services, and more. Every category is
-            stocked with vetted listings from verified sellers.
-          </p>
+          <div className="max-w-2xl mx-auto relative">
+            <LucideIcons.Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search for any category, game, or service..."
+              className="w-full h-14 pl-12 pr-4 rounded-2xl bg-surface/50 border border-border focus:border-gold/50 outline-none text-base transition-colors shadow-sm"
+            />
+          </div>
         </div>
 
         {/* Primary Categories */}
@@ -176,24 +182,31 @@ function CategoriesPage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {primaryCategoriesList.map((cat) => {
+                if (searchQuery && !cat.name.toLowerCase().includes(searchQuery.toLowerCase())) return null;
                 const Icon = getCategoryIconComponent(cat.icon, cat.slug);
                 return (
                   <Link
                     key={cat.slug}
                     to="/category/$slug"
                     params={{ slug: cat.slug }}
-                    className="group rounded-2xl border border-border bg-surface/40 p-6 hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col gap-4"
+                    className="group relative rounded-2xl border border-border bg-surface/40 p-6 hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col gap-4 overflow-hidden"
                   >
-                    <div className="size-12 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
-                      <Icon className="size-5 text-gold" />
+                    {cat.banner_image_url && (
+                      <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                        <img src={cat.banner_image_url} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+                      </div>
+                    )}
+                    <div className="relative z-10 size-12 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
+                      <Icon className="size-5 text-gold drop-shadow-sm" />
                     </div>
-                    <div>
+                    <div className="relative z-10">
                       <div className="font-semibold text-sm group-hover:text-gold transition-colors mb-1">
                         {cat.name}
                       </div>
                       <div className="text-xs text-muted-foreground">{getCategoryCountStr(cat)}</div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-gold opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="relative z-10 flex items-center gap-1 text-xs text-gold opacity-0 group-hover:opacity-100 transition-opacity mt-auto">
                       Browse <ArrowRight className="size-3" />
                     </div>
                   </Link>
@@ -221,18 +234,24 @@ function CategoriesPage() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
                 {children.map((cat) => {
+                  if (searchQuery && !cat.name.toLowerCase().includes(searchQuery.toLowerCase())) return null;
                   const Icon = getCategoryIconComponent(cat.icon, cat.slug);
                   return (
                     <Link
                       key={cat.slug}
                       to="/category/$slug"
                       params={{ slug: cat.slug }}
-                      className="group rounded-2xl border border-border bg-surface/40 p-5 text-center hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col items-center gap-3"
+                      className="group relative rounded-2xl border border-border bg-surface/40 p-5 text-center hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col items-center gap-3 overflow-hidden"
                     >
-                      <div className="size-11 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
-                        <Icon className="size-5 text-gold" />
+                      {cat.banner_image_url && (
+                        <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                          <img src={cat.banner_image_url} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div className="relative z-10 size-11 rounded-xl border border-gold/25 bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
+                        <Icon className="size-5 text-gold drop-shadow-sm" />
                       </div>
-                      <div className="text-sm font-medium group-hover:text-gold transition-colors">
+                      <div className="relative z-10 text-sm font-medium group-hover:text-gold transition-colors">
                         {cat.name}
                       </div>
                     </Link>

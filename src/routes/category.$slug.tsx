@@ -195,21 +195,46 @@ function CategoryPage() {
       <main className="flex-1 container-page py-10">
         <Breadcrumb paths={breadcrumb} />
 
-        <div className="flex items-center gap-4 mb-8">
-          {StaticIcon && (
-            <div className="size-14 rounded-2xl border border-gold/20 bg-gold/10 flex items-center justify-center shrink-0">
-              <StaticIcon className="size-7 text-gold" />
+        {(category as any)?.banner_image_url ? (
+          <div className="relative rounded-[2rem] overflow-hidden mb-10 min-h-[360px] flex items-end border border-border/50 shadow-2xl">
+            <div className="absolute inset-0">
+              <img src={(category as any).banner_image_url} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-background to-transparent opacity-80" />
             </div>
-          )}
-          <div>
-            <h1 className="font-display text-3xl font-bold">
-              {category?.name ?? staticMeta?.title ?? slug}
-            </h1>
-            {staticMeta && (
-              <p className="text-sm text-muted-foreground mt-0.5">{staticMeta.count}</p>
-            )}
+            <div className="relative z-10 p-8 md:p-12 w-full max-w-4xl">
+              <h1 className="font-display text-4xl md:text-5xl font-bold mb-4 drop-shadow-md">
+                {(category as any).banner_title || category?.name}
+              </h1>
+              {(category as any).banner_subtitle && (
+                <p className="text-lg md:text-xl text-foreground/80 mb-8 max-w-2xl leading-relaxed drop-shadow-sm">
+                  {(category as any).banner_subtitle}
+                </p>
+              )}
+              {(category as any).cta_text && (
+                <button className="px-8 h-12 rounded-xl bg-gold text-primary-foreground font-bold hover:shadow-[0_0_30px_rgba(255,215,0,0.3)] hover:-translate-y-0.5 transition-all">
+                  {(category as any).cta_text}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-4 mb-8">
+            {StaticIcon && (
+              <div className="size-14 rounded-2xl border border-gold/20 bg-gold/10 flex items-center justify-center shrink-0">
+                <StaticIcon className="size-7 text-gold" />
+              </div>
+            )}
+            <div>
+              <h1 className="font-display text-3xl font-bold">
+                {category?.name ?? staticMeta?.title ?? slug}
+              </h1>
+              {staticMeta && (
+                <p className="text-sm text-muted-foreground mt-0.5">{staticMeta.count}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {children.length > 0 && (
           <section className="mb-10">
@@ -240,21 +265,25 @@ function CategoryPage() {
               ))}
             </div>
           ) : listings.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-surface/40 py-20 flex flex-col items-center gap-4">
-              <div className="size-16 rounded-2xl border border-border bg-surface flex items-center justify-center">
-                <ShoppingBag className="size-8 text-muted-foreground" />
+            <div className="rounded-3xl border border-border/50 bg-surface/30 backdrop-blur-xl py-24 flex flex-col items-center gap-6 relative overflow-hidden">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gold/5 rounded-full blur-[100px] pointer-events-none" />
+              
+              <div className="relative z-10 size-24 rounded-3xl bg-gradient-to-br from-surface to-background border border-gold/20 shadow-[0_0_40px_rgba(255,215,0,0.1)] flex items-center justify-center">
+                <ShoppingBag className="size-10 text-gold" />
               </div>
-              <div className="text-center">
-                <p className="font-semibold">No listings yet</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Be the first to list in this category.
+              
+              <div className="text-center relative z-10 max-w-md px-6">
+                <h3 className="font-display text-2xl font-bold mb-2">No listings found</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  The {category?.name ?? "marketplace"} category is currently empty. Be the first to establish your presence and capture the market!
                 </p>
               </div>
+              
               <Link
                 to="/seller-panel"
-                className="h-10 px-6 rounded-xl bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 inline-flex items-center"
+                className="relative z-10 h-12 px-8 rounded-xl bg-gold text-primary-foreground text-sm font-bold hover:shadow-[0_0_30px_rgba(255,215,0,0.3)] hover:-translate-y-0.5 transition-all inline-flex items-center gap-2"
               >
-                Start Selling
+                <PackageOpen className="size-4" /> Start Selling
               </Link>
             </div>
           ) : (

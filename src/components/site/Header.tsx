@@ -92,6 +92,7 @@ export function Header() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [megaSearch, setMegaSearch] = useState("");
 
   const [navCategories, setNavCategories] = useState<any[]>([]);
   const [listingsCounts, setListingsCounts] = useState<Record<string, number>>({});
@@ -415,6 +416,15 @@ export function Header() {
     }
   }
 
+  const groupedNotifs = {
+    Orders: notifications.filter(n => n.kind?.includes('order') || n.title?.toLowerCase().includes('order')),
+    Payments: notifications.filter(n => n.kind?.includes('payment') || n.kind?.includes('withdrawal') || n.title?.toLowerCase().includes('payment') || n.kind?.includes('wallet')),
+    Support: notifications.filter(n => n.kind?.includes('ticket') || n.kind?.includes('dispute')),
+    Messages: notifications.filter(n => n.kind?.includes('message') || n.title?.toLowerCase().includes('message')),
+  };
+  const groupedIds = new Set(Object.values(groupedNotifs).flat().map(n => n.id));
+  const generalNotifs = notifications.filter(n => !groupedIds.has(n.id));
+
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl w-full max-w-full overflow-x-clip md:overflow-x-visible">
@@ -598,31 +608,49 @@ export function Header() {
                       </div>
                     </div>
                   ) : (
-                    <div className="max-h-80 overflow-y-auto divide-y divide-border/40 scrollbar-thin">
-                      {notifications.map((n) => (
-                        <button
-                          key={n.id}
-                          onClick={() => {
-                            if (!n.read_at) markAsRead(n.id);
-                          }}
-                          className={`w-full text-left px-4 py-3 hover:bg-surface/50 transition-colors flex gap-3 relative border-none bg-transparent cursor-pointer ${!n.read_at ? "bg-gold/5" : ""}`}
-                        >
-                          <div className="size-8 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0 mt-0.5">
-                            <Bell className="size-3.5 text-gold" />
+                    <div className="max-h-[26rem] overflow-y-auto scrollbar-thin flex flex-col gap-1 p-2">
+                      {[
+                        { label: "Orders", items: groupedNotifs.Orders },
+                        { label: "Payments", items: groupedNotifs.Payments },
+                        { label: "Support & Disputes", items: groupedNotifs.Support },
+                        { label: "Messages", items: groupedNotifs.Messages },
+                        { label: "General Alerts", items: generalNotifs },
+                      ].map(group => group.items.length > 0 && (
+                        <div key={group.label} className="mb-2">
+                          <h4 className="text-[10px] font-bold text-gold uppercase tracking-wider px-3 py-1 bg-surface/30 rounded-md mb-1 flex items-center justify-between">
+                            {group.label}
+                            {group.items.filter(i => !i.read_at).length > 0 && (
+                              <span className="bg-red-500 text-white px-1.5 rounded-full text-[8px]">{group.items.filter(i => !i.read_at).length} new</span>
+                            )}
+                          </h4>
+                          <div className="divide-y divide-border/40">
+                            {group.items.map((n) => (
+                              <button
+                                key={n.id}
+                                onClick={() => {
+                                  if (!n.read_at) markAsRead(n.id);
+                                }}
+                                className={`w-full text-left px-3 py-2.5 hover:bg-surface/60 transition-colors flex gap-3 relative border-none bg-transparent cursor-pointer rounded-lg ${!n.read_at ? "bg-gold/5" : ""}`}
+                              >
+                                <div className="size-8 rounded-full bg-surface border border-border flex items-center justify-center shrink-0 mt-0.5">
+                                  <Bell className="size-3.5 text-muted-foreground" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                                    <span className="font-bold text-xs truncate text-foreground/90">{n.title}</span>
+                                    <span className="text-[8px] text-muted-foreground font-mono shrink-0">
+                                      {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">{n.body}</p>
+                                </div>
+                                {!n.read_at && (
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-gold shrink-0 shadow-[0_0_8px_rgba(255,215,0,0.5)]" />
+                                )}
+                              </button>
+                            ))}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-0.5">
-                              <span className="font-bold text-xs truncate text-foreground/90">{n.title}</span>
-                              <span className="text-[8px] text-muted-foreground font-mono shrink-0">
-                                {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">{n.body}</p>
-                          </div>
-                          {!n.read_at && (
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-gold shrink-0" />
-                          )}
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -781,28 +809,28 @@ export function Header() {
         </div>
 
         {/* ── Sub nav ────────────────────────────────────────────── */}
-        <div className="border-t border-border/60 bg-surface/30 w-full overflow-hidden">
-          <div className="container-page flex items-center justify-between h-11 gap-2">
-            <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none w-full py-1">
-              {navItems.map((item) => (
+        {/* ── Category Quick Access Ribbon ────────────────────────────── */}
+        <div className="border-t border-border/60 bg-surface/30 w-full overflow-hidden relative shadow-inner">
+          <div className="container-page flex items-center justify-between h-12 gap-4">
+            <div className="flex-1 min-w-0 flex items-center gap-2.5 overflow-x-auto scrollbar-none w-full py-1">
+              <Link to="/" className="px-3 py-1.5 text-[13px] font-medium text-foreground hover:text-gold rounded-full bg-surface/50 border border-border whitespace-nowrap transition-colors flex items-center gap-1.5 shadow-sm">
+                <Flame className="size-3.5 text-orange-500" /> Trending
+              </Link>
+              {navItems.slice(1).map((item) => (
                 <Link
                   key={item.label}
                   to={item.to as any}
                   params={"params" in item ? (item.params as any) : undefined}
-                  activeOptions={{ exact: item.to === "/" }}
-                  className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-md whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium shrink-0"
+                  className="px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded-full border border-transparent hover:border-border whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium data-[status=active]:bg-gold/10 data-[status=active]:border-gold/20 shrink-0"
                 >
                   {item.label}
                 </Link>
               ))}
             </div>
-            <div className="hidden md:flex items-center gap-3 pr-2 shrink-0">
-              <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-gold">
-                <Flame className="size-4" /> Deals
-              </Link>
+            <div className="hidden md:flex items-center gap-3 pr-2 shrink-0 border-l border-border/60 pl-4">
               <Link
                 to="/"
-                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:text-gold transition-colors"
               >
                 <HelpCircle className="size-4" /> Support
               </Link>
@@ -810,35 +838,95 @@ export function Header() {
           </div>
         </div>
 
-        {/* â”€â”€ Category mega dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Category mega dropdown ───────────────────────────── */}
         {catOpen && (
           <div
-            className="absolute left-0 right-0 top-full border-b border-border bg-background/95 backdrop-blur-xl shadow-2xl"
+            className="absolute left-0 right-0 top-full border-b border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
             onMouseLeave={() => setCatOpen(false)}
           >
-            <div className="container-page py-8 grid grid-cols-2 md:grid-cols-4 gap-2">
-              {navCategories.map((c) => {
-                const Icon = getCategoryIcon(c.slug, c.icon);
-                const count = listingsCounts[c.slug] ?? 0;
-                const countStr = `${count.toLocaleString()} ${count === 1 ? "Listing" : "Listings"}`;
-                return (
-                  <Link
-                    key={c.slug}
-                    to="/category/$slug"
-                    params={{ slug: c.slug } as any}
-                    onClick={() => setCatOpen(false)}
-                    className="flex items-center gap-3 rounded-lg p-3 hover:bg-surface transition-colors"
-                  >
-                    <div className="size-9 rounded-md border border-gold/20 bg-gold/10 flex items-center justify-center">
-                      <Icon className="size-4 text-gold" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{countStr}</div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="container-page py-6 grid grid-cols-1 md:grid-cols-12 gap-8 min-h-[400px]">
+              {/* Left Side - Quick Lists */}
+              <div className="md:col-span-3 space-y-6">
+                <div>
+                  <h3 className="text-xs font-bold text-gold uppercase tracking-wider mb-3">Popular Categories</h3>
+                  <div className="space-y-1">
+                    {navCategories.slice(0, 5).map(c => (
+                      <Link
+                        key={c.slug}
+                        to="/category/$slug"
+                        params={{ slug: c.slug } as any}
+                        onClick={() => setCatOpen(false)}
+                        className="block px-3 py-2 -mx-3 text-sm text-foreground/80 hover:text-gold hover:bg-surface/50 rounded-lg transition-colors"
+                      >
+                        {c.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-gold uppercase tracking-wider mb-3">Trending Now</h3>
+                  <div className="space-y-1">
+                    {navCategories.slice(5, 8).map(c => (
+                      <Link
+                        key={c.slug}
+                        to="/category/$slug"
+                        params={{ slug: c.slug } as any}
+                        onClick={() => setCatOpen(false)}
+                        className="block px-3 py-2 -mx-3 text-sm text-foreground/80 hover:text-gold hover:bg-surface/50 rounded-lg transition-colors"
+                      >
+                        <Flame className="size-3.5 inline mr-1.5 text-orange-500" />
+                        {c.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side - Search & Grid */}
+              <div className="md:col-span-9 flex flex-col">
+                <div className="relative mb-6 flex items-center">
+                  <Search className="absolute left-4 size-4 text-muted-foreground" />
+                  <input
+                    value={megaSearch}
+                    onChange={(e) => setMegaSearch(e.target.value)}
+                    placeholder="Search all categories (e.g. Valorant, Coaching, Spotify...)"
+                    className="w-full h-12 pl-12 pr-4 rounded-xl bg-surface/50 border border-border focus:border-gold/50 outline-none text-sm transition-colors placeholder:text-muted-foreground"
+                    autoFocus
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 overflow-y-auto max-h-[350px] scrollbar-thin pr-2 pb-2">
+                  {navCategories
+                    .filter(c => c.name.toLowerCase().includes(megaSearch.toLowerCase()))
+                    .map((c) => {
+                    const Icon = getCategoryIcon(c.slug, c.icon);
+                    const count = listingsCounts[c.slug] ?? 0;
+                    return (
+                      <Link
+                        key={c.slug}
+                        to="/category/$slug"
+                        params={{ slug: c.slug } as any}
+                        onClick={() => setCatOpen(false)}
+                        className="group relative flex items-center gap-3 rounded-xl p-3 border border-border/50 hover:border-gold/50 bg-surface/30 hover:bg-surface transition-all overflow-hidden"
+                      >
+                        {c.banner_image_url && (
+                          <div className="absolute inset-0 opacity-5 group-hover:opacity-15 transition-opacity pointer-events-none">
+                            <img src={c.banner_image_url} alt="" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-background to-background/50" />
+                          </div>
+                        )}
+                        <div className="relative z-10 size-10 rounded-lg border border-gold/20 bg-gold/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          <Icon className="size-5 text-gold drop-shadow-md" />
+                        </div>
+                        <div className="relative z-10 min-w-0">
+                          <div className="text-sm font-semibold truncate group-hover:text-gold transition-colors">{c.name}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">{count.toLocaleString()} Listings</div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}

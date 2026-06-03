@@ -17,6 +17,10 @@ type Category = {
   parent_id: string | null;
   icon: string | null;
   sort: number;
+  banner_image_url?: string | null;
+  banner_title?: string | null;
+  banner_subtitle?: string | null;
+  cta_text?: string | null;
 };
 
 function CategoryModal({
@@ -33,6 +37,10 @@ function CategoryModal({
   const [slug, setSlug] = useState(category?.slug ?? "");
   const [sort, setSort] = useState(String(category?.sort ?? "0"));
   const [icon, setIcon] = useState(category?.icon ?? "");
+  const [bannerImageUrl, setBannerImageUrl] = useState(category?.banner_image_url ?? "");
+  const [bannerTitle, setBannerTitle] = useState(category?.banner_title ?? "");
+  const [bannerSubtitle, setBannerSubtitle] = useState(category?.banner_subtitle ?? "");
+  const [ctaText, setCtaText] = useState(category?.cta_text ?? "");
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -50,6 +58,10 @@ function CategoryModal({
       slug: slug.trim().toLowerCase(),
       sort_order: parseInt(sort) || 0,
       icon: icon.trim() || null,
+      banner_image_url: bannerImageUrl.trim() || null,
+      banner_title: bannerTitle.trim() || null,
+      banner_subtitle: bannerSubtitle.trim() || null,
+      cta_text: ctaText.trim() || null,
     };
 
     try {
@@ -123,6 +135,51 @@ function CategoryModal({
               />
             </div>
           </div>
+
+          <div className="pt-4 border-t border-border mt-4">
+            <h3 className="text-sm font-bold text-gold mb-4">Hero Banner Config</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Banner Image URL</label>
+                <input
+                  value={bannerImageUrl}
+                  onChange={(e) => setBannerImageUrl(e.target.value)}
+                  placeholder="e.g. /images/categories/digital-products.jpg"
+                  className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Banner Title</label>
+                  <input
+                    value={bannerTitle}
+                    onChange={(e) => setBannerTitle(e.target.value)}
+                    placeholder="e.g. Digital Products"
+                    className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">CTA Text</label>
+                  <input
+                    value={ctaText}
+                    onChange={(e) => setCtaText(e.target.value)}
+                    placeholder="e.g. Browse Products"
+                    className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Banner Subtitle</label>
+                <textarea
+                  value={bannerSubtitle}
+                  onChange={(e) => setBannerSubtitle(e.target.value)}
+                  placeholder="e.g. Buy Software, Subscriptions, Licenses, and Digital Assets"
+                  rows={2}
+                  className="w-full p-3 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm resize-none"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-3 mt-6">
@@ -166,7 +223,11 @@ function Page() {
     const mapped = (data ?? []).map((c: any) => ({
       ...c,
       title: c.name ?? "",
-      sort: c.sort_order ?? 0
+      sort: c.sort_order ?? 0,
+      banner_image_url: c.banner_image_url,
+      banner_title: c.banner_title,
+      banner_subtitle: c.banner_subtitle,
+      cta_text: c.cta_text,
     }));
     setCategories(mapped as Category[]);
     setLoading(false);

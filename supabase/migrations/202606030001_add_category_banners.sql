@@ -1,0 +1,5 @@
+ALTER TABLE public.categories 
+ADD COLUMN IF NOT EXISTS banner_image_url TEXT,
+ADD COLUMN IF NOT EXISTS banner_title TEXT,
+ADD COLUMN IF NOT EXISTS banner_subtitle TEXT,
+ADD COLUMN IF NOT EXISTS cta_text TEXT;
