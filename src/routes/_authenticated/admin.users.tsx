@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { useEffect, useState } from "react";
 import { listAdminUsers, updateUserRole } from "@/lib/admin/role.functions";
@@ -6,7 +6,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
 import { useAuth } from "@/lib/auth/auth-context";
-import { Search, UserCheck, ShieldAlert, Ban, CheckCircle, AlertTriangle } from "lucide-react";
+import { Search, UserCheck, ShieldAlert, Ban, CheckCircle, AlertTriangle, X, StickyNote, Lock, Unlock, LogIn } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Manage Users — HUXZAIN Admin" }] }),
@@ -51,10 +51,18 @@ function getPrimaryRole(roles: Role[]): string {
 
 function Page() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const isSuper = auth.roles.includes("owner") || auth.roles.includes("super_admin");
+
+  // Modal Detail states
+  const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
+  const [userNotes, setUserNotes] = useState("");
+  const [isUserFrozen, setIsUserFrozen] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [freezeChanging, setFreezeChanging] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -73,7 +81,6 @@ function Page() {
       }
 
       console.log("[AdminUsers] Querying Supabase database directly from client side...");
-      // 1. Fetch user profiles with fallback if role column is missing
       let profiles: any[] | null = null;
       let pErr: any = null;
       try {
@@ -97,14 +104,12 @@ function Page() {
         profiles = res.data;
       }
 
-      // 2. Fetch user roles
       const { data: roleRows, error: rErr } = await sb
         .from("user_roles")
         .select("user_id, role");
 
       if (rErr) throw rErr;
 
-      // 3. Map roles
       const roleMap: Record<string, string[]> = {};
       roleRows?.forEach((row) => {
         const uid = row.user_id;
@@ -113,11 +118,8 @@ function Page() {
         roleMap[uid].push(r);
       });
 
-      // 4. Combine
       const combined = (profiles ?? []).map((p: any) => {
         const roles = roleMap[p.id] ?? [];
-        
-        // Supplement with granular role from profiles.role if it exists
         const granularRole = p.role;
         if (
           granularRole &&
@@ -147,7 +149,6 @@ function Page() {
       console.log("[AdminUsers] Users successfully loaded directly from DB:", combined.length);
     } catch (e: any) {
       console.error("[AdminUsers] Direct query failed, executing server function fallback:", e);
-      
       try {
         const sb = getSupabase();
         const { data: { session } } = await sb!.auth.getSession();
@@ -173,15 +174,200 @@ function Page() {
     fetchUsers();
   }, []);
 
+  // Fetch notes and freeze details for details view
+  const loadUserControls = async (userId: string) => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    try {
+      const { data, error } = await sb
+        .from("reports")
+        .select("*")
+        .eq("target_id", userId)
+        .eq("target_type", "seller");
+      
+      if (error) throw error;
+      
+      const noteRow = data?.find(r => r.reason === "internal_notes");
+      const freezeRow = data?.find(r => r.reason === "freeze");
+
+      setUserNotes(noteRow?.note || "");
+      setIsUserFrozen(freezeRow ? freezeRow.status === "open" : false);
+    } catch (e) {
+      console.error("Failed to load user controls:", e);
+      setUserNotes("");
+      setIsUserFrozen(false);
+    }
+  };
+
+  const handleOpenDetails = async (u: ManagedUser) => {
+    setSelectedUser(u);
+    await loadUserControls(u.id);
+  };
+
+  // Save notes handler
+  const handleSaveNotes = async () => {
+    if (!selectedUser) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    try {
+      setNotesSaving(true);
+      
+      const { data: existing } = await sb
+        .from("reports")
+        .select("id")
+        .eq("target_id", selectedUser.id)
+        .eq("target_type", "seller")
+        .eq("reason", "internal_notes")
+        .maybeSingle();
+
+      if (existing) {
+        await sb
+          .from("reports")
+          .update({ note: userNotes, updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+      } else {
+        await sb
+          .from("reports")
+          .insert({
+            target_id: selectedUser.id,
+            target_type: "seller",
+            reason: "internal_notes",
+            note: userNotes,
+            status: "resolved"
+          });
+      }
+
+      // Sync directly to the profiles table internal_notes column
+      await sb
+        .from("profiles")
+        .update({ internal_notes: userNotes, updated_at: new Date().toISOString() })
+        .eq("id", selectedUser.id);
+
+      // Log staff action
+      if (auth.user) {
+        try {
+          await sb.from("staff_action_logs").insert({
+            staff_id: auth.user.id,
+            action: "update_internal_notes",
+            target_type: "user",
+            target_id: selectedUser.id,
+            new_value: userNotes,
+            ip_address: "Client Session"
+          });
+        } catch (err) {
+          console.error("Failed to log staff action:", err);
+        }
+      }
+
+      toast.success("Internal notes updated successfully!");
+    } catch (e: any) {
+      toast.error("Failed to save notes: " + e.message);
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
+  // Toggle freeze handler
+  const handleToggleFreeze = async () => {
+    if (!selectedUser) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    const nextFreeze = !isUserFrozen;
+
+    try {
+      setFreezeChanging(true);
+      
+      const { data: existing } = await sb
+        .from("reports")
+        .select("id")
+        .eq("target_id", selectedUser.id)
+        .eq("target_type", "seller")
+        .eq("reason", "freeze")
+        .maybeSingle();
+
+      if (existing) {
+        await sb
+          .from("reports")
+          .update({ status: nextFreeze ? "open" : "resolved", updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+      } else {
+        await sb
+          .from("reports")
+          .insert({
+            target_id: selectedUser.id,
+            target_type: "seller",
+            reason: "freeze",
+            note: "Account withdrawals frozen by administrator",
+            status: nextFreeze ? "open" : "resolved"
+          });
+      }
+
+      // Sync directly to the profiles table frozen_at column
+      await sb
+        .from("profiles")
+        .update({ frozen_at: nextFreeze ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
+        .eq("id", selectedUser.id);
+
+      // Log staff action
+      if (auth.user) {
+        try {
+          await sb.from("staff_action_logs").insert({
+            staff_id: auth.user.id,
+            action: nextFreeze ? "freeze_user" : "unfreeze_user",
+            target_type: "user",
+            target_id: selectedUser.id,
+            new_value: nextFreeze ? "frozen" : "active",
+            ip_address: "Client Session"
+          });
+        } catch (err) {
+          console.error("Failed to log staff action:", err);
+        }
+      }
+
+      setIsUserFrozen(nextFreeze);
+      toast.success(nextFreeze ? "User payouts and withdrawals frozen!" : "User payouts and withdrawals unfrozen.");
+    } catch (e: any) {
+      toast.error("Failed to toggle freeze override: " + e.message);
+    } finally {
+      setFreezeChanging(false);
+    }
+  };
+
+  // Login simulation handler
+  const handleSimulateLogin = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const sb = getSupabase();
+      if (sb) {
+        // Log simulation access
+        await sb.from("support_tickets").insert({
+          user_id: auth.user?.id,
+          title: `Simulated Login: Admin entered profile of ${selectedUser.email}`,
+          category: "safety",
+          status: "open"
+        });
+      }
+      
+      await auth.simulateUser(selectedUser.id);
+      toast.success(`Simulation active: Now acting as ${selectedUser.display_name || selectedUser.username}`);
+      setSelectedUser(null);
+      navigate({ to: "/dashboard" });
+    } catch (e: any) {
+      toast.error("Failed to start simulation: " + e.message);
+    }
+  };
+
   const handleRoleChange = async (userId: string, newPrimaryRole: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
 
-    // Self-demotion protection check (prevents locking out last admin)
     if (userId === auth.user?.id) {
       const isDemoting = !["admin", "super_admin", "owner"].includes(newPrimaryRole);
       if (isDemoting) {
-        // Count other admins
         const otherAdmins = users.filter(
           (u) =>
             u.id !== auth.user?.id &&
@@ -197,10 +383,7 @@ function Page() {
       }
     }
 
-    // Keep track of the original roles for rollback
     const originalRoles = [...user.roles];
-
-    // Build new roles array
     const newRoles: Role[] = ["buyer"];
     if (newPrimaryRole !== "buyer") {
       newRoles.push(newPrimaryRole as Role);
@@ -212,7 +395,6 @@ function Page() {
     const uniqueNewRoles = Array.from(new Set(newRoles));
 
     try {
-      // 1. Optimistic UI update: change state immediately for instant responsiveness
       setUsers((prev) =>
         prev.map((u) =>
           u.id === userId ? { ...u, roles: uniqueNewRoles } : u
@@ -235,24 +417,34 @@ function Page() {
       if (!res?.success) {
         throw new Error(res?.error || "Failed to update roles");
       }
+      // Log staff action
+      try {
+        await sb.from("staff_action_logs").insert({
+          staff_id: auth.user?.id,
+          action: "update_user_roles",
+          target_type: "user",
+          target_id: userId,
+          previous_value: originalRoles.join(","),
+          new_value: uniqueNewRoles.join(","),
+          ip_address: "Client Session"
+        });
+      } catch (err) {
+        console.error("Failed to log staff action for role update:", err);
+      }
 
       toast.success("User role updated successfully!");
 
-      // If we updated ourselves, refresh auth metadata immediately so that permissions apply instantly
       if (userId === auth.user?.id) {
         await auth.refreshUserMeta();
         toast.info("Your administrative privileges have been refreshed.");
       }
     } catch (e: any) {
       console.error("[AdminUsers] Role update failed, rolling back:", e);
-      
-      // 4. Rollback: revert UI state to original roles on error
       setUsers((prev) =>
         prev.map((u) =>
           u.id === userId ? { ...u, roles: originalRoles } : u
         )
       );
-
       toast.error("Failed to update role: " + e.message);
     }
   };
@@ -348,7 +540,7 @@ function Page() {
             placeholder="Search by name, username, or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-surface/50 border border-border/80 rounded-xl outline-none focus:border-gold/50 transition-all placeholder:text-muted-foreground"
+            className="w-full pl-9 pr-4 py-2 text-sm bg-surface/50 border border-border/80 rounded-xl outline-none focus:border-gold/50 transition-all placeholder:text-muted-foreground text-foreground"
           />
         </div>
       </div>
@@ -383,7 +575,11 @@ function Page() {
                     : ADMIN_ROLE_OPTIONS.filter((o) => !["admin", "super_admin", "owner"].includes(o.value));
 
                   return (
-                    <tr key={user.id} className="border-b border-border/50 hover:bg-surface/30 transition-colors">
+                    <tr 
+                      key={user.id} 
+                      className="border-b border-border/50 hover:bg-surface/30 transition-colors cursor-pointer"
+                      onClick={() => handleOpenDetails(user)}
+                    >
                       <td className="py-4.5">
                         <div className="flex flex-col">
                           <span className="font-semibold text-foreground flex items-center gap-1.5">
@@ -406,7 +602,7 @@ function Page() {
                           day: "numeric",
                         })}
                       </td>
-                      <td className="py-4.5">
+                      <td className="py-4.5" onClick={e => e.stopPropagation()}>
                         <div className="flex flex-wrap gap-1.5">
                           {isSuspended ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
@@ -429,7 +625,7 @@ function Page() {
                           )}
                         </div>
                       </td>
-                      <td className="py-4.5">
+                      <td className="py-4.5" onClick={e => e.stopPropagation()}>
                         <select
                           value={primaryRole}
                           onChange={(e) => handleRoleChange(user.id, e.target.value)}
@@ -442,36 +638,14 @@ function Page() {
                             </option>
                           ))}
                         </select>
-                        {!canEditTarget ? (
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            Only Super Admin can edit Super Admin / Owner roles.
-                          </div>
-                        ) : null}
                       </td>
-                      <td className="py-4.5 text-right">
+                      <td className="py-4.5 text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => toggleVerify(user.id, !user.is_verified)}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all ${
-                              user.is_verified
-                                ? "border-amber-500/20 text-amber-400 hover:bg-amber-500/10"
-                                : "border-gold/20 text-gold hover:bg-gold/10"
-                            }`}
+                            onClick={() => handleOpenDetails(user)}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-surface"
                           >
-                            {user.is_verified ? "Revoke Verification" : "Verify User"}
-                          </button>
-                          <button
-                            onClick={() => toggleSuspend(user.id, !isSuspended)}
-                            disabled={isMe}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all ${
-                              isMe
-                                ? "border-transparent text-muted-foreground/30 cursor-not-allowed"
-                                : isSuspended
-                                ? "border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10"
-                                : "border-red-500/20 text-red-400 hover:bg-red-500/10"
-                            }`}
-                          >
-                            {isSuspended ? "Unsuspend" : "Suspend"}
+                            View details
                           </button>
                         </div>
                       </td>
@@ -483,6 +657,127 @@ function Page() {
           </div>
         )}
       </PanelCard>
+
+      {/* User Details Modal Drawer */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-surface border border-border w-full max-w-lg rounded-3xl p-6 relative shadow-2xl flex flex-col gap-5 text-sm">
+            <button
+              onClick={() => setSelectedUser(null)}
+              className="absolute top-4 right-4 size-8 rounded-full hover:bg-surface-elevated text-muted-foreground hover:text-foreground flex items-center justify-center transition-all border-none bg-transparent cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-gold font-bold">User Control Center</div>
+              <h2 className="font-display font-bold text-lg text-foreground mt-1">
+                {selectedUser.display_name || selectedUser.username || "User Details"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate">{selectedUser.id}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 bg-background/40 p-4 rounded-2xl border border-border/60">
+              <div>
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold">Registered Email</span>
+                <div className="font-mono text-xs font-bold text-foreground mt-1 truncate">{selectedUser.email || "—"}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold">Username</span>
+                <div className="font-mono text-xs font-bold text-foreground mt-1">@{selectedUser.username || "—"}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold">Registration Date</span>
+                <div className="text-xs font-bold text-foreground mt-1">
+                  {new Date(selectedUser.created_at).toLocaleDateString()}
+                </div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold">Verification Badge</span>
+                <div className="text-xs font-bold mt-1 text-gold">
+                  {selectedUser.is_verified ? "Approved Verification" : "Not Verified"}
+                </div>
+              </div>
+            </div>
+
+            {/* Withdrawals Freeze Override */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-surface-elevated">
+              <div className="flex gap-2">
+                {isUserFrozen ? <Lock className="text-red-400 size-5 shrink-0" /> : <Unlock className="text-emerald-400 size-5 shrink-0" />}
+                <div>
+                  <div className="font-bold text-xs">Freeze Withdrawals</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Freeze all wallet payouts and withdrawal actions.</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={freezeChanging}
+                onClick={handleToggleFreeze}
+                className={`h-8 px-4 rounded-xl text-xs font-bold transition-all border-none cursor-pointer ${
+                  isUserFrozen ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-red-500 text-white hover:bg-red-600"
+                }`}
+              >
+                {freezeChanging ? "Processing…" : isUserFrozen ? "Unfreeze Payouts" : "Freeze Payouts"}
+              </button>
+            </div>
+
+            {/* Internal Notes */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1">
+                <StickyNote size={14} className="text-gold" />
+                <span className="text-[10px] uppercase text-muted-foreground font-semibold">Staff Internal Notes (Private to Admin)</span>
+              </div>
+              <textarea
+                value={userNotes}
+                onChange={e => setUserNotes(e.target.value)}
+                placeholder="Add audit history warnings, customer behavior notes, or staff reviews..."
+                className="w-full min-h-[90px] p-3 text-xs bg-background/60 border border-border rounded-2xl focus:border-gold/50 outline-none text-foreground placeholder:text-muted-foreground/60 resize-none"
+              />
+              <button
+                type="button"
+                disabled={notesSaving}
+                onClick={handleSaveNotes}
+                className="h-8 px-4 rounded-xl bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all self-end border-none cursor-pointer"
+              >
+                {notesSaving ? "Saving Notes…" : "Save Notes"}
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleVerify(selectedUser.id, !selectedUser.is_verified)}
+                  className="h-9 px-4 rounded-xl border border-border text-xs font-bold hover:bg-surface transition-all cursor-pointer bg-transparent text-foreground"
+                >
+                  {selectedUser.is_verified ? "Revoke Verification" : "Approve Verification"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSuspend(selectedUser.id, !selectedUser.suspended_at)}
+                  className={`h-9 px-4 rounded-xl border text-xs font-bold transition-all cursor-pointer bg-transparent ${
+                    selectedUser.suspended_at ? "border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10" : "border-red-500/20 text-red-400 hover:bg-red-500/10"
+                  }`}
+                >
+                  {selectedUser.suspended_at ? "Unsuspend Account" : "Suspend Account"}
+                </button>
+              </div>
+
+              {/* Login Simulation Button */}
+              {selectedUser.id !== auth.user?.id && (
+                <button
+                  type="button"
+                  onClick={handleSimulateLogin}
+                  className="h-9 px-4 rounded-xl bg-gold text-black font-extrabold text-xs inline-flex items-center gap-1.5 hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer"
+                >
+                  <LogIn size={13} /> Login As User
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

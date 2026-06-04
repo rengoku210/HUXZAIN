@@ -5,6 +5,8 @@ import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
 
+import { requestOtp } from "@/lib/auth.functions";
+
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { redirect?: string } => ({
     redirect: s.redirect ? String(s.redirect) : undefined,
@@ -21,7 +23,6 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [magicSent, setMagicSent] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,7 +34,7 @@ function LoginPage() {
     } catch (ex) {
       const errMsg = (ex as Error).message;
       if (errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('user not found') || errMsg.toLowerCase().includes('invalid login credentials')) {
-        toast.error('This email already has an account. Try signing in with Google or request a magic link.', { id: 'bk9k6e' });
+        toast.error('This email already has an account. Try signing in with Google or request an OTP.', { id: 'bk9k6e' });
       } else {
         toast.error(errMsg);
       }
@@ -45,23 +46,29 @@ function LoginPage() {
 
   const onMagicLink = async () => {
     if (!email) {
-      setErr('Please enter your email first.');
+      toast.error('Please enter your email first.');
       return;
     }
     setErr(null);
     setBusy(true);
     try {
-      await auth.signInWithOtp(email);
-      // Success messages – use specific toast IDs for consistency
-      toast.success('Magic link sent successfully. Check your email inbox.', { id: 'zzs20w' });
-      setMagicSent(true);
+      // Clear any signup metadata to prevent registration collision
+      sessionStorage.removeItem("huxzain_signup_metadata");
+      
+      await requestOtp({ data: { email } });
+      toast.success('Verification code sent successfully. Check your email.', { id: 'zzs20w' });
+      
+      // Redirect user to the premium OTP verification route
+      nav({ 
+        to: "/verify-email", 
+        search: { 
+          email, 
+          intent: redirect?.includes('intent=seller') ? 'seller' : undefined 
+        } 
+      });
     } catch (ex) {
       const errMsg = (ex as Error).message;
-      if (errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('user already exists')) {
-        toast.error('This email already has an account. Try signing in with Google or request a magic link.', { id: 'bk9k6e' });
-      } else {
-        toast.error(errMsg, { id: '1zcqms' });
-      }
+      toast.error(errMsg, { id: '1zcqms' });
       setErr(errMsg);
     } finally {
       setBusy(false);
@@ -75,7 +82,7 @@ function LoginPage() {
     } catch (ex) {
       const errMsg = (ex as Error).message;
       if (errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('user already exists')) {
-        toast.error('This email already has an account. Try signing in with password or request a magic link.', { id: 'bk9k6e' });
+        toast.error('This email already has an account. Try signing in with password or request an OTP.', { id: 'bk9k6e' });
       } else {
         toast.error(errMsg);
       }
@@ -110,25 +117,22 @@ function LoginPage() {
               required
             />
             {err && <div className="text-xs text-red-400">{err}</div>}
-            {magicSent && (
-              <div className="text-xs text-gold">Magic link sent! Check your inbox.</div>
-            )}
             <div className="flex flex-col gap-3">
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full h-11 rounded-lg bg-gold text-primary-foreground font-semibold text-sm hover:brightness-110 disabled:opacity-60"
+                className="w-full h-11 rounded-lg bg-gold text-primary-foreground font-semibold text-sm hover:brightness-110 disabled:opacity-60 cursor-pointer"
               >
                 {busy ? "Signing in…" : "Sign in"}
               </button>
               <button
-          type="button"
-          onClick={onMagicLink}
-          disabled={busy}
-          className="w-full h-11 rounded-lg border border-border text-sm hover:border-gold/40 disabled:opacity-60"
-        >
-          {busy ? "Sending magic link…" : "Sign in with Magic Link"}
-        </button>
+                type="button"
+                onClick={onMagicLink}
+                disabled={busy}
+                className="w-full h-11 rounded-lg border border-border text-sm hover:border-gold/40 disabled:opacity-60 cursor-pointer"
+              >
+                {busy ? "Sending code…" : "Sign in with OTP"}
+              </button>
             </div>
           </form>
 

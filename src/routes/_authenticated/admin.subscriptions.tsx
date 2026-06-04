@@ -1,310 +1,276 @@
+// src/routes/_authenticated/admin.subscriptions.tsx
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { 
-  Check, 
-  X, 
-  Eye, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  Search
-} from "lucide-react";
+import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
+import { PanelCard, EmptyState } from "@/components/seller/SellerShell";
+import { 
+  Sparkles, 
+  RefreshCw, 
+  Search, 
+  Settings, 
+  ShieldCheck, 
+  Clock, 
+  Calendar, 
+  Award,
+  User,
+  Plus
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/subscriptions")({
-  head: () => ({ meta: [{ title: "Subscriptions Review — Admin" }] }),
-  component: AdminSubscriptionsPage,
+  head: () => ({ meta: [{ title: "Subscriptions Manager — HUXZAIN Admin" }] }),
+  component: SubscriptionsManager,
 });
 
-type PaymentProof = {
+interface SubscriberRecord {
   id: string;
-  user_id: string;
-  selected_plan: string;
-  amount: number;
-  screenshot_url: string;
-  status: string;
-  rejection_reason?: string | null;
-  created_at: string;
-  profiles?: {
-    display_name?: string | null;
-    username?: string | null;
-    email?: string | null;
-  } | null;
-};
+  username: string | null;
+  display_name: string | null;
+  email: string | null;
+  subscription_tier: string | null;
+  subscription_expires_at: string | null;
+}
 
-function AdminSubscriptionsPage() {
-  const [proofs, setProofs] = useState<PaymentProof[]>([]);
+function SubscriptionsManager() {
+  const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeProof, setActiveProof] = useState<PaymentProof | null>(null);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [actioning, setActioning] = useState(false);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [search, setSearch] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const [editingUser, setEditingUser] = useState<SubscriberRecord | null>(null);
+  
+  // Edit plan state
+  const [selectedTier, setSelectedTier] = useState("free");
+  const [selectedExpiry, setSelectedExpiry] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  async function fetchProofs() {
-    const supabase = getSupabase();
+  const supabase = getSupabase();
+
+  const fetchSubscribers = async () => {
     if (!supabase) return;
     setLoading(true);
     try {
+      // Query profiles that have is_seller true or are already on premium tiers
       const { data, error } = await supabase
-        .from("subscription_payment_proofs")
-        .select(`
-          *,
-          profiles:user_id (
-            display_name,
-            username
-          )
-        `)
-        .order("created_at", { ascending: false });
+        .from("profiles")
+        .select("id, username, display_name, email, subscription_tier, subscription_expires_at")
+        .eq("is_seller", true);
 
       if (error) throw error;
-
-      if (data) {
-        const mapped = data.map(proof => ({
-          ...proof,
-          profiles: proof.profiles ? {
-            display_name: proof.profiles.display_name,
-            username: proof.profiles.username,
-            email: null
-          } : null
-        }));
-        setProofs(mapped as PaymentProof[]);
-      } else {
-        setProofs([]);
-      }
-    } catch (err: any) {
-      console.error("[AdminSubscriptions] Error fetching proofs:", err);
-      toast.error(`Failed to fetch payment proofs: ${err.message}`);
+      setSubscribers(data || []);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Failed to load subscribers list: ${e.message}`);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchProofs();
+    fetchSubscribers();
   }, []);
 
-  const executeApprove = async () => {
-    const supabase = getSupabase();
-    if (!supabase || !activeProof) return;
+  const openEditModal = (user: SubscriberRecord) => {
+    setEditingUser(user);
+    setSelectedTier(user.subscription_tier || "free");
     
-    setActioning(true);
-    console.log("[AdminSubscriptions] Initiating approval for subscription proof ID:", activeProof.id);
+    if (user.subscription_expires_at) {
+      setSelectedExpiry(new Date(user.subscription_expires_at).toISOString().split("T")[0]);
+    } else {
+      setSelectedExpiry("");
+    }
+  };
 
+  const handleUpdatePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase || !editingUser) return;
+
+    setSaving(true);
     try {
-      console.log(`[Admin Approval] Approving proof ${activeProof.id} for user ${activeProof.user_id}...`);
-      
-      // 1. Update payment proof status to 'approved'
-      const { data: updateData, error: proofErr } = await supabase
-        .from("subscription_payment_proofs")
-        .update({ status: "approved", rejection_reason: null })
-        .eq("id", activeProof.id)
-        .select("*");
+      const { data: authUser } = await supabase.auth.getUser();
+      const staffId = authUser.user?.id;
 
-      console.log("[AdminApproval] Supabase update response for subscription proof:", updateData);
-      if (proofErr) throw proofErr;
+      const expiryIso = selectedExpiry ? new Date(selectedExpiry).toISOString() : null;
 
-      // 2. Activate plan on user's profile table
-      const planName = activeProof.selected_plan.toLowerCase(); // pro, elite, enterprise
-      const { error: profileErr } = await supabase
+      // 1. Update profiles table
+      const { error: updErr } = await supabase
         .from("profiles")
-        .update({ subscription_tier: planName })
-        .eq("id", activeProof.user_id);
-
-      if (profileErr) throw profileErr;
-
-      toast.success(`Subscription payment approved! ${activeProof.selected_plan} plan is now active for this seller.`);
-      
-      // OPTIMISTIC STATE UPDATE
-      setProofs(prevProofs => 
-        prevProofs.map(p => 
-          p.id === activeProof.id 
-            ? { ...p, status: "approved", rejection_reason: null } 
-            : p
-        )
-      );
-
-      setShowApproveModal(false);
-      setActiveProof(null);
-      
-      console.log("[AdminApproval] Reloading subscription proofs...");
-      await fetchProofs();
-      console.log("[AdminApproval] Reload completed successfully!");
-    } catch (err: any) {
-      console.error("[Admin Approval] Failure:", err);
-      toast.error(`Failed to approve payment: ${err.message}`);
-    } finally {
-      setActioning(false);
-    }
-  };
-
-  const handleRejectSubmit = async () => {
-    const supabase = getSupabase();
-    if (!supabase || !activeProof) return;
-
-    const trimmedReason = rejectionReason.trim() || "No reason specified";
-    setActioning(true);
-    console.log("[AdminRejection] Initiating rejection for subscription proof ID:", activeProof.id, "with reason:", trimmedReason);
-
-    try {
-      console.log(`[Admin Rejection] Rejecting proof ${activeProof.id}...`);
-
-      // 1. Update status to 'rejected' and save reason
-      const { data: updateData, error } = await supabase
-        .from("subscription_payment_proofs")
-        .update({ 
-          status: "rejected", 
-          rejection_reason: trimmedReason 
+        .update({
+          subscription_tier: selectedTier,
+          subscription_expires_at: expiryIso,
+          updated_at: new Date().toISOString()
         })
-        .eq("id", activeProof.id)
-        .select("*");
+        .eq("id", editingUser.id);
 
-      console.log("[AdminRejection] Supabase rejection response:", updateData);
-      if (error) throw error;
+      if (updErr) throw updErr;
 
-      toast.success("Subscription payment proof has been rejected.");
+      // 2. Log staff action
+      if (staffId) {
+        await supabase.from("staff_action_logs").insert({
+          staff_id: staffId,
+          action: "update_seller_subscription",
+          target_type: "profile",
+          target_id: editingUser.id,
+          previous_value: JSON.stringify({
+            tier: editingUser.subscription_tier,
+            expiry: editingUser.subscription_expires_at
+          }),
+          new_value: JSON.stringify({
+            tier: selectedTier,
+            expiry: expiryIso
+          }),
+          notes: `Manually changed seller subscription plan to ${selectedTier.toUpperCase()}`
+        });
+      }
 
-      // OPTIMISTIC STATE UPDATE
-      setProofs(prevProofs => 
-        prevProofs.map(p => 
-          p.id === activeProof.id 
-            ? { ...p, status: "rejected", rejection_reason: trimmedReason } 
-            : p
-        )
-      );
+      // 3. Notify user
+      await supabase.from("notifications").insert({
+        user_id: editingUser.id,
+        kind: "subscription.updated",
+        title: "Subscription Status Changed",
+        body: `Your seller subscription plan has been updated to ${selectedTier.toUpperCase()} by the platform administrator.`
+      });
 
-      setShowRejectModal(false);
-      setRejectionReason("");
-      setActiveProof(null);
-
-      console.log("[AdminRejection] Reloading subscription proofs...");
-      await fetchProofs();
-      console.log("[AdminRejection] Reload completed successfully!");
-    } catch (err: any) {
-      console.error("[Admin Rejection] Failure:", err);
-      toast.error(`Failed to reject payment: ${err.message}`);
+      toast.success("Seller subscription tier updated successfully.");
+      setEditingUser(null);
+      await fetchSubscribers();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Failed to update subscription: ${e.message}`);
     } finally {
-      setActioning(false);
+      setSaving(false);
     }
   };
 
-  const filtered = proofs.filter((p) => {
-    const matchesFilter = filter === "all" || p.status === filter;
-    const name = p.profiles?.display_name || p.profiles?.username || "";
-    const email = p.profiles?.email || "";
-    const matchesSearch = 
-      name.toLowerCase().includes(search.toLowerCase()) || 
-      email.toLowerCase().includes(search.toLowerCase()) ||
-      p.selected_plan.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
+  const filtered = subscribers.filter((sub) => {
+    const matchesPlan = planFilter === "all" || (sub.subscription_tier || "free") === planFilter;
+    
+    const name = sub.display_name || sub.username || "";
+    const email = sub.email || "";
+    
+    const matchesSearch =
+      sub.id.toLowerCase().includes(search.toLowerCase()) ||
+      name.toLowerCase().includes(search.toLowerCase()) ||
+      email.toLowerCase().includes(search.toLowerCase());
+      
+    return matchesPlan && matchesSearch;
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "approved": return "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-      case "rejected": return "text-red-400 bg-red-500/10 border-red-500/20";
-      case "pending":
-      default: return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+  const getTierColor = (tier: string | null) => {
+    switch (tier) {
+      case "elite":
+        return "text-purple-400 bg-purple-500/10 border-purple-500/20";
+      case "pro":
+        return "text-gold bg-gold/10 border-gold/20";
+      case "enterprise":
+        return "text-blue-400 bg-blue-500/10 border-blue-500/20";
+      case "free":
+      case null:
+      default:
+        return "text-muted-foreground bg-surface border-border";
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center flex-wrap gap-3">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
-          <h1 className="font-display text-2xl font-bold">Subscription Payments</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Sparkles className="size-6 text-gold" /> Seller Subscriptions Manager
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Review and verify manual UPI payment screenshots for seller subscriptions.
+            Track premium subscription tiers, manually override plan structures, and extend active plans.
           </p>
         </div>
         <button
-          onClick={fetchProofs}
-          disabled={loading}
-          className="h-10 px-4 rounded-xl border border-border bg-surface/30 hover:bg-surface inline-flex items-center gap-1.5 transition-all text-sm"
+          onClick={fetchSubscribers}
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-border text-sm hover:border-gold/50 cursor-pointer bg-surface/20"
         >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh List
+          <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
 
-      {/* Filter and Search controls */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-surface/20 border border-border p-4 rounded-2xl">
-        <div className="flex gap-2 shrink-0">
-          {(["pending", "approved", "rejected", "all"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border ${filter === f ? "bg-gold text-black border-gold" : "border-border text-muted-foreground hover:text-foreground"}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+      {/* Filters Bar */}
+      <div className="grid md:grid-cols-3 gap-3 bg-surface/20 p-4 rounded-2xl border border-border/60">
+        <div className="relative">
+          <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search seller name, email, plan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-4 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-gold/50"
+            placeholder="Search Seller ID, Username, Email..."
+            className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-black outline-none text-xs text-foreground focus:border-gold"
           />
+        </div>
+        <div>
+          <select
+            value={planFilter}
+            onChange={(e) => setPlanFilter(e.target.value)}
+            className="w-full h-10 px-3 rounded-lg border border-border bg-black outline-none text-xs text-foreground focus:border-gold"
+          >
+            <option value="all">All Plans</option>
+            <option value="free">Free Plan</option>
+            <option value="pro">Pro Plan</option>
+            <option value="elite">Elite Plan</option>
+            <option value="enterprise">Enterprise Plan</option>
+          </select>
+        </div>
+        <div className="text-right flex items-center justify-end text-xs text-muted-foreground font-medium">
+          Showing {filtered.length} active sellers
         </div>
       </div>
 
-      {/* Main List */}
-      <div className="rounded-2xl border border-border bg-surface/40 overflow-hidden">
-        {loading ? (
-          <div className="py-16 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
-            <Loader2 className="size-6 animate-spin text-gold" /> Loading receipts...
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-sm text-muted-foreground">
-            No subscription payment proofs found matching your filter criteria.
-          </div>
-        ) : (
+      {/* Subscribers Table */}
+      {loading ? (
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold"></div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState title="No sellers found" desc="No sellers meet the specified subscription filter." />
+      ) : (
+        <div className="rounded-2xl border border-border bg-surface/30 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-xs text-muted-foreground border-b border-border bg-surface/20">
-                  <th className="text-left font-medium py-3 px-4">User</th>
-                  <th className="text-left font-medium">Selected Plan</th>
-                  <th className="text-right font-medium">Amount</th>
-                  <th className="text-left font-medium pl-6">Status</th>
-                  <th className="text-left font-medium">Submitted</th>
-                  <th className="text-right font-medium pr-4">Actions</th>
+                <tr className="border-b border-border bg-surface/60 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="px-6 py-4">Seller Username</th>
+                  <th className="px-6 py-4">Email</th>
+                  <th className="px-6 py-4">Plan Tier</th>
+                  <th className="px-6 py-4">Plan Expiration</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {filtered.map((p) => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-surface/40 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-foreground">
-                        {p.profiles?.display_name ?? p.profiles?.username ?? "Unknown Seller"}
+              <tbody className="divide-y divide-border/60 text-xs">
+                {filtered.map((sub) => (
+                  <tr key={sub.id} className="hover:bg-surface/20 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-foreground flex items-center gap-1.5">
+                        {sub.display_name || sub.username || "Anonymous Seller"}
                       </div>
-                      <div className="text-xs text-muted-foreground">{p.profiles?.email}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono mt-0.5">UID: {sub.id}</div>
                     </td>
-                    <td className="py-3 font-semibold text-gold uppercase">{p.selected_plan}</td>
-                    <td className="py-3 text-right font-bold">₹{Number(p.amount).toFixed(2)}</td>
-                    <td className="py-3 pl-6">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusColor(p.status)}`}>
-                        {p.status}
+                    <td className="px-6 py-4 text-foreground">{sub.email || "No email"}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getTierColor(sub.subscription_tier)}`}>
+                        {sub.subscription_tier ? sub.subscription_tier.toUpperCase() : "FREE"}
                       </span>
                     </td>
-                    <td className="py-3 text-xs text-muted-foreground">
-                      {new Date(p.created_at).toLocaleString()}
+                    <td className="px-6 py-4 text-muted-foreground font-mono">
+                      {sub.subscription_expires_at ? (
+                        <div className="flex items-center gap-1">
+                          <Clock size={12} className="text-gold" />
+                          {new Date(sub.subscription_expires_at).toLocaleDateString()}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/60">— (No Expiry)</span>
+                      )}
                     </td>
-                    <td className="py-3 text-right pr-4">
+                    <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setActiveProof(p)}
-                        className="h-8 px-3 rounded-lg bg-surface hover:bg-gold/10 text-muted-foreground hover:text-gold border border-border flex items-center justify-center gap-1.5 text-xs ml-auto transition-colors"
+                        onClick={() => openEditModal(sub)}
+                        className="inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold bg-surface border border-border hover:border-gold/30 text-foreground transition-all cursor-pointer"
                       >
-                        <Eye size={12} /> Inspect Proof
+                        <Settings className="size-3.5 mr-1" /> Adjust Plan
                       </button>
                     </td>
                   </tr>
@@ -312,179 +278,77 @@ function AdminSubscriptionsPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* DETAIL INSPECTION MODAL */}
-      {activeProof && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveProof(null)} />
-          <div className="relative w-full max-w-xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
+      {/* Plan Adjust Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <form onSubmit={handleUpdatePlan} className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-2xl">
+            <h3 className="font-bold text-lg text-gold flex items-center gap-2 border-b border-border/60 pb-3 mb-4">
+              <Award className="size-5" /> Adjust Subscription Tier
+            </h3>
             
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display text-lg font-bold">Inspect Subscription Proof</h2>
-                <button
-                  onClick={() => setActiveProof(null)}
-                  className="size-8 rounded-full border border-border flex items-center justify-center hover:border-gold/40 transition-colors"
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-2xl bg-surface/40 border border-border/60">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-full bg-gold/10 text-gold flex items-center justify-center font-bold">
+                    <User size={18} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {editingUser.display_name || editingUser.username}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {editingUser.email}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Subscription Plan Tier</label>
+                <select
+                  value={selectedTier}
+                  onChange={(e) => setSelectedTier(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-black focus:border-gold outline-none text-sm text-foreground"
                 >
-                  ✕
-                </button>
+                  <option value="free">Free / Basic Seller</option>
+                  <option value="pro">Pro Seller Plan</option>
+                  <option value="elite">Elite Seller Plan</option>
+                  <option value="enterprise">Enterprise Partner Plan</option>
+                </select>
               </div>
 
-              {/* Grid details */}
-              <div className="grid grid-cols-2 gap-4 text-xs bg-surface/20 p-4 border border-border rounded-2xl mb-4">
-                <div>
-                  <div className="text-muted-foreground">Seller Display Name</div>
-                  <div className="font-bold text-foreground mt-0.5">
-                    {activeProof.profiles?.display_name ?? "Unknown Seller"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Requested Subscription</div>
-                  <div className="font-bold text-gold uppercase mt-0.5">{activeProof.selected_plan}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Amount Paid</div>
-                  <div className="font-bold text-foreground mt-0.5">₹{Number(activeProof.amount).toFixed(2)}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Status</div>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border mt-1 ${getStatusColor(activeProof.status)}`}>
-                    {activeProof.status}
-                  </span>
-                </div>
-                <div className="col-span-2 border-t border-border/40 pt-2">
-                  <div className="text-muted-foreground">Submitted Date</div>
-                  <div className="text-foreground mt-0.5">{new Date(activeProof.created_at).toLocaleString()}</div>
-                </div>
-                {activeProof.rejection_reason && (
-                  <div className="col-span-2 p-2.5 rounded-xl bg-red-500/10 border border-red-500/15 text-red-400 font-mono">
-                    <strong>Rejection Reason:</strong> {activeProof.rejection_reason}
-                  </div>
-                )}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Plan Expiration Date</label>
+                <input
+                  type="date"
+                  value={selectedExpiry}
+                  onChange={(e) => setSelectedExpiry(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-surface/30 focus:border-gold outline-none text-sm text-foreground font-mono"
+                />
+                <span className="text-[10px] text-muted-foreground/60 mt-1 block">Leave blank for lifetime/no-expiry manual configurations.</span>
               </div>
-
-              {/* High-Resolution Screenshot Proof Image */}
-              <div className="mb-6">
-                <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
-                  <span>Uploaded Screenshot proof</span>
-                  <a
-                    href={activeProof.screenshot_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gold hover:underline inline-flex items-center gap-1"
-                  >
-                    Open in new tab <ExternalLink size={10} />
-                  </a>
-                </div>
-                <div className="rounded-2xl overflow-hidden border border-border/80 bg-black aspect-[9/16] max-h-[360px] flex items-center justify-center">
-                  <img
-                    src={activeProof.screenshot_url}
-                    alt="Manual Payment Screenshot proof"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
-              </div>
-
-              {/* Approval / Rejection Actions */}
-              {activeProof.status === "pending" && (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowRejectModal(true)}
-                    disabled={actioning}
-                    className="flex-1 h-11 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    <X size={14} /> Reject Proof
-                  </button>
-                  <button
-                    onClick={() => setShowApproveModal(true)}
-                    disabled={actioning}
-                    className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
-                  >
-                    <Check size={14} /> Approve & Activate Plan
-                  </button>
-                </div>
-              )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ─── CONFIRM APPROVAL MODAL ─── */}
-      {showApproveModal && activeProof && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
-            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-gold">
-              <CheckCircle2 size={18} className="text-gold" /> Confirm Payment Approval
-            </h3>
-            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
-              Are you sure you want to approve this payment? This will confirm the buyer payment and continue order processing.
-            </p>
-            <div className="flex gap-3">
+            <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-4 mt-6">
               <button
-                onClick={() => setShowApproveModal(false)}
-                disabled={actioning}
-                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="h-10 px-4 rounded-xl border border-border text-xs font-semibold hover:bg-surface/80 cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                onClick={executeApprove}
-                disabled={actioning}
-                className="flex-1 h-10 rounded-xl bg-gold text-black hover:brightness-110 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer border-none"
+                type="submit"
+                disabled={saving}
+                className="h-10 px-4 rounded-xl bg-gold text-black text-xs font-bold hover:brightness-110 disabled:opacity-60 transition-all border-none cursor-pointer"
               >
-                {actioning ? (
-                  <>
-                    <Loader2 className="size-3 animate-spin" /> Processing...
-                  </>
-                ) : (
-                  "Confirm Approval"
-                )}
+                {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── REJECTION REASON MODAL ─── */}
-      {showRejectModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
-            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-red-400">
-              <AlertCircle size={18} /> Reject Payment
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              Are you sure you want to reject this payment? The buyer will see this rejection reason in their dashboard and notifications.
-            </p>
-            <textarea
-              rows={3}
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Reason for rejection (optional)..."
-              className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-red-500/50 resize-none mb-5 text-foreground placeholder:text-muted-foreground"
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason("");
-                }}
-                disabled={actioning}
-                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRejectSubmit}
-                disabled={actioning}
-                className="flex-1 h-10 rounded-xl bg-red-500 hover:brightness-110 text-white text-xs font-bold transition-all disabled:opacity-50 cursor-pointer border-none"
-              >
-                {actioning ? "Rejecting..." : "Reject Payment"}
-              </button>
-            </div>
-          </div>
+          </form>
         </div>
       )}
     </div>

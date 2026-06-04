@@ -1,0 +1,958 @@
+﻿IMPORTANT DEVELOPMENT INSTRUCTION - PERMISSION SYSTEM & ROLE ARCHITECTURE
+Before building all admin pages, management dashboards and internal systems, please implement a proper role and permission architecture.
+The reason is that HUXZAIN will eventually have multiple internal roles including:
+• Super Admin
+• Admin
+• Manager
+• Moderator
+• Employee
+• Support Staff
+• Verification Staff
+• Content Review Staff
+• Developer
+If permissions are hardcoded directly into pages, future expansion will become extremely difficult and will require rebuilding major parts of the admin system.
+Instead, the platform should be built around a centralized permission management system.
+==================================================
+PERMISSION BASED ARCHITECTURE
+Every page, section, button and action should check permissions before granting access.
+Examples:
+View Users
+Edit Users
+Suspend Users
+Ban Users
+View Sellers
+Manage Sellers
+Approve Listings
+Reject Listings
+View Disputes
+Resolve Disputes
+View Withdrawals
+Approve Withdrawals
+Manage Homepage
+Manage Categories
+Manage Email Templates
+Manage Settings
+View Revenue
+View Audit Logs
+Each permission should be individually configurable.
+==================================================
+ROLE SYSTEM
+Roles should simply be collections of permissions.
+Example:
+Moderator
+Can:
+View Disputes
+Resolve Disputes
+View Reports
+Suspend Listings
+Cannot:
+View Revenue
+Approve Withdrawals
+Edit Platform Fees
+Change Settings
+==================================================
+ADMIN ROLE
+Can:
+Manage Sellers
+Manage Listings
+Manage Verifications
+Manage Support
+View Reports
+Cannot:
+Transfer Ownership
+Create Super Admin
+Modify Core Ownership Controls
+==================================================
+SUPER ADMIN ROLE
+Receives unrestricted access.
+The Super Admin should automatically bypass all permission restrictions.
+==================================================
+FUTURE PROOFING
+This permission system should make it possible to create completely new staff roles later without modifying the core admin system.
+Example:
+Support Team
+Verification Team
+Fraud Investigation Team
+Finance Team
+Marketing Team
+Community Management Team
+Without rebuilding dashboards.
+==================================================
+DEVELOPER RESTRICTIONS
+The Website Developer role should remain separate from Super Admin.
+A developer should not automatically receive marketplace ownership powers.
+Developer permissions should be granted manually by Super Admin.
+Developer access should be limited to technical functions only.
+==================================================
+AUDIT LOG REQUIREMENT
+Every permission change should be logged.
+Examples:
+Role Assigned
+Role Removed
+Permission Added
+Permission Removed
+User Promoted
+User Demoted
+The system should record:
+Who performed the action
+What was changed
+When it happened
+This will help prevent abuse and simplify future management.
+==================================================
+FINAL OBJECTIVE
+The permission system should be built first and become the foundation for all future staff management, dashboards and operational tools.
+This will make HUXZAIN significantly easier to scale and maintain while ensuring that no employee, moderator or developer receives unnecessary access to sensitive business functions.
+
+
+
+HUXZAIN - SUPER ADMIN / OWNER DASHBOARD REQUIREMENTS
+The Super Admin Dashboard should not feel like a basic admin panel. It should function as the central command center of the entire marketplace. The objective is that the owner should be able to monitor, manage, investigate, control and configure every important part of the platform from a single interface without requiring direct database access.
+The dashboard should follow the same premium dark modern design language used throughout HUXZAIN. It should feel professional, clean, organized and data-driven rather than cluttered.
+==================================================
+DASHBOARD OVERVIEW PAGE
+The first page after Super Admin login should provide a complete business overview.
+Display cards for:
+• Total Revenue
+• Platform Revenue
+• Active Orders
+• Orders Today
+• Pending Withdrawals
+• Active Sellers
+• Active Buyers
+• Active Listings
+• Open Disputes
+• Pending Verifications
+• Pending Support Tickets
+All cards should be clickable and open the relevant management section.
+Include revenue graphs showing:
+• Daily Revenue
+• Weekly Revenue
+• Monthly Revenue
+• Yearly Revenue
+Include marketplace activity feed showing:
+• New Orders
+• New Seller Registrations
+• New Listings
+• Disputes Opened
+• Withdrawals Requested
+• Verification Requests
+==================================================
+USER MANAGEMENT
+The Super Admin must have complete control over all users.
+Functions required:
+• Search Users
+• View User Profile
+• View User Orders
+• View User Disputes
+• View User Reviews
+• View User Reports
+• Suspend User
+• Ban User
+• Freeze User
+• Reset Verification Status
+• Add Internal Notes
+• View Login History
+User profile should display complete account information and activity history.
+==================================================
+SELLER MANAGEMENT
+The Super Admin should have complete control over seller accounts.
+Functions required:
+• Approve Sellers
+• Suspend Sellers
+• Ban Sellers
+• Verify Sellers
+• Remove Verification
+• Upgrade Seller Plans
+• Downgrade Seller Plans
+• Assign Free Plans
+• Feature Sellers
+• Freeze Seller Withdrawals
+• Freeze Seller Earnings
+• View Seller Revenue
+• View Seller Orders
+• View Seller Disputes
+• View Seller Ratings
+• View Seller Trust Score
+==================================================
+LISTING MANAGEMENT
+The platform owner should be able to manage all marketplace inventory.
+Functions required:
+• Approve Listings
+• Reject Listings
+• Request Changes
+• Suspend Listings
+• Remove Listings
+• Feature Listings
+• Edit Listings
+• View Listing Reports
+• View Listing Performance
+Filters:
+• Category
+• Seller
+• Status
+• Verification
+• Reported Listings
+==================================================
+ORDER MANAGEMENT
+One of the most important sections.
+Every order should be searchable using:
+• Order ID
+• Buyer
+• Seller
+• Category
+• Amount
+• Status
+The Super Admin should be able to:
+• View Complete Order
+• View Delivery Logs
+• View Internal Chat
+• View Evidence
+• Freeze Order
+• Pause Order
+• Complete Order
+• Cancel Order
+• Initiate Investigation
+The complete order history should remain accessible.
+==================================================
+DISPUTE CENTER
+Create a dedicated dispute management section.
+Display:
+• Open Disputes
+• Pending Disputes
+• Escalated Disputes
+• Resolved Disputes
+The Super Admin should be able to view:
+• Buyer Statements
+• Seller Statements
+• Internal Chat History
+• Uploaded Evidence
+• Previous Disputes
+• Seller History
+• Buyer History
+Dispute actions:
+• Resolve In Buyer Favor
+• Resolve In Seller Favor
+• Partial Settlement
+• Request Additional Evidence
+• Escalate Investigation
+==================================================
+VERIFICATION CENTER
+Manage all KYC and verification requests.
+Functions:
+• Approve Verification
+• Reject Verification
+• Request Resubmission
+• View Documents
+• Compare Documents
+• Add Review Notes
+Verification statuses:
+• Pending
+• Approved
+• Rejected
+• Resubmission Required
+==================================================
+FINANCIAL CONTROL CENTER
+The owner should have complete visibility over marketplace finances.
+Display:
+• Gross Revenue
+• Platform Revenue
+• Pending Settlements
+• Pending Withdrawals
+• Completed Withdrawals
+• Refunds Issued
+• Dormant Earnings
+• Reactivation Charges
+• Category Revenue
+• Seller Revenue
+Include revenue analytics and financial reporting.
+==================================================
+WITHDRAWAL MANAGEMENT
+Display all withdrawal requests.
+Functions:
+• Approve Withdrawal
+• Reject Withdrawal
+• Freeze Withdrawal
+• Request Verification
+• View Seller Information
+Display:
+• Amount
+• Seller
+• Orders Included
+• Verification Status
+• Previous Withdrawals
+==================================================
+INVOICE MANAGEMENT SYSTEM
+Create an internal invoice center so external paid software is not required for basic invoice generation.
+Functions:
+• Create Invoice
+• Upload Company Logo
+• Add Custom Fields
+• Add Customer Details
+• Add GST Details
+• Add Product Lines
+• Add Tax Fields
+• Generate PDF
+• Download PDF
+• Print Invoice
+Invoices should remain saved inside platform records.
+==================================================
+HOMEPAGE MANAGEMENT
+The owner should be able to modify homepage content without touching code.
+Editable sections:
+• Hero Banner
+• Featured Listings
+• Featured Sellers
+• Trending Section
+• Game Buddy Section
+• Coaching Section
+• Announcements
+• Homepage Promotions
+Future homepage changes should not require developer intervention.
+==================================================
+EMAIL MANAGEMENT
+The owner should be able to:
+• View Email Templates
+• Edit Email Templates
+• Enable / Disable Templates
+• Send Announcements
+• Send Marketplace Notices
+==================================================
+SUPPORT TICKET CENTER
+Manage customer support requests.
+Functions:
+• Assign Tickets
+• Respond To Tickets
+• Escalate Tickets
+• Close Tickets
+• Reopen Tickets
+Filters:
+• Open
+• Pending
+• Escalated
+• Closed
+==================================================
+ANALYTICS CENTER
+Provide detailed platform analytics.
+Examples:
+• Revenue Trends
+• Growth Trends
+• Top Categories
+• Top Sellers
+• Top Listings
+• User Registrations
+• Conversion Rates
+• Traffic Sources
+• Marketplace Activity
+==================================================
+AUDIT LOG SYSTEM
+Every important action performed by staff should be permanently recorded.
+Examples:
+• Listing Approvals
+• Withdrawal Approvals
+• Verification Decisions
+• Account Suspensions
+• Role Changes
+• Settings Changes
+Log should display:
+• User
+• Action
+• Timestamp
+• Previous Value
+• New Value
+• IP Address (if available)
+Audit logs should not be editable.
+==================================================
+PLATFORM SETTINGS
+The owner should have access to all major configuration settings.
+Examples:
+• Platform Fees
+• Category Fees
+• Inspection Periods
+• Cooling Periods
+• Seller Plans
+• Verification Rules
+• Email Settings
+• Security Settings
+• Homepage Settings
+• Notification Settings
+==================================================
+FINAL OBJECTIVE
+The Super Admin Dashboard should function as a complete marketplace command center where the owner can monitor, manage, investigate, configure and control every important aspect of HUXZAIN without requiring direct developer involvement for daily operations.
+HUXZAIN - SUPER ADMIN STAFF MANAGEMENT, ROLE MANAGEMENT & ORGANIZATIONAL CONTROL
+In addition to marketplace management, the Super Admin should function as the owner of the entire organization and therefore should have complete authority over staff creation, role assignment, permissions and internal management.
+==================================================
+EMPLOYEE MANAGEMENT CENTER
+The Super Admin should be able to invite new staff members directly from the dashboard.
+Functions:
+• Invite Employee
+• Invite Moderator
+• Invite Manager
+• Invite Admin
+• Invite Developer
+• Invite Support Staff
+• Invite Verification Staff
+• Invite Finance Staff
+• Invite Custom Role Staff
+Invitation methods:
+• Email Invitation
+• Username Invitation
+• Temporary Access Link
+==================================================
+ROLE MANAGEMENT CENTER
+The Super Admin should have complete control over all platform roles.
+Functions:
+• Create Role
+• Edit Role
+• Delete Role
+• Duplicate Existing Role
+• Rename Role
+• Assign Permissions
+• Remove Permissions
+The role system should not be hardcoded.
+The Super Admin must be able to create completely new roles at any time.
+Examples:
+• Community Manager
+• Finance Officer
+• Fraud Investigator
+• HR Manager
+• Operations Executive
+• Marketplace Supervisor
+• Content Review Team
+• Trust & Safety Team
+Without requiring developer intervention.
+==================================================
+CUSTOM ROLE CREATION
+When creating a role, the Super Admin should be able to select permissions individually.
+Examples:
+Users
+□ View Users
+□ Edit Users
+□ Suspend Users
+□ Ban Users
+Listings
+□ View Listings
+□ Approve Listings
+□ Reject Listings
+□ Edit Listings
+Finance
+□ View Revenue
+□ View Withdrawals
+□ Approve Withdrawals
+□ Issue Refunds
+Disputes
+□ View Disputes
+□ Resolve Disputes
+□ Escalate Disputes
+Settings
+□ View Settings
+□ Modify Settings
+This should operate through a permission checkbox system.
+==================================================
+STAFF DIRECTORY
+The Super Admin should have access to a complete staff directory.
+Display:
+• Name
+• Role
+• Status
+• Department
+• Join Date
+• Last Login
+• Activity Level
+Functions:
+• Promote Staff
+• Demote Staff
+• Suspend Staff
+• Remove Staff
+• Change Role
+• View Activity
+==================================================
+STAFF PERFORMANCE MONITORING
+The Super Admin should be able to monitor employee performance.
+Examples:
+Moderators
+• Disputes Resolved
+• Average Resolution Time
+• User Satisfaction
+Support Staff
+• Tickets Resolved
+• Average Response Time
+Verification Team
+• Verification Requests Processed
+• Approval Accuracy
+Managers
+• Team Performance
+• Operational Statistics
+==================================================
+DEPARTMENT MANAGEMENT
+The platform should support departments.
+Examples:
+• Support Department
+• Moderation Department
+• Verification Department
+• Finance Department
+• Operations Department
+• Marketing Department
+• Development Department
+The Super Admin should be able to:
+• Create Department
+• Edit Department
+• Assign Staff
+• Assign Managers
+• View Department Statistics
+==================================================
+ORGANIZATIONAL ANNOUNCEMENTS
+The Super Admin should be able to send announcements internally.
+Recipients:
+• Entire Team
+• Specific Departments
+• Specific Roles
+• Individual Staff Members
+==================================================
+SUPER ADMIN EXCLUSIVE POWERS
+Only Super Admin should be able to:
+• Create Another Super Admin
+• Remove Super Admin
+• Transfer Ownership
+• Assign Ownership Successor
+• Modify Core Platform Permissions
+• Modify Financial Rules
+• Modify Platform Fee Structure
+• Modify Security Architecture
+• View Complete Audit Logs
+• Override Any Staff Restriction
+==================================================
+EMERGENCY CONTROL CENTER
+The Super Admin should have emergency controls.
+Examples:
+• Freeze Marketplace
+• Disable Withdrawals
+• Disable Registrations
+• Lock Specific Categories
+• Lock Seller Activity
+• Suspend Platform Operations
+These actions should only be available to Super Admin.
+==================================================
+STAFF AUDIT LOGS
+Every staff action should be recorded.
+Examples:
+• Listing Approval
+• Withdrawal Approval
+• Dispute Resolution
+• Verification Decision
+• Role Assignment
+• Settings Modification
+Display:
+• Staff Name
+• Action Performed
+• Date & Time
+• Previous Value
+• New Value
+These logs should never be editable by staff members.
+==================================================
+FINAL OBJECTIVE
+The Super Admin should function as the ultimate owner of HUXZAIN with complete authority over:
+Marketplace Operations
+Financial Operations
+Staff Management
+Role Management
+Permission Management
+Platform Settings
+Security Controls
+Emergency Controls
+Business Management
+No employee, manager, moderator, administrator or developer should possess authority equal to or higher than the Super Admin account.
+
+
+ADDITIONAL SUPER ADMIN POWERS & ABSOLUTE PLATFORM CONTROL
+The Super Admin should possess complete ownership authority over every user, seller, employee, moderator, manager and administrator account within the platform.
+The objective is that the platform owner should never be dependent on another staff member, administrator or developer to manage platform operations.
+==================================================
+ACCOUNT CONTROL CENTER
+The Super Admin should be able to access any account management page and perform administrative actions.
+Functions:
+• View Account Details
+• Edit Account Information
+• Change Username
+• Change Display Name
+• Change Registered Email
+• Change Phone Number
+• Reset Password
+• Force Password Change
+• Suspend Account
+• Unsuspend Account
+• Ban Account
+• Remove Ban
+• Freeze Account
+• Unfreeze Account
+Applicable To:
+• Buyers
+• Sellers
+• Employees
+• Moderators
+• Managers
+• Admins
+• Developers
+==================================================
+LOGIN AS USER
+The Super Admin should be able to temporarily enter any account without requiring the user's password.
+Functions:
+• Login As Buyer
+• Login As Seller
+• Login As Employee
+• Login As Moderator
+• Login As Manager
+• Login As Admin
+Purpose:
+• Troubleshooting
+• Support Assistance
+• Dispute Investigation
+• Technical Verification
+Every use of this feature must be permanently recorded in audit logs.
+==================================================
+SELLER PLAN CONTROL
+The Super Admin should have complete control over seller plans.
+Functions:
+• Assign Free Plan
+• Upgrade Seller Plan
+• Downgrade Seller Plan
+• Extend Seller Plan
+• Cancel Seller Plan
+• Grant Lifetime Plan
+• Grant Promotional Plan
+• Remove Seller Benefits
+Examples:
+Free Seller
+Pro Seller
+Elite Seller
+Enterprise Seller
+The owner should be able to manually assign any plan regardless of payment status.
+==================================================
+BADGE MANAGEMENT
+The Super Admin should be able to grant badges manually.
+Examples:
+• Verified Seller
+• Verified Coach
+• Verified Game Buddy
+• Trusted Seller
+• Top Seller
+• Elite Seller
+• Enterprise Partner
+• VIP Seller
+• Official Partner
+Functions:
+• Grant Badge
+• Remove Badge
+• Suspend Badge
+• Edit Badge Status
+==================================================
+SELLER RANK MANAGEMENT
+The Super Admin should be able to manually modify seller ranking.
+Functions:
+• Promote Seller
+• Demote Seller
+• Mark As Featured
+• Mark As Recommended
+• Remove Recommendations
+• Remove Featured Status
+==================================================
+FINANCIAL CONTROL AUTHORITY
+The Super Admin should be able to:
+• Release Funds
+• Freeze Funds
+• Refund Funds
+• Adjust Seller Earnings
+• Add Credits
+• Remove Credits
+• Apply Compensation
+• Apply Platform Credits
+All actions must be recorded.
+==================================================
+LISTING CONTROL AUTHORITY
+The Super Admin should be able to:
+• Create Listings
+• Edit Listings
+• Delete Listings
+• Approve Listings
+• Reject Listings
+• Duplicate Listings
+• Feature Listings
+• Remove Featured Listings
+The owner should even be able to create listings on behalf of sellers if required.
+==================================================
+MANUAL SELLER MANAGEMENT
+The Super Admin should be able to:
+• Create Seller Accounts
+• Convert Buyer To Seller
+• Convert Seller To Buyer
+• Assign Seller Plans
+• Assign Verification Status
+• Assign Categories
+• Assign Seller Permissions
+Without requiring seller application approval.
+==================================================
+VERIFICATION OVERRIDE
+The Super Admin should be able to:
+• Approve Verification
+• Reject Verification
+• Grant Verification Manually
+• Remove Verification
+• Reset Verification
+==================================================
+ROLE OVERRIDE AUTHORITY
+The Super Admin should be able to:
+• Create Roles
+• Delete Roles
+• Edit Roles
+• Clone Roles
+• Assign Roles
+• Remove Roles
+The Super Admin should also be able to manually override role restrictions whenever required.
+==================================================
+PLATFORM OWNERSHIP CONTROL
+Only the Super Admin should possess authority to:
+• Create Another Super Admin
+• Remove Super Admin
+• Transfer Ownership
+• Appoint Successor
+• Override System Restrictions
+• Override Staff Restrictions
+• Override Platform Limits
+==================================================
+ABSOLUTE AUTHORITY PRINCIPLE
+The platform should be designed under a simple principle:
+If a buyer, seller, employee, moderator, manager, administrator, developer, listing, dispute, order, verification, withdrawal, plan, badge, role or platform setting exists within HUXZAIN, the Super Admin should have the ability to view it, modify it, manage it, override it, suspend it, restore it or remove it.
+The Super Admin account represents platform ownership and should remain the highest authority level within the entire system.
+
+HUXZAIN - TRANSACTION CENTER, PAYMENT RECORDS & FINANCIAL HISTORY SYSTEM
+The Super Admin dashboard should contain a dedicated Transaction Center that functions similarly to a bank statement and financial ledger.
+The objective is that the owner should be able to track every rupee entering or leaving the platform, investigate financial activity, review historical transactions and maintain financial transparency.
+==================================================
+TRANSACTION CENTER
+Create a dedicated section:
+Finance → Transactions
+This section should display all platform financial activity.
+Every transaction should remain searchable and auditable.
+==================================================
+TRANSACTION RETENTION PERIOD
+Financial records should be retained for a maximum of 3 years.
+The system should support viewing:
+Today
+Yesterday
+Last 7 Days
+Last 30 Days
+Last 90 Days
+Last 6 Months
+Last 12 Months
+Custom Date Range
+All Time (within retention period)
+The owner should be able to search any transaction from the previous 3 years.
+==================================================
+TRANSACTION TABLE
+Display:
+Transaction ID
+Order ID
+Buyer
+Seller
+Category
+Amount
+Platform Fee
+Seller Earnings
+Payment Method
+Transaction Status
+Created Date
+Completed Date
+Handled By
+Reference Number
+Every row should be clickable.
+==================================================
+TRANSACTION STATUS FILTERS
+The transaction page should support filters.
+Examples:
+Pending Payment
+Payment Under Review
+Awaiting Confirmation
+Completed
+Cancelled
+Refunded
+Partially Refunded
+Frozen
+Disputed
+Chargeback Investigation
+Withdrawal Pending
+Withdrawal Completed
+Dormant Earnings
+Reactivated Earnings
+==================================================
+ADVANCED FILTERS
+Filter By:
+Order ID
+Transaction ID
+Buyer
+Seller
+Category
+Amount
+Date Range
+Payment Status
+Withdrawal Status
+Verification Status
+Staff Member
+This should make investigations easier.
+==================================================
+MANUAL PAYMENT CONFIRMATION (PHASE 1)
+Since HUXZAIN will initially operate with manual payment verification, there should be a payment review workflow.
+Buyer submits payment proof.
+Payment enters:
+Pending Verification
+Moderators, Managers, Admins or Super Admin can review.
+Authorized staff can:
+Approve Payment
+Reject Payment
+Request New Proof
+Flag Suspicious Activity
+==================================================
+PAYMENT APPROVED FLOW
+Once payment is approved:
+Transaction status becomes:
+Completed
+Order status becomes:
+Paid
+The order becomes active.
+Seller receives notification.
+Seller receives email.
+Buyer receives confirmation.
+Transaction appears in completed transaction records.
+==================================================
+PAYMENT REJECTED FLOW
+If payment is rejected:
+Status:
+Rejected
+Reason should be recorded.
+Buyer receives notification.
+Buyer receives email.
+Buyer may upload new proof.
+==================================================
+PAYMENT HISTORY
+Every payment should create a permanent transaction record.
+Display:
+Date
+Time
+Amount
+Order
+Buyer
+Seller
+Verification Staff
+Approval Timestamp
+Reference Number
+No transaction should disappear after completion.
+==================================================
+SELLER SETTLEMENT RECORDS
+After an order completes successfully and inspection/cooling periods expire:
+The seller's earnings become eligible.
+A settlement entry should be created.
+Display:
+Order Number
+Gross Amount
+Platform Fee
+Seller Earnings
+Settlement Date
+Withdrawal Status
+==================================================
+SETTLEMENT EMAIL
+When a settlement becomes available:
+Send seller email.
+Example:
+Subject:
+Order Successfully Settled
+Content:
+Order Number
+Amount Earned
+Platform Fee
+Net Earnings
+Withdrawal Eligibility Date
+Withdraw Funds Button
+==================================================
+REFUND RECORDS
+Refunds should create independent financial records.
+Display:
+Refund ID
+Order ID
+Buyer
+Seller
+Refund Amount
+Refund Reason
+Approved By
+Date
+Status
+==================================================
+WITHDRAWAL RECORDS
+Every seller withdrawal should be permanently stored.
+Display:
+Withdrawal ID
+Seller
+Amount
+Orders Included
+Status
+Request Date
+Approval Date
+Completion Date
+Handled By
+==================================================
+OWNER FINANCIAL DASHBOARD
+The owner should be able to view:
+Total Revenue
+Platform Revenue
+Seller Earnings
+Pending Settlements
+Pending Withdrawals
+Completed Withdrawals
+Refunds Issued
+Dormant Earnings
+Reactivation Charges
+Monthly Growth
+Category Revenue
+==================================================
+TRANSACTION DETAILS PAGE
+When clicking a transaction, show:
+Transaction Information
+Order Information
+Buyer Information
+Seller Information
+Payment Proof
+Verification History
+Approval History
+Refund History
+Settlement History
+Withdrawal History
+Audit Logs
+==================================================
+AUDIT HISTORY
+Every financial action must be recorded.
+Examples:
+Payment Approved
+Payment Rejected
+Refund Issued
+Withdrawal Approved
+Withdrawal Rejected
+Settlement Released
+Funds Frozen
+Funds Unfrozen
+Display:
+Staff Member
+Action
+Date
+Time
+Previous Status
+New Status
+==================================================
+FINANCIAL SAFETY PRINCIPLE
+The owner should always be able to answer:
+Who paid?
+How much was paid?
+When was it paid?
+Who approved it?
+How much was earned?
+How much was withdrawn?
+How much was refunded?
+Where is the money currently?
+The Transaction Center should function as the financial backbone of HUXZAIN and provide complete visibility into every marketplace transaction from creation until final settlement.
+

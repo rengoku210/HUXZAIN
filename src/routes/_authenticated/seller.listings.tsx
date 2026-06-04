@@ -19,6 +19,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
 import { slugify } from "@/lib/marketplace/listing-adapter";
+import { getCategoryTypeFromSlug } from "@/lib/marketplace/listing-attributes";
 type Category = { id: string; name: string; slug: string };
 
 export const Route = createFileRoute("/_authenticated/seller/listings")({
@@ -81,6 +82,7 @@ function ListingModal({
   
   const [tags, setTags] = useState<string[]>(listing?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
+  const [attributes, setAttributes] = useState<Record<string, any>>((listing as any)?.attributes ?? {});
 
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -244,7 +246,7 @@ function ListingModal({
         cover_image_url: coverImageUrl,
         images: imageUrls,
         category_id: finalCategoryId,
-        attributes: {},
+        attributes: attributes,
         seo_title: seoTitle.trim() || null,
         seo_description: seoDescription.trim() || null,
         seo_keywords: seoKeywords.trim() || null,
@@ -460,6 +462,599 @@ function ListingModal({
                 placeholder="Add tag..."
                 className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
               />
+            </div>
+
+            <div className="border border-border rounded-2xl p-4 bg-surface/30 space-y-4">
+              <span className="text-sm font-semibold text-white">Listing Attributes (Auto-updates based on Category)</span>
+              <div className="space-y-4">
+                {(() => {
+                  const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
+                  const type = getCategoryTypeFromSlug(catSlug);
+                  
+                  if (type === "game-accounts") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Game <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.game || ""}
+                            onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. Valorant"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Region <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.region || ""}
+                            onChange={(e) => setAttributes({...attributes, region: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. Asia, NA, EU"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Rank <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.rank || ""}
+                            onChange={(e) => setAttributes({...attributes, rank: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. Radiant"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Level <span className="text-red-400">*</span></label>
+                          <input
+                            type="number"
+                            value={attributes.level || ""}
+                            onChange={(e) => setAttributes({...attributes, level: parseInt(e.target.value) || 0, type: "game-accounts"})}
+                            placeholder="e.g. 50"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Platform (Plat) <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.platform || ""}
+                            onChange={(e) => setAttributes({...attributes, platform: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. PC, PS5, Xbox"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Skins Count <span className="text-red-400">*</span></label>
+                          <input
+                            type="number"
+                            value={attributes.skinsCount || ""}
+                            onChange={(e) => setAttributes({...attributes, skinsCount: parseInt(e.target.value) || 0, type: "game-accounts"})}
+                            placeholder="e.g. 85"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium mb-1.5">Rare Skins</label>
+                          <input
+                            value={attributes.rareSkins || ""}
+                            onChange={(e) => setAttributes({...attributes, rareSkins: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. Pink Mercy, Renegade Raider, Vandal Prime"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Email Change Available</label>
+                          <select
+                            value={attributes.emailChangeAvailable === undefined ? "true" : String(attributes.emailChangeAvailable)}
+                            onChange={(e) => setAttributes({...attributes, emailChangeAvailable: e.target.value === "true", type: "game-accounts"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Original Owner</label>
+                          <select
+                            value={attributes.originalOwner === undefined ? "true" : String(attributes.originalOwner)}
+                            onChange={(e) => setAttributes({...attributes, originalOwner: e.target.value === "true", type: "game-accounts"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Warranty Period</label>
+                          <input
+                            value={attributes.warrantyPeriod || ""}
+                            onChange={(e) => setAttributes({...attributes, warrantyPeriod: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. 30 Days, Lifetime"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Linked Accounts</label>
+                          <input
+                            value={attributes.linkedAccounts || ""}
+                            onChange={(e) => setAttributes({...attributes, linkedAccounts: e.target.value, type: "game-accounts"})}
+                            placeholder="e.g. Twitch, Prime, Discord"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium mb-1.5">Recovery Information</label>
+                          <textarea
+                            value={attributes.recoveryInfo || ""}
+                            onChange={(e) => setAttributes({...attributes, recoveryInfo: e.target.value, type: "game-accounts"})}
+                            placeholder="Describe any recovery codes, original creation details..."
+                            rows={2}
+                            className="w-full p-3 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "currency") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Game <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.game || ""}
+                            onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "currency"})}
+                            placeholder="e.g. Fortnite"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Currency Type <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.currencyType || ""}
+                            onChange={(e) => setAttributes({...attributes, currencyType: e.target.value, type: "currency"})}
+                            placeholder="e.g. V-Bucks"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Amount <span className="text-red-400">*</span></label>
+                          <input
+                            type="number"
+                            value={attributes.amount || ""}
+                            onChange={(e) => setAttributes({...attributes, amount: parseInt(e.target.value) || 0, type: "currency"})}
+                            placeholder="e.g. 5000"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Delivery Method</label>
+                          <input
+                            value={attributes.deliveryMethod || ""}
+                            onChange={(e) => setAttributes({...attributes, deliveryMethod: e.target.value, type: "currency"})}
+                            placeholder="e.g. In-game gift, UID top-up"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "boosting") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Game <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.game || ""}
+                            onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "boosting"})}
+                            placeholder="e.g. League of Legends"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Region <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.region || ""}
+                            onChange={(e) => setAttributes({...attributes, region: e.target.value, type: "boosting"})}
+                            placeholder="e.g. NA, EUW, EUNE"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Current Rank <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.currentRank || ""}
+                            onChange={(e) => setAttributes({...attributes, currentRank: e.target.value, type: "boosting"})}
+                            placeholder="e.g. Gold IV"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Desired Rank <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.desiredRank || ""}
+                            onChange={(e) => setAttributes({...attributes, desiredRank: e.target.value, type: "boosting"})}
+                            placeholder="e.g. Platinum I"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Platform (Optional)</label>
+                          <input
+                            value={attributes.platform || ""}
+                            onChange={(e) => setAttributes({...attributes, platform: e.target.value, type: "boosting"})}
+                            placeholder="e.g. PC, Console"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "gift-cards") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Brand / Issuer <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.brand || ""}
+                            onChange={(e) => setAttributes({...attributes, brand: e.target.value, type: "gift-cards"})}
+                            placeholder="e.g. Steam, PlayStation, Amazon"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Card Value <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.value || ""}
+                            onChange={(e) => setAttributes({...attributes, value: e.target.value, type: "gift-cards"})}
+                            placeholder="e.g. ₹500, $50"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Region Restriction <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.region || ""}
+                            onChange={(e) => setAttributes({...attributes, region: e.target.value, type: "gift-cards"})}
+                            placeholder="e.g. US, India, Global"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "software-tools") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Software Name <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.softwareName || ""}
+                            onChange={(e) => setAttributes({...attributes, softwareName: e.target.value, type: "software-tools"})}
+                            placeholder="e.g. Windows 11 Pro, Photoshop"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">OS Compatibility <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.os || ""}
+                            onChange={(e) => setAttributes({...attributes, os: e.target.value, type: "software-tools"})}
+                            placeholder="e.g. Windows, MacOS, Linux"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">License Type <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.licenseType || ""}
+                            onChange={(e) => setAttributes({...attributes, licenseType: e.target.value, type: "software-tools"})}
+                            placeholder="e.g. Lifetime Key, 1 Year Subscription"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Device Limit</label>
+                          <input
+                            type="number"
+                            value={attributes.deviceLimit || ""}
+                            onChange={(e) => setAttributes({...attributes, deviceLimit: parseInt(e.target.value) || 0, type: "software-tools"})}
+                            placeholder="e.g. 5"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "subscriptions") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Subscription Name <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.subscriptionName || ""}
+                            onChange={(e) => setAttributes({...attributes, subscriptionName: e.target.value, type: "subscriptions"})}
+                            placeholder="e.g. Netflix, Spotify Premium"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Plan Type <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.planType || ""}
+                            onChange={(e) => setAttributes({...attributes, planType: e.target.value, type: "subscriptions"})}
+                            placeholder="e.g. Premium UHD, Shared Screen"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Duration <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.duration || ""}
+                            onChange={(e) => setAttributes({...attributes, duration: e.target.value, type: "subscriptions"})}
+                            placeholder="e.g. 1 Month, 12 Months"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Access Model <span className="text-red-400">*</span></label>
+                          <select
+                            value={attributes.accessModel || ""}
+                            onChange={(e) => setAttributes({...attributes, accessModel: e.target.value, type: "subscriptions"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="">Select Access Model</option>
+                            <option value="Shared Account">Shared Account Access</option>
+                            <option value="Private Account">Private Account Access</option>
+                            <option value="Upgrade Service">Upgrade Service (Existing Account)</option>
+                            <option value="Invitation Link">Invitation Link / Code</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "coaching") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Game <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.game || ""}
+                            onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "coaching"})}
+                            placeholder="e.g. Valorant"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Coach Rank / Level <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.coachRank || ""}
+                            onChange={(e) => setAttributes({...attributes, coachRank: e.target.value, type: "coaching"})}
+                            placeholder="e.g. Radiant / 500rr"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Session Duration <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.sessionDuration || ""}
+                            onChange={(e) => setAttributes({...attributes, sessionDuration: e.target.value, type: "coaching"})}
+                            placeholder="e.g. 1 Hour, 2-Hour Coached Run"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Primary Language <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.language || ""}
+                            onChange={(e) => setAttributes({...attributes, language: e.target.value, type: "coaching"})}
+                            placeholder="e.g. English, Hindi"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Voice Chat Support</label>
+                          <select
+                            value={attributes.voiceChat === undefined ? "true" : String(attributes.voiceChat)}
+                            onChange={(e) => setAttributes({...attributes, voiceChat: e.target.value === "true", type: "coaching"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "game-buddies") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Game <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.game || ""}
+                            onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "game-buddies"})}
+                            placeholder="e.g. BGMI, League"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Platform <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.platform || ""}
+                            onChange={(e) => setAttributes({...attributes, platform: e.target.value, type: "game-buddies"})}
+                            placeholder="e.g. Mobile, PC, PS5"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Region <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.region || ""}
+                            onChange={(e) => setAttributes({...attributes, region: e.target.value, type: "game-buddies"})}
+                            placeholder="e.g. India, Asia"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Language <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.language || ""}
+                            onChange={(e) => setAttributes({...attributes, language: e.target.value, type: "game-buddies"})}
+                            placeholder="e.g. English, Hindi"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Voice Chat</label>
+                          <select
+                            value={attributes.voiceChat === undefined ? "true" : String(attributes.voiceChat)}
+                            onChange={(e) => setAttributes({...attributes, voiceChat: e.target.value === "true", type: "game-buddies"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "freelance") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Service Type <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.serviceType || ""}
+                            onChange={(e) => setAttributes({...attributes, serviceType: e.target.value, type: "freelance"})}
+                            placeholder="e.g. Web Development, Video Editing"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Estimated Delivery Time <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.deliveryTime || ""}
+                            onChange={(e) => setAttributes({...attributes, deliveryTime: e.target.value, type: "freelance"})}
+                            placeholder="e.g. 3 Days, 1 Week"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Revision Limit <span className="text-red-400">*</span></label>
+                          <input
+                            type="number"
+                            value={attributes.revisionLimit || ""}
+                            onChange={(e) => setAttributes({...attributes, revisionLimit: parseInt(e.target.value) || 0, type: "freelance"})}
+                            placeholder="e.g. 3"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Portfolio Link (Optional)</label>
+                          <input
+                            value={attributes.portfolioUrl || ""}
+                            onChange={(e) => setAttributes({...attributes, portfolioUrl: e.target.value, type: "freelance"})}
+                            placeholder="e.g. https://behance.net/..."
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "design") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Design Category <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.designType || ""}
+                            onChange={(e) => setAttributes({...attributes, designType: e.target.value, type: "design"})}
+                            placeholder="e.g. Logo, Banner, Thumbnail"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Source Files Included</label>
+                          <select
+                            value={attributes.sourceFilesIncluded === undefined ? "true" : String(attributes.sourceFilesIncluded)}
+                            onChange={(e) => setAttributes({...attributes, sourceFilesIncluded: e.target.value === "true", type: "design"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Commercial Use</label>
+                          <select
+                            value={attributes.commercialUse === undefined ? "true" : String(attributes.commercialUse)}
+                            onChange={(e) => setAttributes({...attributes, commercialUse: e.target.value === "true", type: "design"})}
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          >
+                            <option value="true">Licensed for Commercial Use</option>
+                            <option value="false">Personal Use Only</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "advertising") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Platform Channel <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.platformName || ""}
+                            onChange={(e) => setAttributes({...attributes, platformName: e.target.value, type: "advertising"})}
+                            placeholder="e.g. Discord Server, YouTube Channel"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Audience Size / Reach <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.reachAudience || ""}
+                            onChange={(e) => setAttributes({...attributes, reachAudience: e.target.value, type: "advertising"})}
+                            placeholder="e.g. 5,000 Members, 10k Subs"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Promo Duration (Days) <span className="text-red-400">*</span></label>
+                          <input
+                            type="number"
+                            value={attributes.durationDays || ""}
+                            onChange={(e) => setAttributes({...attributes, durationDays: parseInt(e.target.value) || 0, type: "advertising"})}
+                            placeholder="e.g. 7"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (type === "digital-marketplace") {
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">Product Type <span className="text-red-400">*</span></label>
+                          <input
+                            value={attributes.productType || ""}
+                            onChange={(e) => setAttributes({...attributes, productType: e.target.value, type: "digital-marketplace"})}
+                            placeholder="e.g. Ebook, WordPress Plugin, ZIP Assets"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">File Format</label>
+                          <input
+                            value={attributes.format || ""}
+                            onChange={(e) => setAttributes({...attributes, format: e.target.value, type: "digital-marketplace"})}
+                            placeholder="e.g. ZIP, PDF, EXE"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5">File Size (Optional)</label>
+                          <input
+                            value={attributes.fileSize || ""}
+                            onChange={(e) => setAttributes({...attributes, fileSize: e.target.value, type: "digital-marketplace"})}
+                            placeholder="e.g. 15 MB"
+                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return <p className="text-xs text-muted-foreground">Standard generic product. No special attributes required.</p>;
+                })()}
+              </div>
             </div>
 
             <div className="border border-border rounded-2xl p-4 bg-surface/30 space-y-4">

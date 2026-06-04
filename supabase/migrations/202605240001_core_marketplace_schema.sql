@@ -1,4 +1,4 @@
-﻿-- HUXZAIN core marketplace schema.
+-- HUXZAIN core marketplace schema.
 -- Canonical app fields: listings.price and listings.cover_image_url.
 -- Compatibility fields: listings.price_cents and listings.cover_url.
 
@@ -81,7 +81,7 @@ create table if not exists public.listings (
 create index if not exists listings_seller_id_idx on public.listings(seller_id);
 create index if not exists listings_category_id_idx on public.listings(category_id);
 create index if not exists listings_status_idx on public.listings(status);
-create index if not exists listings_featured_idx on public.listings(featured) where featured = true;
+create index if not exists listings_featured_idx on public.listings(is_featured) where is_featured = true;
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
@@ -192,7 +192,7 @@ begin
   values (new.id, new.email, coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1)))
   on conflict (id) do update set email = excluded.email;
   insert into public.user_roles (user_id, role) values (new.id, 'buyer') on conflict do nothing;
-  insert into public.wallets (user_id) values (new.id) on conflict do nothing;
+  insert into public.wallets (id) values (new.id) on conflict do nothing;
   return new;
 end;
 $$;
@@ -207,7 +207,7 @@ $$;
 
 create or replace function public.is_staff()
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.user_roles where user_id = auth.uid() and role in ('moderator', 'staff', 'admin', 'super_admin', 'owner'));
+  select exists (select 1 from public.user_roles where user_id = auth.uid() and role::text in ('moderator', 'staff', 'admin', 'super_admin', 'owner'));
 $$;
 
 create or replace function public.sync_seller_flag()
@@ -226,6 +226,7 @@ drop trigger if exists sync_seller_flag_insert on public.user_roles;
 create trigger sync_seller_flag_insert after insert on public.user_roles for each row execute function public.sync_seller_flag();
 drop trigger if exists sync_seller_flag_delete on public.user_roles;
 create trigger sync_seller_flag_delete after delete on public.user_roles for each row execute function public.sync_seller_flag();
+alter table public.categories add column if not exists sort integer not null default 0;
 
 insert into public.categories (name, slug, sort) values
   ('Digital Products', 'digital-products', 10),
@@ -291,7 +292,7 @@ drop policy if exists transactions_insert_own_or_staff on public.transactions;
 create policy transactions_insert_own_or_staff on public.transactions for insert with check (user_id = auth.uid() or public.is_staff());
 
 drop policy if exists wallets_read_own_or_staff on public.wallets;
-create policy wallets_read_own_or_staff on public.wallets for select using (user_id = auth.uid() or public.is_staff());
+create policy wallets_read_own_or_staff on public.wallets for select using (id = auth.uid() or public.is_staff());
 drop policy if exists wallets_staff_update on public.wallets;
 create policy wallets_staff_update on public.wallets for update using (public.is_staff()) with check (public.is_staff());
 

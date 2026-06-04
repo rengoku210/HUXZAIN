@@ -31,6 +31,9 @@ import { getSupabase } from "@/lib/supabase-client";
 import * as LucideIcons from "lucide-react";
 import { cartStore } from "@/lib/cart/cart-store";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
+import { primaryCategories } from "@/lib/marketplace-data";
+import { CategoryMegaMenu } from "../category/CategoryMegaMenu";
+
 
 function getCategoryIcon(slug: string, dbIcon?: string | null): typeof LucideIcons.Package {
   if (dbIcon && dbIcon in LucideIcons) {
@@ -93,8 +96,10 @@ export function Header() {
   const [cartOpen, setCartOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [megaSearch, setMegaSearch] = useState("");
+  const [hoveredCatId, setHoveredCatId] = useState<string | null>(null);
 
   const [navCategories, setNavCategories] = useState<any[]>([]);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
   const [listingsCounts, setListingsCounts] = useState<Record<string, number>>({});
   const [cartItems, setCartItems] = useState(cartStore.getItems());
 
@@ -301,6 +306,7 @@ export function Header() {
           slugCounts[p.slug] = totalCount;
         });
 
+        setAllCategories(cats);
         setNavCategories(parents);
         setListingsCounts(slugCounts);
       } catch (err) {
@@ -318,15 +324,16 @@ export function Header() {
 
   const navItems = [
     { to: "/", label: "Home" },
-    { to: "/game-buddies", label: "Game Buddies" },
-    { to: "/coaching", label: "Coaching" },
     ...(isAdmin ? [{ to: "/pages", label: "All Pages" }] : []),
-    ...navCategories.map((c) => ({
+    ...primaryCategories.map((c) => ({
       to: "/category/$slug",
       params: { slug: c.slug },
-      label: c.name,
+      label: c.title,
+      category: { id: c.slug, name: c.title, slug: c.slug },
     })),
   ];
+
+  const fullCategoriesList = navCategories; // needed for subcategories reference
 
   const accountRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -810,21 +817,32 @@ export function Header() {
 
         {/* ── Sub nav ────────────────────────────────────────────── */}
         {/* ── Category Quick Access Ribbon ────────────────────────────── */}
-        <div className="border-t border-border/60 bg-surface/30 w-full overflow-hidden relative shadow-inner">
+        <div className="border-t border-border/60 bg-surface/30 w-full overflow-hidden relative shadow-inner" onMouseLeave={() => setHoveredCatId(null)}>
           <div className="container-page flex items-center justify-between h-12 gap-4">
             <div className="flex-1 min-w-0 flex items-center gap-2.5 overflow-x-auto scrollbar-none w-full py-1">
               <Link to="/" className="px-3 py-1.5 text-[13px] font-medium text-foreground hover:text-gold rounded-full bg-surface/50 border border-border whitespace-nowrap transition-colors flex items-center gap-1.5 shadow-sm">
                 <Flame className="size-3.5 text-orange-500" /> Trending
               </Link>
               {navItems.slice(1).map((item) => (
-                <Link
+                <div 
                   key={item.label}
-                  to={item.to as any}
-                  params={"params" in item ? (item.params as any) : undefined}
-                  className="px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded-full border border-transparent hover:border-border whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium data-[status=active]:bg-gold/10 data-[status=active]:border-gold/20 shrink-0"
+                  className="h-full flex items-center"
+                  onMouseEnter={() => {
+                    if ((item as any).category) {
+                      setHoveredCatId((item as any).category.id);
+                    } else {
+                      setHoveredCatId(null);
+                    }
+                  }}
                 >
-                  {item.label}
-                </Link>
+                  <Link
+                    to={item.to as any}
+                    params={"params" in item ? (item.params as any) : undefined}
+                    className="px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded-full border border-transparent hover:border-border whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium data-[status=active]:bg-gold/10 data-[status=active]:border-gold/20 shrink-0"
+                  >
+                    {item.label}
+                  </Link>
+                </div>
               ))}
             </div>
             <div className="hidden md:flex items-center gap-3 pr-2 shrink-0 border-l border-border/60 pl-4">
@@ -836,6 +854,19 @@ export function Header() {
               </Link>
             </div>
           </div>
+          
+          {/* Render Mega Menu directly anchored to the ribbon */}
+          {hoveredCatId && (
+            <CategoryMegaMenu
+              category={primaryCategories.find((c) => c.slug === hoveredCatId) ? { id: hoveredCatId, name: primaryCategories.find((c) => c.slug === hoveredCatId)!.title, slug: hoveredCatId } : null as any}
+              isOpen={true}
+              onClose={() => setHoveredCatId(null)}
+              subcategories={(() => {
+                const dbCat = allCategories.find(c => c.slug === hoveredCatId);
+                return dbCat ? allCategories.filter(c => c.parent_id === dbCat.id) : [];
+              })()}
+            />
+          )}
         </div>
 
         {/* ── Category mega dropdown ───────────────────────────── */}
@@ -850,7 +881,7 @@ export function Header() {
                 <div>
                   <h3 className="text-xs font-bold text-gold uppercase tracking-wider mb-3">Popular Categories</h3>
                   <div className="space-y-1">
-                    {navCategories.slice(0, 5).map(c => (
+                    {primaryCategories.slice(0, 5).map(c => (
                       <Link
                         key={c.slug}
                         to="/category/$slug"
@@ -858,7 +889,7 @@ export function Header() {
                         onClick={() => setCatOpen(false)}
                         className="block px-3 py-2 -mx-3 text-sm text-foreground/80 hover:text-gold hover:bg-surface/50 rounded-lg transition-colors"
                       >
-                        {c.name}
+                        {c.title}
                       </Link>
                     ))}
                   </div>
@@ -866,7 +897,7 @@ export function Header() {
                 <div>
                   <h3 className="text-xs font-bold text-gold uppercase tracking-wider mb-3">Trending Now</h3>
                   <div className="space-y-1">
-                    {navCategories.slice(5, 8).map(c => (
+                    {primaryCategories.slice(5, 8).map(c => (
                       <Link
                         key={c.slug}
                         to="/category/$slug"
@@ -875,7 +906,7 @@ export function Header() {
                         className="block px-3 py-2 -mx-3 text-sm text-foreground/80 hover:text-gold hover:bg-surface/50 rounded-lg transition-colors"
                       >
                         <Flame className="size-3.5 inline mr-1.5 text-orange-500" />
-                        {c.name}
+                        {c.title}
                       </Link>
                     ))}
                   </div>
@@ -896,10 +927,10 @@ export function Header() {
                 </div>
                 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 overflow-y-auto max-h-[350px] scrollbar-thin pr-2 pb-2">
-                  {navCategories
-                    .filter(c => c.name.toLowerCase().includes(megaSearch.toLowerCase()))
+                  {primaryCategories
+                    .filter(c => c.title.toLowerCase().includes(megaSearch.toLowerCase()))
                     .map((c) => {
-                    const Icon = getCategoryIcon(c.slug, c.icon);
+                    const Icon = c.icon;
                     const count = listingsCounts[c.slug] ?? 0;
                     return (
                       <Link
@@ -909,9 +940,9 @@ export function Header() {
                         onClick={() => setCatOpen(false)}
                         className="group relative flex items-center gap-3 rounded-xl p-3 border border-border/50 hover:border-gold/50 bg-surface/30 hover:bg-surface transition-all overflow-hidden"
                       >
-                        {c.banner_image_url && (
+                        {(c as any).banner_image_url && (
                           <div className="absolute inset-0 opacity-5 group-hover:opacity-15 transition-opacity pointer-events-none">
-                            <img src={c.banner_image_url} alt="" className="w-full h-full object-cover" />
+                            <img src={(c as any).banner_image_url} alt="" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-r from-background to-background/50" />
                           </div>
                         )}
@@ -919,7 +950,7 @@ export function Header() {
                           <Icon className="size-5 text-gold drop-shadow-md" />
                         </div>
                         <div className="relative z-10 min-w-0">
-                          <div className="text-sm font-semibold truncate group-hover:text-gold transition-colors">{c.name}</div>
+                          <div className="text-sm font-semibold truncate group-hover:text-gold transition-colors">{c.title}</div>
                           <div className="text-[11px] text-muted-foreground truncate">{count.toLocaleString()} Listings</div>
                         </div>
                       </Link>

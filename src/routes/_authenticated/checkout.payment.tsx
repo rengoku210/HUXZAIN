@@ -26,39 +26,41 @@ import { formatPrice } from "@/lib/marketplace/listing-adapter";
 import { extractPaymentDetails } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout/payment")({
-  validateSearch: (s: Record<string, unknown>): { plan?: string; listingId?: string; price?: string; orderId?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { plan?: string; listingId?: string; price?: string; orderId?: string; title?: string } => ({
     plan: s.plan ? String(s.plan) : undefined,
     listingId: s.listingId ? String(s.listingId) : undefined,
     price: s.price ? String(s.price) : undefined,
     orderId: s.orderId ? String(s.orderId) : undefined,
+    title: s.title ? String(s.title) : undefined,
   }),
   head: () => ({ meta: [{ title: "Complete Checkout — HUXZAIN" }] }),
   component: UnifiedPaymentPage,
 });
-
+ 
 type StepType = "pay" | "upload" | "success";
-
+ 
 function UnifiedPaymentPage() {
   const search = Route.useSearch() as any;
   const planParam = search.plan;
   const listingIdParam = search.listingId;
   const priceParam = search.price;
   const orderIdParam = search.orderId;
-
+  const titleParam = search.title;
+ 
   const { user } = useAuth();
   const navigate = useNavigate();
-
+ 
   // Load Tier Meta if subscription upgrade
   const isSubscription = !!planParam;
   const selectedPlanId = (planParam?.replace(/"/g, "")?.toLowerCase() || "pro") as SellerTier;
   const planMeta = TIERS[selectedPlanId] || TIERS.pro;
-
+ 
   // Listing State
   const [listing, setListing] = useState<any>(null);
   const [sellerProfile, setSellerProfile] = useState<any>(null);
   const [loadingListing, setLoadingListing] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(orderIdParam || null);
-
+ 
   // Flow & Upload State
   const [step, setStep] = useState<StepType>("pay");
   const [file, setFile] = useState<File | null>(null);
@@ -68,14 +70,14 @@ function UnifiedPaymentPage() {
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [utrReference, setUtrReference] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+ 
   // Fetch listing & seller info if listingId is provided
   useEffect(() => {
     if (!listingIdParam || isSubscription) return;
     
     const supabase = getSupabase();
     if (!supabase) return;
-
+ 
     const fetchListingData = async () => {
       setLoadingListing(true);
       try {
@@ -87,17 +89,17 @@ function UnifiedPaymentPage() {
         } else {
           query = query.eq("slug", listingIdParam);
         }
-
+ 
         const { data: listData, error: listErr } = await query.maybeSingle();
-
+ 
         if (listErr) throw listErr;
         if (!listData) {
           toast.error("Listing not found.");
           return;
         }
-
+ 
         setListing(listData);
-
+ 
         // Fetch seller profile
         if (listData.seller_id) {
           const { data: profData } = await supabase
@@ -114,34 +116,36 @@ function UnifiedPaymentPage() {
         setLoadingListing(false);
       }
     };
-
+ 
     fetchListingData();
   }, [listingIdParam, isSubscription]);
-
+ 
   // Determine pricing and titles
   const checkoutTitle = isSubscription 
     ? `${planMeta.label} Platform Tier Upgrade`
-    : listing?.title || "Marketplace Product Checkout";
-
+    : titleParam || listing?.title || "Marketplace Product Checkout";
+ 
   const rawPrice = isSubscription
     ? planMeta.monthly
-    : listing
-      ? (listing.price_cents ? listing.price_cents / 100 : parseFloat(priceParam || "0"))
-      : parseFloat(priceParam || "0");
-
+    : priceParam
+      ? parseFloat(priceParam)
+      : listing
+        ? (listing.price_cents ? listing.price_cents / 100 : 0)
+        : 0;
+ 
   const checkoutPrice = isNaN(rawPrice) ? 0 : rawPrice;
-
+ 
   const sellerName = isSubscription
     ? "HUXZAIN Platform"
     : sellerProfile?.display_name || sellerProfile?.username || "Verified Seller";
-
+ 
   const upiId = "shprivateltd@upi";
-
+ 
   // Dynamic UPI URI formulation
   const transactionNote = isSubscription
     ? `Huxzain ${planMeta.label} Subscription Upgrade`
     : `Huxzain Order ${orderId ? orderId.slice(0, 8) : "Checkout"}`;
-
+ 
   const upiUri = `upi://pay?pa=${upiId}&pn=HUXZAIN&am=${checkoutPrice}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
 
   // Handle Clipboard Copy

@@ -10,6 +10,7 @@ import {
   LogOut,
   CreditCard,
   DollarSign,
+  FileText,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -39,6 +40,7 @@ const navGroups: NavGroup[] = [
     title: "Finance",
     items: [
       { to: "/admin/payments", label: "Payments", icon: CreditCard },
+      { to: "/admin/invoices", label: "Invoices", icon: FileText },
       { to: "/admin/withdrawals", label: "Withdrawals", icon: CreditCard },
       { to: "/admin/earnings", label: "Earnings", icon: DollarSign },
       { to: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
@@ -83,11 +85,11 @@ function AdminLayout() {
   // Dynamic staff allowed paths based on specific role
   const staffAllowedPaths = useMemo(() => {
     let paths: string[] = [];
-    if (isPaymentReviewer) paths.push("/admin/payments", "/admin/withdrawals", "/admin/earnings");
+    if (isPaymentReviewer) paths.push("/admin/payments", "/admin/invoices", "/admin/withdrawals", "/admin/earnings");
     if (isDisputeManager) paths.push("/admin/disputes", "/admin/tickets");
     if (isSupportAgent) paths.push("/admin/tickets");
     if (isVerificationOfficer) paths.push("/admin/verifications");
-    if (auth.hasRole("staff") && paths.length === 0) paths.push("/admin/payments", "/admin/subscriptions", "/admin/tickets"); // fallback
+    if (auth.hasRole("staff") && paths.length === 0) paths.push("/admin/payments", "/admin/invoices", "/admin/subscriptions", "/admin/tickets"); // fallback
     return paths;
   }, [isPaymentReviewer, isDisputeManager, isSupportAgent, isVerificationOfficer, auth]);
 

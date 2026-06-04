@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase-client";
+import { calculateCoolingDays, calculateInspectionHours, type SellerTier } from "@/lib/escrow";
 
 // Ensure a wallet row exists for the user and return it
 export async function getOrCreateWallet(userId: string) {
@@ -75,7 +76,7 @@ export async function completeOrderAndCreditSeller(orderId: string) {
     .eq("id", sellerId)
     .single();
 
-  const tier = profile?.subscription_tier || "standard";
+  const tier = (profile?.subscription_tier || "standard") as SellerTier;
 
   // Tier fee mappings: Standard = 1.9%, Pro = 1.5%, Elite = 1.0%, Enterprise = 0.5%
   let feePercent = 0.019;
@@ -88,14 +89,24 @@ export async function completeOrderAndCreditSeller(orderId: string) {
 
   console.log(`[WalletFunctions] Order #${orderId} complete. Tier: ${tier}, Fee: ${feePercent * 100}%, Gross: ₹${amount}, Comm: ₹${commission}, Net: ₹${sellerPayout}`);
 
-  // 3. Update order status -> completed
+  const coolingDays = calculateCoolingDays(tier);
+  const now = new Date();
+  const eligibleAt = new Date(now.getTime() + coolingDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(eligibleAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  // 3. Update order status -> completed and record cooling metrics
   const { error: updErr } = await supabase
     .from("orders")
     .update({
       status: "completed",
+      completed_at: now.toISOString(),
       commission_inr: commission,
       seller_payout_inr: sellerPayout,
-      updated_at: new Date().toISOString()
+      payout_status: "pending_cooling",
+      cooling_days: coolingDays,
+      withdrawal_eligible_at: eligibleAt.toISOString(),
+      withdrawal_expired_at: expiresAt.toISOString(),
+      updated_at: now.toISOString()
     })
     .eq("id", orderId);
 
@@ -104,11 +115,11 @@ export async function completeOrderAndCreditSeller(orderId: string) {
   // 4. Load or create seller wallet
   const wallet = await getOrCreateWallet(sellerId);
 
-  // 5. Credit seller wallet available balance and total earnings
+  // 5. Credit seller wallet pending balance (funds are locked in cooling) and total earnings
   const { error: walletErr } = await supabase
     .from("wallets")
     .update({
-      available_balance: wallet.available_balance + sellerPayout,
+      pending_balance: wallet.pending_balance + sellerPayout,
       total_earnings: wallet.total_earnings + sellerPayout,
       updated_at: new Date().toISOString()
     })
@@ -125,7 +136,7 @@ export async function completeOrderAndCreditSeller(orderId: string) {
       amount: sellerPayout,
       status: "completed",
       reference_id: orderId,
-      description: `Sales revenue from order #${orderId.slice(0, 8)} (${order.listing_title || "Marketplace listing"})`
+      description: `Sales revenue from order #${orderId.slice(0, 8)} (${order.listing_title || "Marketplace listing"}) (Locked in Cooling Period)`
     });
 
   if (txnErr) console.error("[WalletFunctions] Transaction log error:", txnErr);
@@ -135,12 +146,177 @@ export async function completeOrderAndCreditSeller(orderId: string) {
     await supabase.from("notifications").insert({
       user_id: sellerId,
       kind: "order.completed",
-      title: "Order Completed — Funds Credited",
-      body: `Order for "${order.listing_title || "Listing"}" is completed. ₹${sellerPayout} has been added to your wallet available balance.`
+      title: "Order Completed — Cooling Hold Active",
+      body: `Order for "${order.listing_title || "Listing"}" is completed. ₹${sellerPayout} is held in cooling for ${coolingDays} days before withdrawal eligibility.`
     });
   } catch (e) { console.error("Notification trigger error:", e); }
 
   return order;
+}
+
+// Auto-complete delivered orders and release cooling/dormant holds
+export async function checkAndReleaseEscrows() {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const now = new Date();
+
+  // 1. AUTO-COMPLETE DELIVERED ORDERS
+  const { data: deliveredOrders, error: delErr } = await supabase
+    .from("orders")
+    .select("*, listings:listing_id(title, seller_id, categories(slug))")
+    .eq("status", "delivered");
+
+  if (!delErr && deliveredOrders) {
+    for (const order of deliveredOrders) {
+      try {
+        const deliveredAt = order.delivered_at;
+        if (!deliveredAt) continue;
+
+        const sellerId = order.seller_id || order.listings?.seller_id;
+        if (!sellerId) continue;
+
+        // Fetch seller profile to get tier
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("subscription_tier")
+          .eq("id", sellerId)
+          .single();
+
+        const sellerTier = (profile?.subscription_tier || "standard") as SellerTier;
+        const categorySlug = order.listings?.categories?.slug || "general";
+        const price = Number(order.amount_inr || order.amount_total || 0);
+
+        const inspectionHours = calculateInspectionHours(categorySlug, price, sellerTier);
+        const autoReleaseTime = new Date(new Date(deliveredAt).getTime() + inspectionHours * 60 * 60 * 1000);
+
+        if (now >= autoReleaseTime) {
+          console.log(`[EscrowRelease] Auto-completing delivered order #${order.id} (Inspection period of ${inspectionHours}h expired)`);
+          await completeOrderAndCreditSeller(order.id);
+        }
+      } catch (err) {
+        console.error(`[EscrowRelease] Failed to auto-complete order ${order.id}:`, err);
+      }
+    }
+  }
+
+  // 2. RELEASE EXPIRED COOLING HOLDS (Mark 'eligible')
+  const { data: coolingOrders, error: coolErr } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("status", "completed")
+    .eq("payout_status", "pending_cooling")
+    .lte("withdrawal_eligible_at", now.toISOString());
+
+  if (!coolErr && coolingOrders) {
+    for (const order of coolingOrders) {
+      try {
+        const sellerId = order.seller_id;
+        const payout = Number(order.seller_payout_inr || 0);
+
+        if (!sellerId || payout <= 0) continue;
+
+        // 2.1 Update order payout_status to 'eligible'
+        const { error: updErr } = await supabase
+          .from("orders")
+          .update({ payout_status: "eligible", updated_at: now.toISOString() })
+          .eq("id", order.id);
+
+        if (updErr) throw updErr;
+
+        // 2.2 Shift funds: pending_balance -> available_balance
+        const wallet = await getOrCreateWallet(sellerId);
+        const newPending = Math.max(0, wallet.pending_balance - payout);
+        const newAvailable = wallet.available_balance + payout;
+
+        const { error: walletErr } = await supabase
+          .from("wallets")
+          .update({
+            pending_balance: newPending,
+            available_balance: newAvailable,
+            updated_at: now.toISOString()
+          })
+          .eq("id", sellerId);
+
+        if (walletErr) throw walletErr;
+
+        // 2.3 Notify seller
+        await supabase.from("notifications").insert({
+          user_id: sellerId,
+          kind: "wallet.eligible",
+          title: "Earnings Eligible for Withdrawal",
+          body: `Your earnings of ₹${payout} from Order #${order.id.slice(0, 8)} have completed the cooling period and are now available for withdrawal!`
+        });
+
+        console.log(`[EscrowRelease] Released cooling hold for order #${order.id}. Moved ₹${payout} to available.`);
+      } catch (err) {
+        console.error(`[EscrowRelease] Failed to release cooling hold for order ${order.id}:`, err);
+      }
+    }
+  }
+
+  // 3. TRANSITION EXPIRED ELIGIBLE FUNDS TO DORMANT
+  const { data: eligibleExpiredOrders, error: expErr } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("status", "completed")
+    .eq("payout_status", "eligible")
+    .lte("withdrawal_expired_at", now.toISOString());
+
+  if (!expErr && eligibleExpiredOrders) {
+    for (const order of eligibleExpiredOrders) {
+      try {
+        const sellerId = order.seller_id;
+        const payout = Number(order.seller_payout_inr || 0);
+
+        if (!sellerId || payout <= 0) continue;
+
+        // 3.1 Update order payout_status to 'dormant'
+        const { error: updErr } = await supabase
+          .from("orders")
+          .update({ payout_status: "dormant", updated_at: now.toISOString() })
+          .eq("id", order.id);
+
+        if (updErr) throw updErr;
+
+        // 3.2 Subtract from available_balance
+        const wallet = await getOrCreateWallet(sellerId);
+        const newAvailable = Math.max(0, wallet.available_balance - payout);
+
+        const { error: walletErr } = await supabase
+          .from("wallets")
+          .update({
+            available_balance: newAvailable,
+            updated_at: now.toISOString()
+          })
+          .eq("id", sellerId);
+
+        if (walletErr) throw walletErr;
+
+        // 3.3 Log transaction
+        await supabase.from("wallet_transactions").insert({
+          wallet_id: sellerId,
+          type: "withdrawal",
+          amount: -payout,
+          status: "completed",
+          reference_id: order.id,
+          description: `Earnings transitioned to Dormant (30-day window expired): Order #${order.id.slice(0, 8)}`
+        });
+
+        // 3.4 Notify seller
+        await supabase.from("notifications").insert({
+          user_id: sellerId,
+          kind: "wallet.dormant",
+          title: "Earnings Marked as Dormant",
+          body: `Earnings of ₹${payout} from Order #${order.id.slice(0, 8)} exceeded the 30-day withdrawal window. Please reactivate them from payouts tab.`
+        });
+
+        console.log(`[EscrowRelease] Order #${order.id} earnings marked as dormant.`);
+      } catch (err) {
+        console.error(`[EscrowRelease] Failed to transition order ${order.id} to dormant:`, err);
+      }
+    }
+  }
 }
 
 // Request withdrawal from available wallet balance
@@ -151,6 +327,20 @@ export async function requestWithdrawal(userId: string, amount: number, method: 
   if (amount <= 0) throw new Error("Withdrawal amount must be greater than zero");
 
   const wallet = await getOrCreateWallet(userId);
+
+  // Check if withdrawals are frozen in reports table
+  const { data: freezeRow } = await supabase
+    .from("reports")
+    .select("status")
+    .eq("target_id", userId)
+    .eq("target_type", "seller")
+    .eq("reason", "freeze")
+    .eq("status", "open")
+    .maybeSingle();
+
+  if (freezeRow) {
+    throw new Error("Your payouts and withdrawals are temporarily frozen by platform administration. Please open a support ticket for mediation.");
+  }
 
   if (wallet.available_balance < amount) {
     throw new Error("Insufficient available balance");
@@ -252,6 +442,16 @@ export async function processWithdrawalStatus(withdrawalId: string, status: "com
 
     // 2. Mark withdrawal as completed
     await supabase.from("withdrawals").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", withdrawalId);
+
+    // 2.0 Mark associated orders as withdrawn
+    const match = String(w.upi_id || w.account_holder || "").match(/orders:([a-zA-Z0-9\-_,]+)/);
+    if (match && match[1]) {
+      const orderIds = match[1].split(",");
+      await supabase
+        .from("orders")
+        .update({ payout_status: "withdrawn", updated_at: new Date().toISOString() })
+        .in("id", orderIds);
+    }
 
     // 2.1 Find and update related support ticket
     try {

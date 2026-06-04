@@ -1,4 +1,4 @@
-﻿export type ListingLike = {
+export type ListingLike = {
   id: string;
   title: string;
   seller?: string | null;
@@ -23,6 +23,7 @@
   delivery_details?: string | null;
   description?: string | null;
   status?: string | null;
+  attributes?: Record<string, any> | null;
 };
 
 export function listingPrice(listing: ListingLike): number {

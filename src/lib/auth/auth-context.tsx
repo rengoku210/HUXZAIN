@@ -48,6 +48,7 @@ type AuthState = {
   can: (p: Permission) => boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signInWithOtp: (email: string) => Promise<void>;
+  verifyOtp: (email: string, token: string, type: 'email' | 'signup' | 'recovery') => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -62,6 +63,8 @@ type AuthState = {
   refreshUserMeta: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   becomeSeller: () => Promise<void>;
+  simulateUser: (targetUserId: string | null) => Promise<void>;
+  isSimulated: boolean;
 };
 
 const AuthCtx = createContext<AuthState | null>(null);
@@ -73,6 +76,41 @@ function uniqueRoles(rows: { role: Role }[] | null | undefined): Role[] {
   return [...out];
 }
 
+async function logLogin(userId: string) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  try {
+    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "Unknown";
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    let browserName = "Unknown";
+    if (userAgent.includes("Firefox")) browserName = "Firefox";
+    else if (userAgent.includes("Chrome")) browserName = "Chrome";
+    else if (userAgent.includes("Safari")) browserName = "Safari";
+    else if (userAgent.includes("Edge")) browserName = "Edge";
+
+    let ip = "Client Session";
+    try {
+      const res = await fetch("https://api.ipify.org?format=json");
+      const ipJson = await res.json();
+      if (ipJson && ipJson.ip) {
+        ip = ipJson.ip;
+      }
+    } catch (ipErr) {
+      // ignore
+    }
+
+    await supabase.from("login_logs").insert({
+      user_id: userId,
+      device: isMobile ? "Mobile" : "Desktop",
+      browser: browserName,
+      ip_address: ip,
+    });
+    console.log(`[Auth] Logged login event for user: ${userId}`);
+  } catch (err) {
+    console.error("Failed to insert login log:", err);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabase();
   const configured = isSupabaseConfigured();
@@ -80,6 +118,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [simulatedUserId, setSimulatedUserId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem("huxzain_simulated_user_id");
+    } catch (e) {
+      return null;
+    }
+  });
 
   const loadUserMeta = useCallback(
     async (userId: string, fallbackUser?: User | null) => {
@@ -310,22 +355,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshUserMeta = useCallback(async () => {
-    if (session?.user) {
-      console.log("[AuthContext] Refreshing user meta...");
-      await loadUserMeta(session.user.id, session.user);
+    const targetId = simulatedUserId || session?.user?.id;
+    if (targetId) {
+      console.log("[AuthContext] Refreshing user meta for target:", targetId);
+      await loadUserMeta(targetId, simulatedUserId ? null : session?.user);
     }
-  }, [session, loadUserMeta]);
+  }, [session, loadUserMeta, simulatedUserId]);
 
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, s) => {
       if (!mounted) return;
       setSession(s);
       if (s?.user) {
-        setTimeout(() => loadUserMeta(s.user.id, s.user), 0);
+        const targetId = sessionStorage.getItem("huxzain_simulated_user_id") || s.user.id;
+        setTimeout(() => loadUserMeta(targetId, targetId === s.user.id ? s.user : null), 0);
+        
+        if (evt === "SIGNED_IN" && targetId === s.user.id) {
+          void logLogin(s.user.id);
+        }
       } else {
+        sessionStorage.removeItem("huxzain_simulated_user_id");
+        setSimulatedUserId(null);
         setProfile(null);
         setRoles([]);
         setReady(true);
@@ -342,7 +395,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) console.error("[AuthContext] getSession error:", error);
       setSession(data?.session ?? null);
       if (data?.session?.user) {
-        loadUserMeta(data.session.user.id, data.session.user);
+        const targetId = sessionStorage.getItem("huxzain_simulated_user_id") || data.session.user.id;
+        loadUserMeta(targetId, targetId === data.session.user.id ? data.session.user : null);
       } else {
         setReady(true);
       }
@@ -357,10 +411,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       sub.subscription.unsubscribe();
     };
-  }, [supabase, loadUserMeta]);
+  }, [supabase, loadUserMeta, simulatedUserId]);
+
+  const simulateUser = useCallback(async (targetUserId: string | null) => {
+    if (!supabase) return;
+    if (!targetUserId) {
+      sessionStorage.removeItem("huxzain_simulated_user_id");
+      setSimulatedUserId(null);
+      if (session?.user) {
+        await loadUserMeta(session.user.id, session.user);
+      }
+    } else {
+      sessionStorage.setItem("huxzain_simulated_user_id", targetUserId);
+      setSimulatedUserId(targetUserId);
+      await loadUserMeta(targetUserId, null);
+    }
+  }, [supabase, session, loadUserMeta]);
 
   const value = useMemo<AuthState>(() => {
-    const user = session?.user ?? null;
+    const rawUser = session?.user ?? null;
+    const user = simulatedUserId && profile ? ({
+      id: simulatedUserId,
+      email: profile.email || "simulated@huxzain.com",
+      email_confirmed_at: new Date().toISOString(),
+      user_metadata: {
+        display_name: profile.display_name,
+        avatar_url: profile.avatar_url
+      }
+    } as any) : rawUser;
+
     return {
       ready,
       configured,
@@ -369,6 +448,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       roles,
       isAuthenticated: !!user,
+      isSimulated: !!simulatedUserId,
+      simulateUser,
       hasRole: (r) => {
         // Role hierarchy: super_admin/owner > admin > manager > moderator > staff > employee > seller > buyer
         if (roles.includes(r)) return true;
@@ -393,19 +474,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signInWithOtp(email) {
         if (!supabase) throw new Error("Auth not configured.");
-        const redirect = `${env.siteUrl}/auth/callback`;
-        console.log(`[Auth] Attempting to send magic link to: ${email} (Redirect: ${redirect})`);
+        console.log(`[Auth] Attempting to send OTP to: ${email}`);
         const { data, error } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: redirect },
         });
-        console.log('[Auth] signInWithOtp response data:', data);
-        console.log('[Auth] signInWithOtp response error:', error);
         if (error) {
-          console.error('[Auth] Magic link error:', error.message);
+          console.error('[Auth] OTP send error:', error.message);
           throw error;
         }
-        console.log('[Auth] Magic link sent successfully.');
+        console.log('[Auth] OTP sent successfully.');
+      },
+      async verifyOtp(email, token, type) {
+        if (!supabase) throw new Error("Auth not configured.");
+        console.log(`[Auth] Verifying OTP for ${email} (type: ${type})`);
+        
+        const { data, error } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type
+        });
+
+        if (error) {
+          console.error('[Auth] OTP verification error:', error.message);
+          throw error;
+        }
+
+        if (data.user) {
+          console.log('[Auth] OTP verification successful.');
+          await loadUserMeta(data.user.id, data.user);
+        }
       },
       async signUp(email, password, displayName, intent) {
         if (!supabase) throw new Error("Auth not configured.");
@@ -498,7 +595,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("[AuthContext] Seller role activated.");
       },
     };
-  }, [ready, configured, session, profile, roles, supabase, refreshUserMeta]);
+  }, [ready, configured, session, profile, roles, supabase, refreshUserMeta, simulatedUserId, simulateUser]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

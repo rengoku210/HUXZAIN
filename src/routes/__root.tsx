@@ -126,14 +126,67 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { useAuth } from "@/lib/auth/auth-context";
+import { toast } from "sonner";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        <RootLayout />
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function RootLayout() {
+  const auth = useAuth();
+  const routerState = useRouterState();
+  const path = routerState.location.pathname;
+
+  useEffect(() => {
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    let browserName = "Unknown";
+    if (userAgent.includes("Firefox")) browserName = "Firefox";
+    else if (userAgent.includes("Chrome")) browserName = "Chrome";
+    else if (userAgent.includes("Safari")) browserName = "Safari";
+    else if (userAgent.includes("Edge")) browserName = "Edge";
+
+    trackVisit({
+      data: {
+        path,
+        referrer: typeof document !== "undefined" && document.referrer ? document.referrer : "Direct",
+        device: isMobile ? "Mobile" : "Desktop",
+        browser: browserName,
+      }
+    });
+  }, [path]);
+
+  return (
+    <>
+      {auth.isSimulated && (
+        <div className="bg-amber-500 text-black px-4 py-2 text-xs font-bold flex items-center justify-between sticky top-0 z-50 shadow-md">
+          <div className="flex items-center gap-2">
+            <span className="animate-pulse">⚠️</span>
+            <span>
+              SIMULATION ACTIVE: Logged in as <span className="underline">{auth.profile?.display_name || auth.profile?.username}</span> (ID: {auth.profile?.id.slice(0, 8)})
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              auth.simulateUser(null);
+              toast.success("Simulation exited. Restored admin session.");
+            }}
+            className="px-3 py-1 rounded bg-black text-amber-500 font-extrabold hover:brightness-110 active:scale-95 transition-all text-[10px] border-none cursor-pointer uppercase tracking-wider"
+          >
+            Exit Simulation
+          </button>
+        </div>
+      )}
+      <Outlet />
+    </>
   );
 }

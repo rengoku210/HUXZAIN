@@ -35,6 +35,9 @@ end $$;
 -- 2. Fix RLS for user_roles (Allow users to become sellers)
 drop policy if exists "roles_user_become_seller" on public.user_roles;
 drop policy if exists "roles_read_own_or_staff" on public.user_roles;
+drop policy if exists "roles_read_own" on public.user_roles;
+drop policy if exists "roles_insert_self" on public.user_roles;
+drop policy if exists "roles_staff_all" on public.user_roles;
 
 -- Allow users to see their own roles
 create policy "roles_read_own" on public.user_roles
@@ -51,6 +54,9 @@ create policy "roles_staff_all" on public.user_roles
 -- 3. Fix RLS for profiles (Allow users to update everything about themselves)
 drop policy if exists "profiles_update_own_or_staff" on public.profiles;
 drop policy if exists "profiles_read" on public.profiles;
+drop policy if exists "profiles_public_read" on public.profiles;
+drop policy if exists "profiles_update_self" on public.profiles;
+drop policy if exists "profiles_staff_update" on public.profiles;
 
 -- Public read for profiles
 create policy "profiles_public_read" on public.profiles

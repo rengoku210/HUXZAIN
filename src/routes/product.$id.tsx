@@ -50,6 +50,14 @@ const FEATURES = [
 ];
 const TABS = ["Description", "Reviews", "FAQs", "Support"];
 
+// Predefined GAME ranks configuration for dynamic calculator
+const GAME_RANKS: Record<string, string[]> = {
+  "valorant": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal", "Radiant"],
+  "league of legends": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Master", "Grandmaster", "Challenger"],
+  "cs2": ["Silver I", "Silver Elite", "Gold Nova", "Master Guardian", "Legendary Eagle", "Supreme Master", "Global Elite"],
+  "mobile legends": ["Warrior", "Elite", "Master", "Grandmaster", "Epic", "Legend", "Mythic", "Mythic Glory", "Mythical Immortal"]
+};
+
 function ProductPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -67,6 +75,28 @@ function ProductPage() {
   const [reportDescription, setReportDescription] = useState("");
   const [reportScreenshotFile, setReportScreenshotFile] = useState<File | null>(null);
   const [submittingReport, setSubmittingReport] = useState(false);
+
+
+  const [currentRank, setCurrentRank] = useState("");
+  const [desiredRank, setDesiredRank] = useState("");
+  const [matchedRanks, setMatchedRanks] = useState<string[]>([]);
+  const [isBoosting, setIsBoosting] = useState(false);
+
+  useEffect(() => {
+    if (!listing) return;
+    const catSlug = listing.categories?.slug ?? "";
+    const attrType = (listing.attributes as any)?.type ?? "";
+    const isBoostCat = catSlug === "boosting-services" || attrType === "boosting";
+    setIsBoosting(isBoostCat);
+
+    if (isBoostCat) {
+      const gameName = (listing.attributes as any)?.game?.toLowerCase() || "";
+      const matched = Object.entries(GAME_RANKS).find(([k]) => gameName.includes(k) || k.includes(gameName))?.[1] || ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master"];
+      setMatchedRanks(matched);
+      setCurrentRank(matched[0]);
+      setDesiredRank(matched[1] || matched[0]);
+    }
+  }, [listing]);
 
   useEffect(() => {
     const handleWishlistUpdate = () => {
@@ -175,7 +205,18 @@ function ProductPage() {
 
       setOrdering(true);
       
-      const price = listingPrice(listing);
+      const basePrice = listingPrice(listing);
+      const currentIdx = matchedRanks.indexOf(currentRank);
+      const desiredIdx = matchedRanks.indexOf(desiredRank);
+      const rankDifference = currentIdx !== -1 && desiredIdx !== -1 ? Math.max(0, desiredIdx - currentIdx) : 0;
+      const calculatedPrice = isBoosting && rankDifference > 0
+        ? basePrice + rankDifference * Math.max(100, Math.round(basePrice * 0.15))
+        : basePrice;
+      const priceVal = isBoosting ? calculatedPrice : basePrice;
+
+      const finalTitle = isBoosting && rankDifference > 0
+        ? `${listing.title} (${currentRank} to ${desiredRank})`
+        : listing.title;
 
       // Create order using correct live DB columns and enum values
       console.log('STEP 2.1: Inserting order into Supabase...');
@@ -185,8 +226,8 @@ function ProductPage() {
           buyer_id: user.id,
           seller_id: listing.seller_id,
           listing_id: listing.id,
-          listing_title: listing.title,
-          amount_inr: price,
+          listing_title: finalTitle,
+          amount_inr: priceVal,
           status: "pending_payment",
           payment_status: "created",
           payment_method: "manual"
@@ -209,7 +250,7 @@ function ProductPage() {
       // Insert transaction charge tracking
       console.log('STEP 4 creating payment (transaction tracking)...');
       try {
-        const amountCents = Math.round(price * 100);
+        const amountCents = Math.round(priceVal * 100);
         const { error: txError } = await supabase.from("transactions").insert({
           user_id: user.id,
           order_id: order.id,
@@ -234,14 +275,14 @@ function ProductPage() {
           user_id: listing.seller_id,
           kind: "order.created",
           title: "New order received",
-          body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
+          body: `${user.email ?? "A buyer"} started checkout for ${finalTitle}`,
         });
       } catch (notifEx) {
         console.warn("[BuyNow] Notifications insert non-blocking exception:", notifEx);
       }
 
       const redirectPath = "/checkout/payment";
-      const searchParams = { orderId: order.id, listingId: listing.id, price: String(price) };
+      const searchParams = { orderId: order.id, listingId: listing.id, price: String(priceVal), title: finalTitle };
       console.log('STEP 5 navigating checkout', {
         path: redirectPath,
         search: searchParams,
@@ -321,7 +362,19 @@ function ProductPage() {
   }
 
   const title = listing.title;
-  const price = listingPrice(listing);
+  const basePrice = listingPrice(listing);
+  const currentIdx = matchedRanks.indexOf(currentRank);
+  const desiredIdx = matchedRanks.indexOf(desiredRank);
+  const rankDifference = currentIdx !== -1 && desiredIdx !== -1 ? Math.max(0, desiredIdx - currentIdx) : 0;
+  const calculatedPrice = isBoosting && rankDifference > 0
+    ? basePrice + rankDifference * Math.max(100, Math.round(basePrice * 0.15))
+    : basePrice;
+  const price = isBoosting ? calculatedPrice : basePrice;
+
+  const finalTitle = isBoosting && rankDifference > 0
+    ? `${title} (${currentRank} to ${desiredRank})`
+    : title;
+
   const seller = sellerProfile?.display_name ?? sellerProfile?.username ?? "Verified Seller";
   const rating = listingRating(listing);
   const reviews = listingReviewCount(listing);
@@ -481,6 +534,20 @@ function ProductPage() {
               </div>
             </div>
 
+            {listing.attributes && Object.keys(listing.attributes).length > 0 && listing.attributes.type !== "generic" && (
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold mb-3 text-gold">Specifications</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                  {Object.entries(listing.attributes).filter(([k]) => k !== 'type' && k !== 'game').map(([key, value]) => (
+                    <div key={key} className="flex flex-col p-3 rounded-xl border border-border bg-surface/30">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                      <span className="font-medium mt-0.5 text-foreground truncate" title={String(value)}>{String(value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 font-display text-4xl font-bold text-gold">
               {formatPrice(price)}
             </div>
@@ -492,6 +559,81 @@ function ProductPage() {
                 </li>
               ))}
             </ul>
+
+            {isBoosting && matchedRanks.length > 0 && (
+              <div className="mt-6 p-5 rounded-2xl border border-gold/20 bg-surface/20 space-y-4">
+                <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                  <h3 className="text-xs font-bold text-gold uppercase tracking-wider">Rank Boosting Calculator</h3>
+                  <span className="text-[10px] text-muted-foreground uppercase font-semibold">Instant Estimate</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1">
+                      Current Rank
+                    </label>
+                    <select
+                      value={currentRank}
+                      onChange={(e) => {
+                        const newRank = e.target.value;
+                        setCurrentRank(newRank);
+                        const currIdx = matchedRanks.indexOf(newRank);
+                        const desIdx = matchedRanks.indexOf(desiredRank);
+                        if (desIdx <= currIdx && currIdx < matchedRanks.length - 1) {
+                          setDesiredRank(matchedRanks[currIdx + 1]);
+                        }
+                      }}
+                      className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden text-foreground cursor-pointer"
+                    >
+                      {matchedRanks.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1">
+                      Desired Rank
+                    </label>
+                    <select
+                      value={desiredRank}
+                      onChange={(e) => {
+                        const newRank = e.target.value;
+                        setDesiredRank(newRank);
+                      }}
+                      className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden text-foreground cursor-pointer"
+                    >
+                      {matchedRanks.map((r, idx) => (
+                        <option 
+                          key={r} 
+                          value={r}
+                          disabled={idx <= matchedRanks.indexOf(currentRank)}
+                        >
+                          {r} {idx <= matchedRanks.indexOf(currentRank) ? "(Invalid)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Gap info box */}
+                {matchedRanks.indexOf(desiredRank) > matchedRanks.indexOf(currentRank) ? (
+                  <div className="p-3 rounded-xl bg-gold/5 border border-gold/20 flex flex-col gap-1 text-xs">
+                    <span className="text-[10px] uppercase font-bold text-gold tracking-wide">Estimate Details</span>
+                    <p className="text-muted-foreground">
+                      Boosting from <strong className="text-foreground">{currentRank}</strong> to <strong className="text-foreground">{desiredRank}</strong>.
+                    </p>
+                    <p className="text-muted-foreground">
+                      Rank difference: <strong className="text-foreground">{matchedRanks.indexOf(desiredRank) - matchedRanks.indexOf(currentRank)} steps</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive-foreground">
+                    Please select a desired rank higher than your current rank.
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-7 flex gap-3">
               <button

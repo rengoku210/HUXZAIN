@@ -1,4 +1,4 @@
-﻿import { Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Star, Heart, BadgeCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -98,6 +98,14 @@ export function ListingCard({ l }: { l: ListingLike }) {
         <h3 className="font-medium leading-snug line-clamp-2 min-h-[2.6em] group-hover:text-gold transition-colors">
           {l.title}
         </h3>
+        {l.attributes && Object.keys(l.attributes).length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {l.attributes.rank && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">{l.attributes.rank}</span>}
+            {l.attributes.region && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">{l.attributes.region}</span>}
+            {l.attributes.level && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Lvl {l.attributes.level}</span>}
+            {l.attributes.platform && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface text-muted-foreground border border-border">{l.attributes.platform}</span>}
+          </div>
+        )}
         <div className="mt-2 text-xs text-muted-foreground">by {seller}</div>
         <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-gold">
           <BadgeCheck className="size-3" /> {l.level ?? "Verified Seller"}
