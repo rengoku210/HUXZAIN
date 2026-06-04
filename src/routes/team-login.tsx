@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { Lock, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import { logTeamLoginAttempt } from "@/lib/auth/employee-auth";
+import { resolveEmployeeIdToEmail } from "@/lib/admin/staff.functions";
 
 export const Route = createFileRoute("/team-login")({
   head: () => ({
@@ -61,15 +62,46 @@ function TeamLogin() {
       setSubmitting(true);
       
       const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+      const input = email.trim();
+      let loginEmail = input;
+      let employeeId: string | undefined = undefined;
+
+      // Check if input is Employee ID (starts with HUX-)
+      if (input.toUpperCase().startsWith("HUX-")) {
+        employeeId = input.toUpperCase();
+        const res = await resolveEmployeeIdToEmail({ data: { employeeId } });
+        loginEmail = res.email;
+      }
+
+      await auth.signInWithPassword(loginEmail, password);
       
-      await auth.signInWithPassword(email.trim(), password);
-      
-      await logTeamLoginAttempt({ data: { email: email.trim(), success: true, device, role, ip: "" } });
+      await logTeamLoginAttempt({ 
+        data: { 
+          email: loginEmail, 
+          employeeId, 
+          success: true, 
+          device, 
+          role, 
+          ip: "" 
+        } 
+      });
       
       // The redirect happens in useEffect after roles load.
     } catch (err: any) {
       const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
-      await logTeamLoginAttempt({ data: { email: email.trim(), success: false, device, role, ip: "" } });
+      const input = email.trim();
+      const isEmpId = input.toUpperCase().startsWith("HUX-");
+      
+      await logTeamLoginAttempt({ 
+        data: { 
+          email: isEmpId ? "Failed Employee ID Resolution" : input, 
+          employeeId: isEmpId ? input.toUpperCase() : undefined, 
+          success: false, 
+          device, 
+          role, 
+          ip: "" 
+        } 
+      });
       
       toast.error(err.message || "Login failed");
     } finally {

@@ -24,7 +24,10 @@ type NavGroup = { title: string; items: NavItem[] };
 const navGroups: NavGroup[] = [
   {
     title: "Overview",
-    items: [{ to: "/admin", label: "Overview", icon: Shield, end: true }],
+    items: [
+      { to: "/admin", label: "Overview", icon: Shield, end: true },
+      { to: "/admin/staff", label: "Staff Management", icon: Users },
+    ],
   },
   {
     title: "Marketplace",
@@ -99,6 +102,8 @@ function AdminLayout() {
         nav2({ to: "/dashboard" });
       } else if (location.pathname === "/admin/earnings" && !(auth.hasRole("owner") || isPaymentReviewer || auth.user?.email === "admin@admin.com")) {
         nav2({ to: "/admin" });
+      } else if (location.pathname === "/admin/staff" && !isAdminOrSuper) {
+        nav2({ to: "/admin" });
       } else if (isStrictStaff) {
         // Redirect staff if they try to access non-payment/subscription routes
         const currentPath = location.pathname;
@@ -108,7 +113,7 @@ function AdminLayout() {
         }
       }
     }
-  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2, auth.roles, staffAllowedPaths, isPaymentReviewer]);
+  }, [auth.ready, auth.isAuthenticated, allowed, isStrictStaff, location.pathname, nav2, auth.roles, staffAllowedPaths, isPaymentReviewer, isAdminOrSuper]);
 
   if (!allowed) return null;
 
@@ -120,6 +125,9 @@ function AdminLayout() {
     }
     if (n.to === "/admin/earnings") {
       return auth.hasRole("owner") || auth.user?.email === "admin@admin.com";
+    }
+    if (n.to === "/admin/staff") {
+      return isAdminOrSuper;
     }
     return true;
   });

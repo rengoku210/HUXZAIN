@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
 export const logTeamLoginAttempt = createServerFn({ method: "POST" })
-  .inputValidator((d: { email: string; success: boolean; device: string; role: string; ip: string }) => d)
+  .inputValidator((d: { email: string; employeeId?: string; success: boolean; device: string; role: string; ip: string }) => d)
   .handler(async (ctx) => {
     const { data } = ctx as any;
     const request = (ctx as any).request as Request;
@@ -24,6 +24,7 @@ export const logTeamLoginAttempt = createServerFn({ method: "POST" })
       .from("team_login_history")
       .insert({
         email: data.email,
+        employee_id: data.employeeId || null,
         success: data.success,
         device: data.device,
         role_attempted: data.role,

@@ -73,6 +73,7 @@ import { Route as AuthenticatedAdminVerificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminTicketsRouteImport } from './routes/_authenticated/admin.tickets'
 import { Route as AuthenticatedAdminSubscriptionsRouteImport } from './routes/_authenticated/admin.subscriptions'
+import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated/admin.staff'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminSeoRouteImport } from './routes/_authenticated/admin.seo'
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
@@ -432,6 +433,11 @@ const AuthenticatedAdminSubscriptionsRoute =
     path: '/subscriptions',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminStaffRoute = AuthenticatedAdminStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/settings',
@@ -556,6 +562,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/seo': typeof AuthenticatedAdminSeoRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
   '/admin/tickets': typeof AuthenticatedAdminTicketsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -632,6 +639,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/seo': typeof AuthenticatedAdminSeoRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
   '/admin/tickets': typeof AuthenticatedAdminTicketsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -712,6 +720,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/admin/seo': typeof AuthenticatedAdminSeoRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/_authenticated/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
   '/_authenticated/admin/tickets': typeof AuthenticatedAdminTicketsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -792,6 +801,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/seo'
     | '/admin/settings'
+    | '/admin/staff'
     | '/admin/subscriptions'
     | '/admin/tickets'
     | '/admin/users'
@@ -868,6 +878,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/seo'
     | '/admin/settings'
+    | '/admin/staff'
     | '/admin/subscriptions'
     | '/admin/tickets'
     | '/admin/users'
@@ -947,6 +958,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/reports'
     | '/_authenticated/admin/seo'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/staff'
     | '/_authenticated/admin/subscriptions'
     | '/_authenticated/admin/tickets'
     | '/_authenticated/admin/users'
@@ -1463,6 +1475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSubscriptionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/staff': {
+      id: '/_authenticated/admin/staff'
+      path: '/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AuthenticatedAdminStaffRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/settings': {
       id: '/_authenticated/admin/settings'
       path: '/settings'
@@ -1569,6 +1588,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminSeoRoute: typeof AuthenticatedAdminSeoRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
+  AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
   AuthenticatedAdminSubscriptionsRoute: typeof AuthenticatedAdminSubscriptionsRoute
   AuthenticatedAdminTicketsRoute: typeof AuthenticatedAdminTicketsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -1589,6 +1609,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminSeoRoute: AuthenticatedAdminSeoRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
+  AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
   AuthenticatedAdminSubscriptionsRoute: AuthenticatedAdminSubscriptionsRoute,
   AuthenticatedAdminTicketsRoute: AuthenticatedAdminTicketsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
