@@ -10,7 +10,11 @@ export default toNodeHandler((req, env, ctx) => {
   if (originalPath !== null) {
     url.pathname = "/" + originalPath;
     url.searchParams.delete("__original_path");
-    req = new Request(url.href, req);
+    Object.defineProperty(req, "url", {
+      value: url.href,
+      configurable: true,
+      enumerable: true
+    });
   }
   
   return fetchHandler(req, env, ctx);
