@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/input-otp";
 
 export const Route = createFileRoute("/account/verify-phone")({
+  validateSearch: (s: Record<string, unknown>): { redirect?: string } => ({
+    redirect: s.redirect ? String(s.redirect) : undefined,
+  }),
   head: () => ({ meta: [{ title: "Verify Mobile Number — HUXZAIN" }] }),
   component: VerifyPhonePage,
 });
@@ -182,6 +185,7 @@ function CountrySelector({
 function VerifyPhonePage() {
   const { user, profile, ready, isAuthenticated, refreshUserMeta } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
 
   const defaultCountry = COUNTRIES.find((c) => c.code === "IN")!;
   const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
@@ -601,12 +605,21 @@ function VerifyPhonePage() {
               >
                 <ArrowLeft className="size-4" /> Go to Dashboard
               </Link>
-              <Link
-                to="/become-coach"
-                className="h-12 px-6 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 transition-all inline-flex items-center gap-2"
-              >
-                <Sparkles className="size-4" /> Become a Coach
-              </Link>
+              {redirect ? (
+                <Link
+                  to={redirect}
+                  className="h-12 px-6 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 transition-all inline-flex items-center gap-2"
+                >
+                  <Sparkles className="size-4" /> Return to Application
+                </Link>
+              ) : (
+                <Link
+                  to="/become-coach"
+                  className="h-12 px-6 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 transition-all inline-flex items-center gap-2"
+                >
+                  <Sparkles className="size-4" /> Become a Coach
+                </Link>
+              )}
             </div>
           </div>
         )}

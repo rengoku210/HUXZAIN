@@ -233,7 +233,8 @@ function Page() {
     if (!agree) return toast.error("Please accept the agreement to submit.");
     if (!isEmailVerified) return toast.error("Please verify your email first.");
     if (!isPhoneVerified) {
-      setShowPhoneVerification(true);
+      toast.error("Please verify your phone number first.");
+      nav({ to: "/account/verify-phone", search: { redirect: "/become-coach" } });
       return;
     }
 
@@ -611,7 +612,7 @@ function Page() {
               </div>
               <VerifyRow icon={Mail} label="Email Verified" ok={isEmailVerified} actionHref="/verify-email" />
               <div className="mt-2" />
-              <VerifyRow icon={Phone} label="Phone Verified" ok={isPhoneVerified} actionHref="/account/verify-phone" />
+              <VerifyRow icon={Phone} label="Phone Verified" ok={isPhoneVerified} actionHref="/account/verify-phone" search={{ redirect: "/become-coach" }} />
               <div className="mt-3 rounded-xl border border-border bg-background/30 p-3 text-[11px] text-muted-foreground">
                 Email + phone verification is mandatory before your coach profile can go live.
               </div>
@@ -720,11 +721,13 @@ function VerifyRow({
   label,
   ok,
   actionHref,
+  search,
 }: {
   icon: any;
   label: string;
   ok: boolean;
   actionHref?: string;
+  search?: any;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/30 px-3 py-2">
@@ -737,7 +740,7 @@ function VerifyRow({
           <CheckCircle2 className="size-3.5" /> Verified
         </span>
       ) : actionHref ? (
-        <Link to={actionHref} className="text-[11px] text-gold hover:underline font-semibold">
+        <Link to={actionHref} search={search} className="text-[11px] text-gold hover:underline font-semibold">
           Verify
         </Link>
       ) : (
