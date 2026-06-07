@@ -6,7 +6,9 @@ import { useSellerTier, tierAtLeast } from "@/lib/seller/tier-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { getOrCreateWallet, purchaseBoost } from "@/lib/wallet.functions";
+import { activateBoostWithToken } from "@/lib/seller/subscription.functions";
 import { toast } from "sonner";
+import { PremiumLockScreen } from "@/components/seller/PremiumLockScreen";
 
 export const Route = createFileRoute("/_authenticated/seller/boosts")({
   head: () => ({ meta: [{ title: "Boosts — HUXZAIN Seller" }] }),
@@ -42,25 +44,57 @@ const boostOptions = [
     price: 299,
     min: "elite" as const,
   },
+  {
+    id: "urgent_sale",
+    name: "Urgent Sale Badge",
+    desc: "Add a red urgent tag and custom styling to draw instant attention for 3 days.",
+    price: 79,
+    min: "standard" as const,
+  },
+  {
+    id: "glow_highlight",
+    name: "Glow Highlight",
+    desc: "Wrap your card in a premium animated golden border glow for 5 days.",
+    price: 119,
+    min: "pro" as const,
+  },
 ];
 
 function Page() {
   const { user } = useAuth();
-  const { tier } = useSellerTier();
+  const { tier, subscription, refreshSubscription } = useSellerTier();
+  
+  // Boosts requires Pro or above (rank >= 2)
+  const isLocked = !tierAtLeast(tier, "pro");
+
   const [wallet, setWallet] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
   const [activeBoosts, setActiveBoosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  if (isLocked) {
+    return <PremiumLockScreen featureName="Campaign Boosts & Spotlight Placements" requiredTier="pro" />;
+  }
+
   // Form State
   const [selectedListing, setSelectedListing] = useState("");
   const [selectedOption, setSelectedOption] = useState(boostOptions[0]);
-  const [payMethod, setPayMethod] = useState<"wallet" | "manual">("wallet");
+  const [payMethod, setPayMethod] = useState<"token" | "wallet" | "manual">("wallet");
   const [screenshotUrl, setScreenshotUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [spotlightCount, setSpotlightCount] = useState(0);
+  const [spotlightLimit, setSpotlightLimit] = useState(5);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Set default payment method when tokens are loaded
+  useEffect(() => {
+    if (subscription && subscription.boost_tokens_remaining > 0) {
+      setPayMethod("token");
+    } else {
+      setPayMethod("wallet");
+    }
+  }, [subscription?.boost_tokens_remaining]);
 
   async function loadData() {
     if (!user) return;
@@ -79,7 +113,7 @@ function Page() {
           .eq("status", "active");
         if (lst) {
           setListings(lst);
-          if (lst.length > 0) setSelectedListing(lst[0].id);
+          if (lst.length > 0 && !selectedListing) setSelectedListing(lst[0].id);
         }
 
         // Load active boosts
@@ -99,6 +133,19 @@ function Page() {
 
         if (!countErr && sCount !== null) {
           setSpotlightCount(sCount);
+        }
+
+        // Load spotlight limit from platform_settings
+        const { data: ps } = await supabase
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "homepage_boosts")
+          .maybeSingle();
+        
+        if (ps?.value?.max_spotlight_slots) {
+          setSpotlightLimit(ps.value.max_spotlight_slots);
+        } else {
+          setSpotlightLimit(5);
         }
       }
     } catch (e: any) {
@@ -144,36 +191,56 @@ function Page() {
       return;
     }
 
-    if (selectedOption.id === "homepage_spotlight" && spotlightCount >= 5) {
-      toast.error("Homepage Spotlight slots are currently fully booked. Please select another boost option or try again later.");
+    if (selectedOption.id === "homepage_spotlight" && spotlightCount >= spotlightLimit) {
+      toast.error(`Homepage Spotlight slots are currently fully booked (Limit: ${spotlightLimit}). Please select another boost option or try again later.`);
       return;
     }
 
-    if (payMethod === "wallet" && !bypassConfirm) {
+    // Token check
+    if (payMethod === "token" && (!subscription || subscription.boost_tokens_remaining <= 0)) {
+      toast.error("You do not have any boost tokens remaining under your active subscription.");
+      return;
+    }
+
+    if ((payMethod === "wallet" || payMethod === "token") && !bypassConfirm) {
       setShowConfirmModal(true);
       return;
     }
 
     try {
       setSubmitting(true);
-      await purchaseBoost(
-        user.id,
-        selectedListing,
-        selectedOption.id,
-        selectedOption.price,
-        payMethod,
-        screenshotUrl || undefined
-      );
+      const durationDays = selectedOption.id === "urgent_sale" ? 3 : selectedOption.id === "glow_highlight" ? 5 : 7;
 
-      toast.success(
-        payMethod === "wallet"
-          ? "Listing boosted successfully! Live instantly."
-          : "Manual verification proof submitted. Our administrators will confirm this within 24-48h!"
-      );
+      if (payMethod === "token") {
+        await activateBoostWithToken({
+          data: {
+            sellerId: user.id,
+            listingId: selectedListing,
+            boostType: selectedOption.id,
+            durationDays
+          }
+        });
+        toast.success("Listing boosted successfully using plan token! Live instantly.");
+      } else {
+        await purchaseBoost(
+          user.id,
+          selectedListing,
+          selectedOption.id,
+          selectedOption.price,
+          payMethod === "manual" ? "manual" : "wallet",
+          screenshotUrl || undefined
+        );
+        toast.success(
+          payMethod === "wallet"
+            ? "Listing boosted successfully! Live instantly."
+            : "Manual verification proof submitted. Our administrators will confirm this within 24-48h!"
+        );
+      }
 
       setScreenshotUrl("");
       setShowConfirmModal(false);
       await loadData();
+      await refreshSubscription();
     } catch (err: any) {
       toast.error("Failed to purchase boost: " + err.message);
     } finally {
@@ -188,6 +255,8 @@ function Page() {
       maximumFractionDigits: 0
     }).format(val || 0);
   };
+
+  const tokensCount = subscription?.boost_tokens_remaining || 0;
 
   return (
     <div className="space-y-6">
@@ -245,6 +314,7 @@ function Page() {
                       const active = selectedOption.id === opt.id;
                       const eligible = tierAtLeast(tier, opt.min);
                       const isSpotlightBooked = opt.id === "homepage_spotlight" && spotlightCount >= 5;
+                      const duration = opt.id === "urgent_sale" ? "3 days" : opt.id === "glow_highlight" ? "5 days" : "7 days";
                       return (
                         <button
                           key={opt.id}
@@ -254,10 +324,9 @@ function Page() {
                         >
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-foreground">{opt.name}</span>
-                          UPI ID: <span className="text-foreground font-semibold">shprivateltd@upi</span>
                             <span className="font-mono text-gold font-bold">{fmt(opt.price)}</span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{opt.desc}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{opt.desc} ({duration})</p>
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {!eligible && (
                               <span className="inline-block text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase">
@@ -266,7 +335,7 @@ function Page() {
                             )}
                             {isSpotlightBooked && (
                               <span className="inline-block text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded uppercase animate-pulse">
-                                Fully Booked / No Slots Available
+                                Spotlight Fully Booked
                               </span>
                             )}
                           </div>
@@ -278,20 +347,28 @@ function Page() {
 
                 <div>
                   <span className="text-xs text-muted-foreground">Choose Payment Method</span>
-                  <div className="grid grid-cols-2 gap-3 mt-1.5">
+                  <div className="grid grid-cols-3 gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      disabled={tokensCount <= 0}
+                      onClick={() => setPayMethod("token")}
+                      className={`h-10 rounded-lg border text-xs font-semibold ${payMethod === "token" ? "bg-gold text-black border-gold" : "border-border hover:bg-surface disabled:opacity-40"}`}
+                    >
+                      Plan Token ({tokensCount} left)
+                    </button>
                     <button
                       type="button"
                       onClick={() => setPayMethod("wallet")}
                       className={`h-10 rounded-lg border text-xs font-semibold ${payMethod === "wallet" ? "bg-gold text-black border-gold" : "border-border hover:bg-surface"}`}
                     >
-                      Wallet Balance ({fmt(wallet?.available_balance || 0)})
+                      Wallet ({fmt(wallet?.available_balance || 0)})
                     </button>
                     <button
                       type="button"
                       onClick={() => setPayMethod("manual")}
                       className={`h-10 rounded-lg border text-xs font-semibold ${payMethod === "manual" ? "bg-gold text-black border-gold" : "border-border hover:bg-surface"}`}
                     >
-                      Manual UPI Transfer
+                      Manual UPI QR
                     </button>
                   </div>
                 </div>
@@ -303,10 +380,11 @@ function Page() {
                         <QrCode className="size-20 text-black" />
                       </div>
                       <div className="text-xs space-y-1">
-                        <p className="font-bold text-foreground">Scan UPI QR to Pay ₹{selectedOption.price}</p>
+                        <p className="font-bold text-foreground">Scan UPI QR to Pay {fmt(selectedOption.price)}</p>
                         <p className="text-muted-foreground leading-relaxed">
                           Scan the code using any UPI app (GPay, PhonePe, Paytm). Upload the receipt below.
                         </p>
+                        <p className="text-[10px] text-gold font-semibold">UPI ID: shprivateltd@upi</p>
                       </div>
                     </div>
                     <div>
@@ -329,7 +407,7 @@ function Page() {
 
                 {selectedOption.id === "homepage_spotlight" && spotlightCount >= 5 ? (
                   <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/10 text-xs text-rose-400 font-medium">
-                    ⚠️ The Homepage Spotlight slots are currently **Fully Booked / No Slots Available**. 
+                    ⚠️ The Homepage Spotlight slots are currently **Fully Booked / No Slots Available** (Max 5 Spotlight active slots allowed). 
                     Please choose another boost option or try again later when an existing spotlight campaign expires.
                   </div>
                 ) : null}
@@ -344,7 +422,9 @@ function Page() {
                     ? "Spotlight Fully Booked"
                     : submitting 
                       ? "Processing Boost..." 
-                      : `Activate ${selectedOption.name} for ${fmt(selectedOption.price)}`}
+                      : payMethod === "token"
+                        ? `Activate using 1 Plan Boost Token`
+                        : `Activate ${selectedOption.name} for ${fmt(selectedOption.price)}`}
                 </button>
               </div>
             </PanelCard>
@@ -407,12 +487,14 @@ function Page() {
               </div>
               <div>
                 <h3 className="font-display font-bold text-foreground">Confirm Boost Purchase</h3>
-                <p className="text-[11px] text-muted-foreground">Instant Wallet Balance Checkout</p>
+                <p className="text-[11px] text-muted-foreground">{payMethod === "token" ? "Deduct Plan Boost Token" : "Wallet Balance Checkout"}</p>
               </div>
             </div>
             <div className="space-y-2 py-2">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Do you want to purchase this boost for <span className="font-mono font-bold text-gold">{fmt(selectedOption.price)}</span> from wallet balance?
+                {payMethod === "token" 
+                  ? `Do you want to activate this boost using 1 subscription boost token?`
+                  : `Do you want to purchase this boost for ${fmt(selectedOption.price)} from wallet balance?`}
               </p>
               <div className="rounded-xl bg-background/50 border border-border p-3 space-y-1.5 text-xs">
                 <div className="flex justify-between">
@@ -425,10 +507,17 @@ function Page() {
                   <span className="text-muted-foreground">Boost Type:</span>
                   <span className="font-semibold text-gold uppercase">{selectedOption.name}</span>
                 </div>
-                <div className="flex justify-between border-t border-border/60 pt-1.5 mt-1.5">
-                  <span className="text-muted-foreground">Available Wallet Balance:</span>
-                  <span className="font-semibold text-foreground">{fmt(wallet?.available_balance || 0)}</span>
-                </div>
+                {payMethod === "token" ? (
+                  <div className="flex justify-between border-t border-border/60 pt-1.5 mt-1.5">
+                    <span className="text-muted-foreground">Remaining Boost Tokens:</span>
+                    <span className="font-semibold text-foreground">{tokensCount} left</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between border-t border-border/60 pt-1.5 mt-1.5">
+                    <span className="text-muted-foreground">Available Wallet Balance:</span>
+                    <span className="font-semibold text-foreground">{fmt(wallet?.available_balance || 0)}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-3 pt-2">

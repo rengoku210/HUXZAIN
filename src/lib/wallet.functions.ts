@@ -165,7 +165,7 @@ export async function checkAndReleaseEscrows() {
   const { data: deliveredOrders, error: delErr } = await supabase
     .from("orders")
     .select("*, listings:listing_id(title, seller_id, categories(slug))")
-    .eq("status", "delivered");
+    .eq("status", "buyer_reviewing");
 
   if (!delErr && deliveredOrders) {
     for (const order of deliveredOrders) {

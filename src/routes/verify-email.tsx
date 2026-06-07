@@ -131,17 +131,43 @@ function VerifyPage() {
         },
       });
 
-      if (result.success && result.actionLink) {
+      if (result.success) {
         setAuthState("success");
         toast.success("Identity verified successfully! Redirecting...");
         
         // Remove registration cache after success
         sessionStorage.removeItem("huxzain_signup_metadata");
         
-        // Redirect browser to login callback URL
-        setTimeout(() => {
-          window.location.href = result.actionLink;
-        }, 1200);
+        const targetUrl = window.location.origin + (intent === "seller" ? "/seller" : "/dashboard");
+
+        if ((result as any).accessToken && (result as any).refreshToken) {
+          // New flow: direct session tokens from createSession — sign in on client side
+          const { getSupabase } = await import("@/lib/supabase-client");
+          const sb = getSupabase();
+          if (sb) {
+            await sb.auth.setSession({
+              access_token: (result as any).accessToken,
+              refresh_token: (result as any).refreshToken,
+            });
+            setTimeout(() => {
+              window.location.href = (result as any).redirectTo || targetUrl;
+            }, 1200);
+          } else {
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 1200);
+          }
+        } else if ((result as any).actionLink) {
+          // Legacy fallback: magic link redirect
+          setTimeout(() => {
+            window.location.href = (result as any).actionLink;
+          }, 1200);
+        } else {
+          // No redirect info — go to dashboard directly
+          setTimeout(() => {
+            window.location.href = targetUrl;
+          }, 1200);
+        }
       }
     } catch (ex: any) {
       setAuthState("error");

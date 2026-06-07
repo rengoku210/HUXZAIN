@@ -29,9 +29,21 @@ import {
   type ListingLike,
 } from "@/lib/marketplace/listing-adapter";
 import { submitReport } from "@/lib/reports.functions";
+import { sanitizeHexColor } from "@/lib/security";
+import { friendlyError } from "@/lib/error-messages";
+import { TrustBadge } from "@/components/site/TrustBadge";
 
 export const Route = createFileRoute("/product/$id")({
-  head: () => ({ meta: [{ title: "Listing - HUXZAIN" }] }),
+  head: () => ({
+    meta: [
+      { title: "Listing — HUXZAIN" },
+      { name: "description", content: "View and purchase this listing on HUXZAIN — India's secure digital marketplace." },
+      { property: "og:title", content: "Listing — HUXZAIN" },
+      { property: "og:description", content: "Buy safely with escrow protection on HUXZAIN." },
+      { property: "og:type", content: "product" },
+      { property: "og:image", content: "https://huxzain.shop/og-image.png" },
+    ],
+  }),
   component: ProductPage,
 });
 
@@ -161,6 +173,13 @@ function ProductPage() {
       active = false;
     };
   }, [id]);
+
+  // Update document title dynamically once listing is loaded
+  useEffect(() => {
+    if (listing?.title) {
+      document.title = `${listing.title} — HUXZAIN`;
+    }
+  }, [listing?.title]);
 
   async function handleBuyNow() {
     try {
@@ -296,7 +315,7 @@ function ProductPage() {
       console.log('STEP 6 navigation complete');
     } catch (err: any) {
       console.error('[BuyNow Error]', err);
-      toast.error(`Unable to start checkout: ${err?.message || "Unknown error"}`);
+      toast.error(friendlyError(err, "Unable to start checkout. Please try again."));
     } finally {
       setOrdering(false);
     }
@@ -381,7 +400,10 @@ function ProductPage() {
   const image = listingImage(listing);
   const isThemeEnabled = sellerProfile?.customizations?.theme_enabled !== false;
   const themeColor = isThemeEnabled ? sellerProfile?.customizations?.theme_color || 'midnight' : 'midnight';
-  const accentColor = isThemeEnabled ? sellerProfile?.customizations?.accent_color || '#d4b46a' : '#d4b46a';
+  const accentColor = sanitizeHexColor(
+    isThemeEnabled ? sellerProfile?.customizations?.accent_color : null,
+    "#d4b46a"
+  );
   const categorySlug = listing.categories?.slug ?? "digital-products";
   const categoryName = listing.categories?.name ?? "Digital Products";
 
@@ -559,6 +581,12 @@ function ProductPage() {
                 </li>
               ))}
             </ul>
+
+            {/* Trust Indicators */}
+            <div className="mt-6 p-4 rounded-2xl border border-border/60 bg-surface/20">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-semibold mb-3">Buyer Protection</div>
+              <TrustBadge variant="vertical" showSupport={false} />
+            </div>
 
             {isBoosting && matchedRanks.length > 0 && (
               <div className="mt-6 p-5 rounded-2xl border border-gold/20 bg-surface/20 space-y-4">

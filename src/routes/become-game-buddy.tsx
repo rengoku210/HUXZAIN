@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/site/Header";
+import { PhoneVerificationModal } from "@/components/site/PhoneVerificationModal";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
@@ -21,11 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
+// InputOTP is used inside PhoneVerificationModal; not needed directly here
 
 export const Route = createFileRoute("/become-game-buddy")({
   head: () => ({ meta: [{ title: "Become a Game Buddy — HUXZAIN" }] }),
@@ -64,11 +61,7 @@ function Page() {
   // verification
   const isEmailVerified = !!(profile?.email_verified || user?.email_confirmed_at);
   const isPhoneVerified = !!profile?.phone_verified;
-  const [phone, setPhone] = useState(profile?.phone ?? "");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
 
   // form state
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
@@ -164,73 +157,11 @@ function Page() {
     setAvatarUrl(data.publicUrl);
   }
 
-  async function sendPhoneOtp() {
-    if (!phone.trim()) {
-      toast.error("Enter your phone number (with country code).");
-      return;
-    }
-    const sb = getSupabase();
-    if (!sb) {
-      toast.error("Backend not configured.");
-      return;
-    }
-    try {
-      setSendingOtp(true);
-      // Supabase must have SMS provider enabled for this to work.
-      const { error } = await sb.auth.signInWithOtp({
-        phone: phone.trim(),
-        options: { channel: "sms" as any },
-      } as any);
-      if (error) throw error;
-      setOtpSent(true);
-      toast.success("OTP sent to your phone.");
-    } catch (e: any) {
-      toast.error(`Failed to send OTP: ${e.message}`);
-    } finally {
-      setSendingOtp(false);
-    }
-  }
-
-  async function verifyPhoneOtp() {
-    if (!otp || otp.length < 6) {
-      toast.error("Enter the 6-digit OTP.");
-      return;
-    }
-    const sb = getSupabase();
-    if (!sb) {
-      toast.error("Backend not configured.");
-      return;
-    }
-    try {
-      setVerifyingOtp(true);
-      const { error } = await sb.auth.verifyOtp({
-        phone: phone.trim(),
-        token: otp,
-        type: "sms",
-      } as any);
-      if (error) throw error;
-
-      // mark verified on profile
-      const { error: upErr } = await sb
-        .from("profiles")
-        .update({ phone: phone.trim(), phone_verified: true })
-        .eq("id", user!.id);
-      if (upErr) throw upErr;
-
-      await refreshUserMeta();
-      toast.success("Phone verified successfully.");
-    } catch (e: any) {
-      toast.error(`OTP verification failed: ${e.message}`);
-    } finally {
-      setVerifyingOtp(false);
-    }
-  }
-
   async function submit() {
     if (!user) return;
     if (!agree) return toast.error("Please accept the agreement to submit.");
     if (!isEmailVerified) return toast.error("Please verify your email first.");
-    if (!isPhoneVerified) return toast.error("Please verify your phone first.");
+    if (!isPhoneVerified) { setShowPhoneVerification(true); return; }
 
     const priceNum = Number(price);
     if (!Number.isFinite(priceNum) || priceNum <= 0) {
@@ -540,49 +471,18 @@ function Page() {
               </div>
             </div>
 
-            {/* Phone OTP box */}
+            {/* Phone Verification */}
             <div className="rounded-2xl border border-border bg-surface/40 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Phone className="size-4 text-gold" />
                 <div className="font-semibold">Mobile OTP Verification</div>
               </div>
               <div className="text-xs text-muted-foreground mb-3">
-                Enter your phone with country code (example: +91XXXXXXXXXX)
+                {isPhoneVerified
+                  ? "Your phone number is verified."
+                  : "Phone verification is required to submit your application."}
               </div>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91..." />
-              <div className="mt-3 flex gap-2">
-                <button
-                  disabled={sendingOtp || isPhoneVerified}
-                  onClick={sendPhoneOtp}
-                  className="flex-1 h-10 rounded-xl border border-border bg-background/30 hover:border-gold/35 text-sm font-semibold disabled:opacity-50"
-                >
-                  {sendingOtp ? "Sending..." : isPhoneVerified ? "Verified" : "Send OTP"}
-                </button>
-              </div>
-              {otpSent && !isPhoneVerified && (
-                <div className="mt-4">
-                  <div className="text-[11px] text-muted-foreground mb-2">
-                    Enter OTP
-                  </div>
-                  <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                    <InputOTPGroup className="w-full justify-between">
-                      {[0, 1, 2, 3, 4, 5].map((i) => (
-                        <InputOTPSlot key={i} index={i} />
-                      ))}
-                    </InputOTPGroup>
-                  </InputOTP>
-                  <button
-                    disabled={verifyingOtp}
-                    onClick={verifyPhoneOtp}
-                    className="mt-3 w-full h-10 rounded-xl bg-gold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
-                  >
-                    {verifyingOtp ? "Verifying..." : "Verify OTP"}
-                  </button>
-                  <div className="mt-2 text-[11px] text-muted-foreground">
-                    Note: SMS OTP requires Supabase SMS provider enabled on your project.
-                  </div>
-                </div>
-              )}
+              <VerifyRow icon={Phone} label="Phone Verified" ok={isPhoneVerified} actionHref="/account/verify-phone" />
             </div>
 
             <div className="rounded-2xl border border-border bg-surface/40 p-5">
@@ -630,6 +530,16 @@ function Page() {
         </section>
       </main>
       <Footer />
+      {showPhoneVerification && (
+        <PhoneVerificationModal
+          isOpen={showPhoneVerification}
+          onClose={() => setShowPhoneVerification(false)}
+          onSuccess={() => {
+            setShowPhoneVerification(false);
+            submit();
+          }}
+        />
+      )}
     </div>
   );
 }

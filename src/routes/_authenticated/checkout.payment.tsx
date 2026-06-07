@@ -24,6 +24,7 @@ import { TIERS, type SellerTier } from "@/lib/seller/tier-context";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
 import { extractPaymentDetails } from "@/lib/ai.functions";
+import { friendlyError } from "@/lib/error-messages";
 
 export const Route = createFileRoute("/_authenticated/checkout/payment")({
   validateSearch: (s: Record<string, unknown>): { plan?: string; listingId?: string; price?: string; orderId?: string; title?: string } => ({
@@ -111,7 +112,7 @@ function UnifiedPaymentPage() {
         }
       } catch (err: any) {
         console.error("Error loading listing checkout details:", err);
-        toast.error(`Error loading product info: ${err.message}`);
+        toast.error(friendlyError(err, "Error loading product info."));
       } finally {
         setLoadingListing(false);
       }
@@ -391,7 +392,7 @@ function UnifiedPaymentPage() {
     } catch (err: any) {
       clearTimeout(failsafeTimeout);
       console.error("[Unified Checkout] Submission error:", err);
-      toast.error(`Submission failed: ${err.message ?? "Unknown database error"}`);
+      toast.error(friendlyError(err, "Submission failed. Please try again."));
       setUploading(false);
     }
   };

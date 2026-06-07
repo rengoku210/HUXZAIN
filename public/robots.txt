@@ -1,4 +1,37 @@
 User-agent: *
 Allow: /
+Allow: /categories
+Allow: /category/
+Allow: /product/
+Allow: /about
+Allow: /how-it-works
+Allow: /coaching
+Allow: /game-buddies
+Allow: /blog
+Allow: /contact
+Allow: /terms
+Allow: /privacy
+Allow: /refund-policy
 
-Sitemap: http://localhost:8080/sitemap.xml
+# Disallow internal and authenticated routes
+Disallow: /admin
+Disallow: /admin/
+Disallow: /seller
+Disallow: /seller/
+Disallow: /dashboard
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /messages
+Disallow: /orders
+Disallow: /login
+Disallow: /signup
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /auth/
+Disallow: /team-login
+Disallow: /seller-panel
+Disallow: /account
+
+# Sitemap
+Sitemap: https://huxzain.shop/sitemap.xml

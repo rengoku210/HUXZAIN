@@ -112,7 +112,6 @@ export default function HeroLogo() {
             }}
             animate={{
               x: ["-80%", "80%"],
-              y: ["-80%", "80%"],
             }}
             transition={{
               duration: 2.5,
@@ -122,6 +121,16 @@ export default function HeroLogo() {
             }}
           />
         </div>
+
+        {/* STATE 3 - Subtle reflection */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)",
+          }}
+          animate={{ opacity: [0, 0.2, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
       </motion.div>
     </div>
   );

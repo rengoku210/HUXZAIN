@@ -13,6 +13,27 @@ import { CategoryFilters } from "@/components/category/CategoryFilters";
 import { CategoryEmptyState } from "@/components/category/CategoryEmptyState";
 
 export const Route = createFileRoute("/category/$slug")({
+  head: ({ params }: { params: { slug: string } }) => {
+    const slug = params?.slug ?? "";
+    const title = slug
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+    return {
+      meta: [
+        { title: `${title} — HUXZAIN Marketplace` },
+        {
+          name: "description",
+          content: `Browse ${title} listings on HUXZAIN — India's secure digital marketplace with verified sellers and escrow protection.`,
+        },
+        { property: "og:title", content: `${title} — HUXZAIN` },
+        {
+          property: "og:description",
+          content: `Find the best ${title} deals on HUXZAIN with buyer protection and verified sellers.`,
+        },
+        { property: "og:image", content: "https://huxzain.shop/og-image.png" },
+      ],
+    };
+  },
   component: CategoryPage,
 });
 
@@ -94,15 +115,15 @@ function CategoryPage() {
 
       let query = supabase
         .from("listings")
-        .select("*")
+        .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
         .eq("status", "active")
+        .order("boost_score", { ascending: false })
         .order("created_at", { ascending: false });
 
       if (dbCat) query = query.eq("category_id", dbCat.id);
       else query = query.limit(0);
 
       const { data: listData } = await query;
-      console.log('Category page listings fetched (status active):', listData);
       if (!active) return;
 
       let fetchedListings = (listData ?? []) as ListingLike[];
@@ -238,10 +259,9 @@ function CategoryPage() {
             <CategoryEmptyState category={category} />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {listings.map((l) => {
-                  console.log('📂 Category listing passed to card:', l);
-                  return <ListingCard key={l.id} l={l} />;
-                })}
+              {listings.map((l) => (
+                <ListingCard key={l.id} l={l} />
+              ))}
             </div>
           )}
         </section>

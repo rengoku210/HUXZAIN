@@ -6,6 +6,10 @@ import { getSupabase } from "@/lib/supabase-client";
  */
 export async function logOtpEvent(event: "requested" | "verified" | "failed" | "expired" | "rate_limit", phone: string) {
   const sb = getSupabase();
+  if (!sb) {
+    console.warn("[PhoneVerification] Database client not initialized, skipping logOtpEvent.");
+    return;
+  }
   await sb.from("phone_otp_audit_logs").insert({
     phone,
     event,

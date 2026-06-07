@@ -38,6 +38,7 @@ type Stats = {
   openDisputes: number;
   pendingVerifications: number;
   pendingTickets: number;
+  pendingPayments: number;
   totalVolume: number;
   platformRevenue: number;
 };
@@ -63,6 +64,7 @@ function Page() {
     openDisputes: 0,
     pendingVerifications: 0,
     pendingTickets: 0,
+    pendingPayments: 0,
     totalVolume: 0,
     platformRevenue: 0,
   });
@@ -107,6 +109,7 @@ function Page() {
         disputes,
         verifications,
         tickets,
+        pendingPaymentProofs,
       ] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "seller"),
@@ -118,6 +121,7 @@ function Page() {
         supabase.from("disputes").select("id", { count: "exact", head: true }).eq("status", "open"),
         supabase.from("verifications").select("id", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("payment_proofs").select("id", { count: "exact", head: true }).eq("status", "pending"),
       ]);
 
       setStats({
@@ -131,6 +135,7 @@ function Page() {
         openDisputes: disputes.count ?? 0,
         pendingVerifications: verifications.count ?? 0,
         pendingTickets: tickets.count ?? 0,
+        pendingPayments: pendingPaymentProofs.count ?? 0,
         totalVolume,
         platformRevenue,
       });
@@ -302,6 +307,14 @@ function Page() {
             icon: ShieldAlert,
             to: "/admin/disputes",
             alert: stats.openDisputes > 0,
+          },
+          {
+            label: "Pending Payments",
+            value: loading ? "..." : stats.pendingPayments,
+            desc: "Payment proofs awaiting approval",
+            icon: Clock,
+            to: "/admin/payments",
+            alert: stats.pendingPayments > 0,
           },
           {
             label: "Pending KYC Requests",

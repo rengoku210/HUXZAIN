@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeamLoginRouteImport } from './routes/team-login'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SellerPanelRouteImport } from './routes/seller-panel'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -41,6 +42,7 @@ import { Route as CoachingIdRouteImport } from './routes/coaching.$id'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthVerifiedRouteImport } from './routes/auth.verified'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
+import { Route as AccountVerifyPhoneRouteImport } from './routes/account.verify-phone'
 import { Route as AuthenticatedSellerRouteImport } from './routes/_authenticated/seller'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -101,6 +103,11 @@ const TermsRoute = TermsRouteImport.update({
 const TeamLoginRoute = TeamLoginRouteImport.update({
   id: '/team-login',
   path: '/team-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -246,6 +253,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AccountVerifyPhoneRoute = AccountVerifyPhoneRouteImport.update({
+  id: '/verify-phone',
+  path: '/verify-phone',
+  getParentRoute: () => AccountRoute,
 } as any)
 const AuthenticatedSellerRoute = AuthenticatedSellerRouteImport.update({
   id: '/seller',
@@ -519,7 +531,7 @@ const AuthenticatedSellerSubscriptionPaymentRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account': typeof AccountRoute
+  '/account': typeof AccountRouteWithChildren
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
@@ -539,12 +551,14 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/messages': typeof AuthenticatedMessagesRoute
   '/seller': typeof AuthenticatedSellerRouteWithChildren
+  '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -598,7 +612,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account': typeof AccountRoute
+  '/account': typeof AccountRouteWithChildren
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
@@ -618,10 +632,12 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/messages': typeof AuthenticatedMessagesRoute
+  '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -677,7 +693,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/about': typeof AboutRoute
-  '/account': typeof AccountRoute
+  '/account': typeof AccountRouteWithChildren
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
@@ -697,12 +713,14 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/seller': typeof AuthenticatedSellerRouteWithChildren
+  '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -778,12 +796,14 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/seller-panel'
     | '/signup'
+    | '/sitemap.xml'
     | '/team-login'
     | '/terms'
     | '/verify-email'
     | '/admin'
     | '/messages'
     | '/seller'
+    | '/account/verify-phone'
     | '/auth/callback'
     | '/auth/verified'
     | '/category/$slug'
@@ -857,10 +877,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/seller-panel'
     | '/signup'
+    | '/sitemap.xml'
     | '/team-login'
     | '/terms'
     | '/verify-email'
     | '/messages'
+    | '/account/verify-phone'
     | '/auth/callback'
     | '/auth/verified'
     | '/category/$slug'
@@ -935,12 +957,14 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/seller-panel'
     | '/signup'
+    | '/sitemap.xml'
     | '/team-login'
     | '/terms'
     | '/verify-email'
     | '/_authenticated/admin'
     | '/_authenticated/messages'
     | '/_authenticated/seller'
+    | '/account/verify-phone'
     | '/auth/callback'
     | '/auth/verified'
     | '/category/$slug'
@@ -996,7 +1020,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AboutRoute: typeof AboutRoute
-  AccountRoute: typeof AccountRoute
+  AccountRoute: typeof AccountRouteWithChildren
   BecomeCoachRoute: typeof BecomeCoachRoute
   BecomeGameBuddyRoute: typeof BecomeGameBuddyRoute
   BlogRoute: typeof BlogRoute
@@ -1016,6 +1040,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SellerPanelRoute: typeof SellerPanelRoute
   SignupRoute: typeof SignupRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TeamLoginRoute: typeof TeamLoginRoute
   TermsRoute: typeof TermsRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
@@ -1046,6 +1071,13 @@ declare module '@tanstack/react-router' {
       path: '/team-login'
       fullPath: '/team-login'
       preLoaderRoute: typeof TeamLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -1250,6 +1282,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/account/verify-phone': {
+      id: '/account/verify-phone'
+      path: '/verify-phone'
+      fullPath: '/account/verify-phone'
+      preLoaderRoute: typeof AccountVerifyPhoneRouteImport
+      parentRoute: typeof AccountRoute
     }
     '/_authenticated/seller': {
       id: '/_authenticated/seller'
@@ -1699,6 +1738,17 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface AccountRouteChildren {
+  AccountVerifyPhoneRoute: typeof AccountVerifyPhoneRoute
+}
+
+const AccountRouteChildren: AccountRouteChildren = {
+  AccountVerifyPhoneRoute: AccountVerifyPhoneRoute,
+}
+
+const AccountRouteWithChildren =
+  AccountRoute._addFileChildren(AccountRouteChildren)
+
 interface CoachingRouteChildren {
   CoachingIdRoute: typeof CoachingIdRoute
 }
@@ -1727,7 +1777,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AboutRoute: AboutRoute,
-  AccountRoute: AccountRoute,
+  AccountRoute: AccountRouteWithChildren,
   BecomeCoachRoute: BecomeCoachRoute,
   BecomeGameBuddyRoute: BecomeGameBuddyRoute,
   BlogRoute: BlogRoute,
@@ -1747,6 +1797,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SellerPanelRoute: SellerPanelRoute,
   SignupRoute: SignupRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TeamLoginRoute: TeamLoginRoute,
   TermsRoute: TermsRoute,
   VerifyEmailRoute: VerifyEmailRoute,

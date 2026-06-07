@@ -65,11 +65,29 @@ export function ListingCard({ l }: { l: ListingLike }) {
     }
   };
 
+  const subscriptionTier = l.profiles?.subscription_tier;
+  const isVerified = l.profiles?.is_verified;
+
+  let tierBadge = null;
+  if (subscriptionTier === "pro") {
+    tierBadge = <span className="text-[9px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20 ml-1.5">PRO</span>;
+  } else if (subscriptionTier === "elite") {
+    tierBadge = <span className="text-[9px] font-bold text-gold bg-gold/10 px-1.5 py-0.5 rounded border border-gold/20 ml-1.5">ELITE</span>;
+  } else if (subscriptionTier === "enterprise") {
+    tierBadge = <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20 ml-1.5">ENTERPRISE</span>;
+  } else if (isVerified) {
+    tierBadge = <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 ml-1.5">VERIFIED</span>;
+  }
+
   return (
     <Link
       to="/product/$id"
       params={{ id: l.id }}
-      className="group relative rounded-2xl border border-border bg-surface/60 overflow-hidden hover:border-gold/40 hover:-translate-y-0.5 transition-all"
+      className={`group relative rounded-2xl border bg-surface/60 overflow-hidden hover:-translate-y-0.5 transition-all ${
+        l.has_glow 
+          ? "border-gold/60 ring-2 ring-gold/40 shadow-[0_0_20px_rgba(212,180,106,0.35)]" 
+          : "border-border hover:border-gold/40"
+      }`}
     >
       <div className={`aspect-[5/3] relative bg-gradient-to-br ${gradient}`}>
         {image ? (
@@ -88,6 +106,11 @@ export function ListingCard({ l }: { l: ListingLike }) {
         >
           <Heart className={`size-4 ${isWishlisted ? 'fill-current' : ''}`} />
         </button>
+        {l.is_urgent && (
+          <span className="absolute top-3 left-3 inline-flex items-center rounded-md bg-rose-600 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-md animate-bounce z-10">
+            Urgent
+          </span>
+        )}
         {l.badge && (
           <span className="absolute bottom-3 left-3 inline-flex items-center rounded-md bg-gold text-primary-foreground px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
             {l.badge}
@@ -106,9 +129,11 @@ export function ListingCard({ l }: { l: ListingLike }) {
             {l.attributes.platform && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface text-muted-foreground border border-border">{l.attributes.platform}</span>}
           </div>
         )}
-        <div className="mt-2 text-xs text-muted-foreground">by {seller}</div>
+        <div className="mt-2 text-xs text-muted-foreground flex items-center flex-wrap">
+          by {seller} {tierBadge}
+        </div>
         <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-gold">
-          <BadgeCheck className="size-3" /> {l.level ?? "Verified Seller"}
+          <BadgeCheck className="size-3" /> {subscriptionTier ? `${subscriptionTier.toUpperCase()} Seller` : isVerified ? "Verified Seller" : "Verified Seller"}
         </div>
         <div className="mt-3 flex items-center gap-1 text-xs">
           <Star className="size-3.5 fill-gold text-gold" />

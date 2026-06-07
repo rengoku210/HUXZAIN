@@ -60,8 +60,10 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-// Email-based admin whitelist (for accounts that may not have DB roles yet)
-const ADMIN_EMAILS = ["admin@admin.com", "lullilullivabhaiva@gmail.com", "rammodhvadiya210@gmail.com"];
+// Emergency admin override: set VITE_ADMIN_OVERRIDE_EMAIL in .env to allow
+// a single break-glass email if all DB roles are lost. Leave blank in production.
+const ADMIN_OVERRIDE_EMAIL =
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_ADMIN_OVERRIDE_EMAIL) || "";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — HUXZAIN" }] }),
@@ -73,39 +75,49 @@ function AdminLayout() {
   const nav2 = useNavigate();
   const { location } = useRouterState();
   const isPaymentReviewer = auth.hasRole("payment_reviewer");
-  const isDisputeManager = auth.hasRole("dispute_manager");
-  const isSupportAgent = auth.hasRole("support_agent");
   const isVerificationOfficer = auth.hasRole("verification_officer");
+  const isContentModerator = auth.hasRole("moderator") || auth.hasRole("dispute_manager");
+  const isSupportStaff = auth.hasRole("support_agent");
   
-  const isStaff = auth.hasRole("staff") || isPaymentReviewer || isDisputeManager || isSupportAgent || isVerificationOfficer;
-  const isModerator = auth.hasRole("moderator");
+  const isStaff = auth.hasRole("staff") || isPaymentReviewer || isVerificationOfficer || isContentModerator || isSupportStaff;
   const isAdminOrSuper = auth.hasAnyRole(["admin", "super_admin", "owner"]);
-  const isEmailWhitelist = ADMIN_EMAILS.includes(auth.user?.email ?? "");
+  const isEmailWhitelist = ADMIN_OVERRIDE_EMAIL.length > 0 && auth.user?.email === ADMIN_OVERRIDE_EMAIL;
   
-  const allowed = isStaff || isModerator || isAdminOrSuper || isEmailWhitelist;
-  const isStrictStaff = isStaff && !isModerator && !isAdminOrSuper && !isEmailWhitelist;
+  const allowed = isStaff || isAdminOrSuper || isEmailWhitelist;
+  const isStrictStaff = isStaff && !isAdminOrSuper && !isEmailWhitelist;
   
   // Dynamic staff allowed paths based on specific role
   const staffAllowedPaths = useMemo(() => {
     let paths: string[] = [];
-    if (isPaymentReviewer) paths.push("/admin/payments", "/admin/invoices", "/admin/withdrawals", "/admin/earnings");
-    if (isDisputeManager) paths.push("/admin/disputes", "/admin/tickets");
-    if (isSupportAgent) paths.push("/admin/tickets");
-    if (isVerificationOfficer) paths.push("/admin/verifications");
-    if (auth.hasRole("staff") && paths.length === 0) paths.push("/admin/payments", "/admin/invoices", "/admin/subscriptions", "/admin/tickets"); // fallback
+    if (isPaymentReviewer) {
+      paths.push("/admin/withdrawals", "/admin/earnings");
+    }
+    if (isVerificationOfficer) {
+      paths.push("/admin/verifications");
+    }
+    if (isContentModerator) {
+      paths.push("/admin/disputes", "/admin/tickets", "/admin/listings");
+    }
+    if (isSupportStaff) {
+      paths.push("/admin/tickets", "/admin/disputes");
+    }
+    // Fallback for general staff
+    if (auth.hasRole("staff") && paths.length === 0) {
+      paths.push("/admin/tickets");
+    }
     return paths;
-  }, [isPaymentReviewer, isDisputeManager, isSupportAgent, isVerificationOfficer, auth]);
+  }, [isPaymentReviewer, isVerificationOfficer, isContentModerator, isSupportStaff, auth]);
 
   useEffect(() => {
     if (auth.ready && auth.isAuthenticated) {
       if (!allowed) {
         nav2({ to: "/dashboard" });
-      } else if (location.pathname === "/admin/earnings" && !(auth.hasRole("owner") || isPaymentReviewer || auth.user?.email === "admin@admin.com")) {
+      } else if (location.pathname === "/admin/earnings" && !(isAdminOrSuper || isPaymentReviewer)) {
         nav2({ to: "/admin" });
       } else if (location.pathname === "/admin/staff" && !isAdminOrSuper) {
         nav2({ to: "/admin" });
       } else if (isStrictStaff) {
-        // Redirect staff if they try to access non-payment/subscription routes
+        // Redirect staff if they try to access non-allowed routes
         const currentPath = location.pathname;
         const isPathAllowed = staffAllowedPaths.some(p => currentPath === p || currentPath.startsWith(p + "/"));
         if (!isPathAllowed && staffAllowedPaths.length > 0) {
@@ -124,7 +136,7 @@ function AdminLayout() {
       return staffAllowedPaths.includes(n.to);
     }
     if (n.to === "/admin/earnings") {
-      return auth.hasRole("owner") || auth.user?.email === "admin@admin.com";
+      return isAdminOrSuper || isPaymentReviewer;
     }
     if (n.to === "/admin/staff") {
       return isAdminOrSuper;

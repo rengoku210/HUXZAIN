@@ -34,11 +34,11 @@ import {
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
-import { SellerTierProvider, useSellerTier } from "@/lib/seller/tier-context";
+import { SellerTierProvider, useSellerTier, type SellerTier, tierAtLeast } from "@/lib/seller/tier-context";
 import { TierBadge } from "./TierBadge";
 import { UpgradeCelebration } from "./UpgradeCelebration";
 
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean };
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; minTier?: SellerTier };
 type NavGroup = { title: string; items: NavItem[] };
 
 const navGroups: NavGroup[] = [
@@ -46,7 +46,7 @@ const navGroups: NavGroup[] = [
     title: "Overview",
     items: [
       { to: "/seller", label: "Dashboard", icon: LayoutDashboard, end: true },
-      { to: "/seller/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/seller/analytics", label: "Analytics", icon: BarChart3, minTier: "pro" },
       { to: "/seller/notifications", label: "Notifications", icon: Bell },
     ],
   },
@@ -73,9 +73,9 @@ const navGroups: NavGroup[] = [
   {
     title: "Growth",
     items: [
-      { to: "/seller/coupons", label: "Coupons", icon: Ticket },
-      { to: "/seller/boosts", label: "Boosts", icon: Rocket },
-      { to: "/seller/ads", label: "Advertise", icon: Megaphone },
+      { to: "/seller/coupons", label: "Coupons", icon: Ticket, minTier: "pro" },
+      { to: "/seller/boosts", label: "Boosts", icon: Rocket, minTier: "pro" },
+      { to: "/seller/ads", label: "Advertise", icon: Megaphone, minTier: "enterprise" },
     ],
   },
   {
@@ -83,7 +83,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: "/seller/subscription", label: "Subscription", icon: CreditCard },
       { to: "/seller/verification", label: "Verification", icon: BadgeCheck },
-      { to: "/seller/store", label: "Store", icon: Palette },
+      { to: "/seller/store", label: "Storefront Theme", icon: Palette, minTier: "elite" },
       { to: "/seller/security", label: "Security", icon: Lock },
       { to: "/seller/settings", label: "Settings", icon: Settings },
       { to: "/seller/support", label: "Support", icon: LifeBuoy },
@@ -168,6 +168,7 @@ function SellerSidebar({
                 const active = n.end
                   ? location.pathname === n.to
                   : location.pathname.startsWith(n.to);
+                const isLocked = n.minTier ? !tierAtLeast(tier, n.minTier) : false;
                 return (
                   <li key={n.to}>
                     <Link
@@ -181,8 +182,13 @@ function SellerSidebar({
                           : "text-muted-foreground hover:text-foreground hover:bg-surface"
                       }`}
                     >
-                      <n.icon className="size-4" /> <span className="flex-1">{n.label}</span>
-                      {active && <ChevronRight size={12} />}
+                      <n.icon className={`size-4 ${isLocked ? "text-muted-foreground/50" : ""}`} /> 
+                      <span className={`flex-1 ${isLocked ? "text-muted-foreground/80" : ""}`}>{n.label}</span>
+                      {isLocked ? (
+                        <Lock className="size-3 text-muted-foreground/50 shrink-0" />
+                      ) : active ? (
+                        <ChevronRight size={12} />
+                      ) : null}
                     </Link>
                   </li>
                 );
@@ -262,6 +268,7 @@ function MobileSellerNav() {
                   const active = n.end
                     ? location.pathname === n.to
                     : location.pathname.startsWith(n.to);
+                  const isLocked = n.minTier ? !tierAtLeast(tier, n.minTier) : false;
                   return (
                     <li key={n.to}>
                       <Link
@@ -273,7 +280,9 @@ function MobileSellerNav() {
                             : "text-muted-foreground hover:text-foreground hover:bg-surface border-transparent"
                         }`}
                       >
-                        <n.icon className="size-3.5" /> <span className="truncate">{n.label}</span>
+                        <n.icon className={`size-3.5 ${isLocked ? "text-muted-foreground/50" : ""}`} /> 
+                        <span className={`truncate flex-1 ${isLocked ? "text-muted-foreground/80" : ""}`}>{n.label}</span>
+                        {isLocked && <Lock className="size-2.5 text-muted-foreground/50 shrink-0" />}
                       </Link>
                     </li>
                   );
@@ -673,6 +682,10 @@ export function StatusPill({ status }: { status: string }) {
     Paused: "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",
     Disputed: "bg-destructive/15 text-destructive border-destructive/20",
     Open: "bg-destructive/15 text-destructive border-destructive/20",
+    Review: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+    Approved: "bg-teal-500/15 text-teal-400 border-teal-500/20",
+    Paid: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+    Rejected: "bg-rose-500/15 text-rose-400 border-rose-500/20",
   };
   return (
     <span

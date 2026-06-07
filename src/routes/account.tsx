@@ -2,6 +2,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Header } from "@/components/site/Header";
+import { PhoneVerificationModal } from "@/components/site/PhoneVerificationModal";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
@@ -234,6 +235,7 @@ function AccountPage() {
 
   // Role management state
   const [activatingRole, setActivatingRole] = useState<Role | null>(null);
+const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [showSellerSuccess, setShowSellerSuccess] = useState(false);
 
   // Password state
@@ -296,6 +298,11 @@ function AccountPage() {
 
     try {
       if (role === "seller") {
+        if (!profile?.phone_verified && !profile?.phone_verified_at) {
+          // Prompt phone verification modal
+          setShowPhoneVerification(true);
+          return;
+        }
         // Create an explicit 10-second timeout to prevent infinite spinner on network hangs
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Request timed out. Please check your network connection.")), 10000)
@@ -492,6 +499,17 @@ function AccountPage() {
   return (
     <>
       {showSellerSuccess && <SellerSuccessModal onClose={() => setShowSellerSuccess(false)} />}
+{showPhoneVerification && (
+  <PhoneVerificationModal
+    isOpen={showPhoneVerification}
+    onClose={() => setShowPhoneVerification(false)}
+    onSuccess={() => {
+      setShowPhoneVerification(false);
+      // After verification, retry seller activation
+      activateRole('seller');
+    }}
+  />
+)}
       {avatarPreviewFile && (
         <AvatarPreviewModal
           file={avatarPreviewFile}

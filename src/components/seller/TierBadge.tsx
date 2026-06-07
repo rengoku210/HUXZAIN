@@ -3,6 +3,7 @@ import { TIERS, type SellerTier } from "@/lib/seller/tier-context";
 
 const ICONS: Record<SellerTier, typeof Crown> = {
   standard: Shield,
+  verified: Shield,
   pro: Star,
   elite: Crown,
   enterprise: Sparkles,

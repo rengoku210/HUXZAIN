@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
 
 import { requestOtp } from "@/lib/auth.functions";
+import { friendlyError } from "@/lib/error-messages";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { redirect?: string } => ({
@@ -32,12 +33,8 @@ function LoginPage() {
       await auth.signInWithPassword(email, password);
       nav({ to: redirect || "/dashboard" });
     } catch (ex) {
-      const errMsg = (ex as Error).message;
-      if (errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('user not found') || errMsg.toLowerCase().includes('invalid login credentials')) {
-        toast.error('This email already has an account. Try signing in with Google or request an OTP.', { id: 'bk9k6e' });
-      } else {
-        toast.error(errMsg);
-      }
+      const errMsg = friendlyError(ex);
+      toast.error(errMsg);
       setErr(errMsg);
     } finally {
       setBusy(false);
@@ -80,12 +77,8 @@ function LoginPage() {
     try {
       await auth.signInWithOAuth(p);
     } catch (ex) {
-      const errMsg = (ex as Error).message;
-      if (errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('user already exists')) {
-        toast.error('This email already has an account. Try signing in with password or request an OTP.', { id: 'bk9k6e' });
-      } else {
-        toast.error(errMsg);
-      }
+      const errMsg = friendlyError(ex);
+      toast.error(errMsg, { id: 'oauth-err' });
       setErr(errMsg);
     }
   };

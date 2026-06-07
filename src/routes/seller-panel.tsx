@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { PhoneVerificationModal } from "@/components/site/PhoneVerificationModal";
 import { TrendingUp, DollarSign, Users, Shield, ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -21,9 +22,12 @@ export const Route = createFileRoute("/seller-panel")({
 });
 
 function SellerPanel() {
-  const { isAuthenticated, roles } = useAuth();
+  const nav = useNavigate();
+  const { isAuthenticated, roles, profile, refreshUserMeta } = useAuth();
   const isSeller = roles.includes("seller");
+  const isPhoneVerified = !!profile?.phone_verified;
 
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [stats, setStats] = useState({
     activeSellers: 0,
     totalPaidOut: 0,
@@ -95,13 +99,32 @@ function SellerPanel() {
               built for serious sellers.
             </p>
             <div className="mt-7 flex gap-3">
-              <Link
-                to={isAuthenticated ? (isSeller ? "/seller" : "/account") : "/signup"}
-                search={!isAuthenticated || !isSeller ? { intent: "seller" } : undefined}
-                className="h-12 px-6 rounded-lg bg-gold text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:brightness-110 transition-all"
-              >
-                Start Selling <ArrowRight className="size-4" />
-              </Link>
+              {isAuthenticated ? (
+                isPhoneVerified ? (
+                  <Link
+                    to={isSeller ? "/seller" : "/account"}
+                    search={isSeller ? undefined : { intent: "seller" }}
+                    className="h-12 px-6 rounded-lg bg-gold text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:brightness-110 transition-all"
+                  >
+                    Start Selling <ArrowRight className="size-4" />
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => setShowPhoneVerification(true)}
+                    className="h-12 px-6 rounded-lg bg-gold text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:brightness-110 transition-all"
+                  >
+                    Start Selling <ArrowRight className="size-4" />
+                  </button>
+                )
+              ) : (
+                <Link
+                  to="/signup"
+                  search={{ intent: "seller" }}
+                  className="h-12 px-6 rounded-lg bg-gold text-primary-foreground text-sm font-semibold inline-flex items-center gap-2 hover:brightness-110 transition-all"
+                >
+                  Start Selling <ArrowRight className="size-4" />
+                </Link>
+              )}
               <Link
                 to="/how-it-works"
                 className="h-12 px-6 rounded-lg border border-border text-sm font-medium inline-flex items-center hover:border-gold/40 transition-colors"

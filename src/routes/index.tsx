@@ -86,23 +86,19 @@ function TopBenefitsBar() {
     },
   ];
 
-  return (
-    <div className="bg-[#101114] border-b border-gold/10 py-4 shadow-[0_1px_10px_rgba(212,160,23,0.05)]">
-      <div className="container-page grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 text-center md:text-left">
-        {benefits.map((b, idx) => (
-          <div key={idx} className="flex flex-col md:flex-row items-center md:items-start gap-3 justify-center md:justify-start">
-            <div className="size-11 rounded-full border border-gold/30 bg-gold/5 flex items-center justify-center text-gold shrink-0 shadow-[0_0_15px_rgba(212,160,23,0.1)]">
-              <b.icon className="size-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold tracking-wider text-gold uppercase">{b.title}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">{b.desc}</div>
-            </div>
-          </div>
-        ))}
+  return <div className="bg-[#101114] border-b border-gold/10 py-4 shadow-[0_1px_10px_rgba(212,160,23,0.05)]">
+  <div className="container-page grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center md:text-left">
+    {benefits.map((b, idx) => (
+      <div key={idx} className="bg-[#101114] border border-gold/20 rounded-xl p-4 flex flex-col items-center justify-center h-full">
+        <div className="size-11 rounded-full border border-gold/30 bg-gold/5 flex items-center justify-center text-gold shrink-0 shadow-[0_0_15px_rgba(212,160,23,0.1)] mb-2">
+          <b.icon className="size-5" />
+        </div>
+        <div className="text-xs font-bold tracking-wider text-gold uppercase">{b.title}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">{b.desc}</div>
       </div>
-    </div>
-  );
+    ))}
+  </div>
+</div>;
 }
 
 function Home() {
@@ -242,6 +238,7 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
         </div>
 
         <div className="relative">
+          {/* STATE 1 - Idle: Breathing scale animation */}
           <div
             className="absolute inset-0 -m-10 bg-[radial-gradient(circle_at_center,oklch(0.82_0.13_82/0.22),transparent_60%)]"
             aria-hidden
@@ -740,7 +737,7 @@ function TrendingSellers() {
           ›
         </button>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 overflow-hidden py-2">
+        <div className="flex overflow-x-auto gap-4 py-2">
           {sellers.slice(startIndex, startIndex + 6).map((s, idx) => (
             <div 
               key={idx}
@@ -859,12 +856,15 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
         const pushedIds = pushBoosts ? pushBoosts.map((b: any) => b.listing_id) : [];
 
         // 3. Query listings matching the search filter (if any) or generic featured limit 8
-        let query = supabase!.from("listings").select("*").eq("status", "active");
+        let query = supabase!
+          .from("listings")
+          .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
+          .eq("status", "active");
 
         if (activeSearch) {
-          query = query.ilike("title", `%${activeSearch}%`);
+          query = query.ilike("title", `%${activeSearch}%`).order("boost_score", { ascending: false }).order("created_at", { ascending: false });
         } else {
-          query = query.order("created_at", { ascending: false }).limit(8);
+          query = query.order("boost_score", { ascending: false }).order("created_at", { ascending: false }).limit(8);
         }
 
         const { data, error } = await query;

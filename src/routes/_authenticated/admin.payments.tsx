@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/_authenticated/admin/payments")({
   head: () => ({ meta: [{ title: "Payment Verifications — HUXZAIN Admin" }] }),
@@ -63,12 +64,15 @@ interface UnifiedProofRow {
 }
 
 function AdminPayments() {
+  const { user } = useAuth();
   const [proofs, setProofs] = useState<UnifiedProofRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeProof, setActiveProof] = useState<UnifiedProofRow | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showReuploadModal, setShowReuploadModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [reuploadReason, setReuploadReason] = useState("");
   const [actioning, setActioning] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [typeFilter, setTypeFilter] = useState<"all" | "listing" | "subscription">("all");
@@ -746,6 +750,113 @@ function AdminPayments() {
     }
   };
 
+  const handleReuploadSubmit = async () => {
+    if (!supabase || !activeProof) return;
+
+    const trimmedReason = reuploadReason.trim() || "No reason specified";
+    setActioning(true);
+    console.log("[AdminPayments] Initiating re-upload request for payment proof ID:", activeProof.id, "with reason:", trimmedReason);
+
+    try {
+      // 1. Update payment_proofs directly
+      const { data: updateData, error } = await supabase
+        .from("payment_proofs")
+        .update({
+          status: "reupload_requested",
+          rejection_reason: trimmedReason,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", activeProof.id)
+        .select("*");
+
+      if (error) throw error;
+
+      // 2. Reset order status to 'pending_payment' if it is listing payment
+      if (activeProof.payment_type === "listing") {
+        let orderId = activeProof.order_id;
+        if (!orderId && activeProof.payment_reference) {
+          const orderIdMatch = activeProof.payment_reference.match(/^order:(.+)$/);
+          if (orderIdMatch) {
+            orderId = orderIdMatch[1];
+          } else if (activeProof.payment_reference.length === 36) {
+            orderId = activeProof.payment_reference;
+          }
+        }
+        if (orderId) {
+          await supabase
+            .from("orders")
+            .update({ status: "pending_payment", payment_status: "failed" })
+            .eq("id", orderId);
+
+          // Sync legacy payment_events if exists
+          try {
+            const { data: eventData } = await supabase
+              .from("payment_events")
+              .select("*")
+              .eq("order_id", orderId)
+              .eq("provider", "manual")
+              .limit(1);
+
+            const event = eventData?.[0];
+            if (event) {
+              const newPayload = { ...event.payload, status: "reupload_requested", rejection_reason: trimmedReason };
+              await supabase
+                .from("payment_events")
+                .update({ payload: newPayload, processed: false })
+                .eq("id", event.id);
+            }
+          } catch (syncEx) {
+            console.warn("[AdminPayments] Non-blocking legacy re-upload sync exception:", syncEx);
+          }
+        }
+      }
+
+      // 3. Log staff action
+      try {
+        await supabase.from("staff_action_logs").insert({
+          staff_id: user?.id || activeProof.user_id,
+          action: "request_reupload",
+          target_type: "payment_proof",
+          target_id: activeProof.id,
+          previous_value: activeProof.status,
+          new_value: "reupload_requested"
+        });
+      } catch (logErr) {
+        console.warn("[AdminPayments] Failed to write staff action log:", logErr);
+      }
+
+      // 4. Notify buyer
+      await supabase.from("notifications").insert({
+        user_id: activeProof.user_id,
+        kind: "payment.reupload_requested",
+        title: "Re-upload Payment Proof Requested",
+        body: `We requested you to re-upload your payment proof. Reason: ${trimmedReason}. Please upload a clear screenshot.`,
+      });
+
+      toast.success("Payment proof re-upload requested successfully.");
+
+      // OPTIMISTIC STATE UPDATE
+      setProofs(prevProofs => 
+        prevProofs.map(p => 
+          p.id === activeProof.id 
+            ? { ...p, status: "reupload_requested", rejection_reason: trimmedReason } 
+            : p
+        )
+      );
+
+      setShowReuploadModal(false);
+      setReuploadReason("");
+      setActiveProof(null);
+
+      await fetchProofs();
+    } catch (err: any) {
+      console.error("[AdminPayments] Re-upload request error:", err);
+      toast.error(`Re-upload request failed: ${err.message}`);
+    } finally {
+      setActioning(false);
+    }
+  };
+
   // ── Filtered list ──
   const filtered = proofs.filter((p) => {
     if (!p) return false;
@@ -1281,20 +1392,27 @@ function AdminPayments() {
 
             {/* ─── MODAL FOOTER ACTIONS (Fixed) ─── */}
             {activeProof.status === "pending" && (
-              <div className="p-6 pt-4 border-t border-border/50 bg-background shrink-0 flex gap-4">
+              <div className="p-6 pt-4 border-t border-border/50 bg-background shrink-0 flex gap-3">
                 <button
                   onClick={() => setShowRejectModal(true)}
                   disabled={actioning}
-                  className="flex-1 h-12 rounded-xl border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="flex-1 h-12 rounded-xl border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/10 inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <X size={16} /> Reject Payment
+                  <X size={14} /> Reject
+                </button>
+                <button
+                  onClick={() => setShowReuploadModal(true)}
+                  disabled={actioning}
+                  className="flex-1 h-12 rounded-xl border border-amber-500/30 text-amber-400 text-xs font-bold hover:bg-amber-500/10 inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <RefreshCw size={14} /> Request Re-upload
                 </button>
                 <button
                   onClick={() => setShowApproveModal(true)}
                   disabled={actioning}
-                  className="flex-1 h-12 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
+                  className="flex-1 h-12 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer border-none"
                 >
-                  <Check size={16} /> Approve & Confirm
+                  <Check size={14} /> Approve
                 </button>
               </div>
             )}
@@ -1372,6 +1490,46 @@ function AdminPayments() {
                 className="flex-1 h-10 rounded-xl bg-red-500 hover:brightness-110 text-white text-xs font-bold transition-all disabled:opacity-50 cursor-pointer border-none"
               >
                 {actioning ? "Rejecting..." : "Reject Payment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── RE-UPLOAD REQUEST MODAL ─── */}
+      {showReuploadModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-amber-400">
+              <RefreshCw size={18} className="animate-spin-slow" /> Request Re-upload
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              Request the buyer to re-upload their payment proof. Please specify exactly what is wrong (e.g. cropped image, wrong amount, incorrect UPI ID).
+            </p>
+            <textarea
+              rows={3}
+              value={reuploadReason}
+              onChange={(e) => setReuploadReason(e.target.value)}
+              placeholder="Specify the issue with the current proof..."
+              className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-amber-500/50 resize-none mb-5 text-foreground placeholder:text-muted-foreground"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowReuploadModal(false);
+                  setReuploadReason("");
+                }}
+                disabled={actioning}
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReuploadSubmit}
+                disabled={actioning || !reuploadReason.trim()}
+                className="flex-1 h-10 rounded-xl bg-amber-500 hover:brightness-110 text-black text-xs font-bold transition-all disabled:opacity-50 cursor-pointer border-none"
+              >
+                {actioning ? "Sending Request..." : "Request Re-upload"}
               </button>
             </div>
           </div>

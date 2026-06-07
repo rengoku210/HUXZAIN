@@ -5,7 +5,8 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { 
   Loader2, AlertCircle, CheckCircle2, XCircle, MessageSquare, 
   Clock, Shield, Eye, Download, Scale, ArrowRight, User, 
-  Calendar, Check, DollarSign, RefreshCw, ShoppingBag, ShieldCheck, X 
+  Calendar, Check, DollarSign, RefreshCw, ShoppingBag, ShieldCheck, X,
+  Send, MessageCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { completeOrderAndCreditSeller, addWalletBalance } from "@/lib/wallet.functions";
@@ -52,6 +53,16 @@ type ChatMessage = {
   sender?: { display_name: string; email: string };
 };
 
+type DisputeMessage = {
+  id: string;
+  dispute_id: string;
+  sender_id: string;
+  body: string;
+  is_system: boolean;
+  created_at: string;
+  sender?: { display_name: string; email: string | null };
+};
+
 function Page() {
   const { user } = useAuth();
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -76,6 +87,13 @@ function Page() {
   
   // Lightbox for evidence images
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
+
+  // Dispute messages (moderator thread)
+  const [disputeMessages, setDisputeMessages] = useState<DisputeMessage[]>([]);
+  const [newDisputeMsg, setNewDisputeMsg] = useState("");
+  const [sendingDisputeMsg, setSendingDisputeMsg] = useState(false);
+  const disputeThreadRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch disputes list
   async function fetchDisputes() {
@@ -111,6 +129,8 @@ function Page() {
     setLoadingDetail(true);
     setOrderDetail(null);
     setChatMessages([]);
+    setDisputeMessages([]);
+    setNewDisputeMsg("");
     setResolutionNotes("");
     
     try {
@@ -187,6 +207,37 @@ function Page() {
         setResolutionNotes(dispute.resolution);
       }
 
+      // 4. Fetch dispute messages (moderator thread)
+      const { data: dmData, error: dmErr } = await (supabase as any)
+        .from("dispute_messages")
+        .select(`
+          id,
+          dispute_id,
+          sender_id,
+          body,
+          is_system,
+          created_at,
+          sender:profiles!sender_id(display_name, email)
+        `)
+        .eq("dispute_id", dispute.id)
+        .order("created_at", { ascending: true });
+
+      if (!dmErr && dmData) {
+        const formatted = dmData.map((m: any) => {
+          const senderObj = Array.isArray(m.sender) ? m.sender[0] : m.sender;
+          return {
+            id: m.id,
+            dispute_id: m.dispute_id,
+            sender_id: m.sender_id,
+            body: m.body,
+            is_system: m.is_system,
+            created_at: m.created_at,
+            sender: senderObj ? { display_name: senderObj.display_name, email: senderObj.email } : undefined,
+          } as DisputeMessage;
+        });
+        setDisputeMessages(formatted);
+      }
+
     } catch (e: any) {
       console.error("Failed to load dispute details:", e);
       toast.error("Failed to load details: " + e.message);
@@ -228,6 +279,81 @@ function Page() {
       }
     } catch (e: any) {
       toast.error("Failed to update status: " + e.message);
+    }
+  }
+
+  // Real-time subscription to dispute_messages for selected dispute
+  useEffect(() => {
+    if (!selectedDispute) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const channel = (supabase as any)
+      .channel(`dispute_messages_${selectedDispute.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "dispute_messages",
+          filter: `dispute_id=eq.${selectedDispute.id}`,
+        },
+        async (payload: any) => {
+          const newMsg = payload.new as any;
+          // Fetch sender profile for the new message
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("display_name, email")
+            .eq("id", newMsg.sender_id)
+            .maybeSingle();
+          const msgWithSender: DisputeMessage = {
+            ...newMsg,
+            sender: profileData ? { display_name: profileData.display_name, email: profileData.email } : undefined,
+          };
+          setDisputeMessages((prev) => {
+            if (prev.find((m) => m.id === newMsg.id)) return prev;
+            return [...prev, msgWithSender];
+          });
+          setTimeout(() => {
+            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 50);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      (supabase as any).removeChannel(channel);
+    };
+  }, [selectedDispute?.id]);
+
+  // Scroll dispute thread to bottom when messages load
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [disputeMessages.length]);
+
+  // Send a message in the dispute_messages thread
+  async function sendDisputeMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedDispute || !user || !newDisputeMsg.trim()) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    setSendingDisputeMsg(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("dispute_messages")
+        .insert({
+          dispute_id: selectedDispute.id,
+          sender_id: user.id,
+          body: newDisputeMsg.trim(),
+          is_system: false,
+        });
+      if (error) throw error;
+      setNewDisputeMsg("");
+    } catch (e: any) {
+      toast.error("Failed to send message: " + e.message);
+    } finally {
+      setSendingDisputeMsg(false);
     }
   }
 
@@ -314,6 +440,32 @@ function Page() {
         });
       }
 
+      // 5b. Notify buyer and seller about the mediation result
+      try {
+        const notificationsToInsert = [];
+        if (orderDetail.buyer_id) {
+          notificationsToInsert.push({
+            user_id: orderDetail.buyer_id,
+            kind: "dispute.resolved",
+            title: "Dispute Resolved by Admin",
+            body: `Your dispute for Order #${orderDetail.id.slice(0, 8)} has been mediated. Split: Buyer ₹${buyerRefund} (${buyerPercent}%), Seller ₹${sellerPayout} (${sellerPercent}%). Verdict: "${resolutionNotes}"`,
+          });
+        }
+        if (orderDetail.seller_id) {
+          notificationsToInsert.push({
+            user_id: orderDetail.seller_id,
+            kind: "dispute.resolved",
+            title: "Dispute Resolved by Admin",
+            body: `The dispute for Order #${orderDetail.id.slice(0, 8)} has been mediated. Split: Buyer ₹${buyerRefund} (${buyerPercent}%), Seller ₹${sellerPayout} (${sellerPercent}%). Verdict: "${resolutionNotes}"`,
+          });
+        }
+        if (notificationsToInsert.length > 0) {
+          await supabase.from("notifications").insert(notificationsToInsert);
+        }
+      } catch (err) {
+        console.warn("[AdminDisputes] Non-blocking notifications trigger failed:", err);
+      }
+
       // 6. Log staff action
       await supabase.from("staff_action_logs").insert({
         staff_id: user.id,
@@ -392,9 +544,9 @@ function Page() {
       </div>
 
       {/* Main Split Layout */}
-      <div className="flex-1 flex gap-5 min-h-0">
-        {/* Left Side: Disputes List (width: 380px) */}
-        <div className="w-[380px] border border-border/80 bg-surface/30 rounded-2xl flex flex-col min-h-0 flex-shrink-0">
+      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
+        {/* Left Side: Disputes List */}
+        <div className="w-full md:w-[380px] border border-border/80 bg-surface/30 rounded-2xl flex flex-col min-h-[300px] md:min-h-0 flex-shrink-0">
           <div className="p-4 border-b border-border/60 flex flex-col gap-3">
             <input 
               type="text"
@@ -680,6 +832,79 @@ function Page() {
                     })
                   )}
                 </div>
+              </div>
+
+              {/* Moderator Dispute Thread — dispute_messages */}
+              <div className="space-y-2.5">
+                <h3 className="font-display font-bold text-xs uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                  <MessageCircle className="size-3.5" /> Moderator Dispute Thread
+                  <span className="ml-auto text-[10px] text-muted-foreground normal-case font-normal">Staff-only communication channel — {disputeMessages.length} messages</span>
+                </h3>
+                <div
+                  ref={disputeThreadRef}
+                  className="bg-blue-950/20 border border-blue-500/20 rounded-2xl h-72 overflow-y-auto p-4 space-y-3 flex flex-col"
+                >
+                  {disputeMessages.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-xs text-muted-foreground gap-1.5">
+                      <MessageCircle className="size-5 opacity-40" />
+                      <span>No messages yet. Start the moderator thread below.</span>
+                    </div>
+                  ) : (
+                    disputeMessages.map((m) => {
+                      if (m.is_system) {
+                        return (
+                          <div key={m.id} className="w-full flex justify-center">
+                            <div className="bg-surface-elevated border border-blue-500/20 text-[10px] px-3 py-1 rounded-full text-blue-300/70 text-center max-w-md">
+                              {m.body}
+                            </div>
+                          </div>
+                        );
+                      }
+                      const isMe = m.sender_id === user?.id;
+                      return (
+                        <div
+                          key={m.id}
+                          className={`max-w-[85%] flex flex-col ${isMe ? "self-end items-end" : "self-start"}`}
+                        >
+                          <span className="text-[9px] text-muted-foreground mb-0.5">
+                            {m.sender?.display_name || "Staff"} • {new Date(m.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}
+                          </span>
+                          <div
+                            className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                              isMe
+                                ? "bg-blue-600 text-white rounded-tr-xs"
+                                : "bg-surface-elevated border border-blue-500/20 text-foreground rounded-tl-xs"
+                            }`}
+                          >
+                            {m.body}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Message input */}
+                {(selectedDispute.status !== "resolved_buyer" && selectedDispute.status !== "resolved_seller" && selectedDispute.status !== "closed") && (
+                  <form onSubmit={sendDisputeMessage} className="flex items-center gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={newDisputeMsg}
+                      onChange={(e) => setNewDisputeMsg(e.target.value)}
+                      placeholder="Type a message to the thread..."
+                      className="flex-1 h-9 px-3 text-xs bg-surface-elevated border border-blue-500/20 rounded-xl focus:border-blue-400/50 outline-none text-foreground placeholder:text-muted-foreground"
+                    />
+                    <button
+                      type="submit"
+                      disabled={sendingDisputeMsg || !newDisputeMsg.trim()}
+                      className="h-9 px-4 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all flex items-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
+                    >
+                      {sendingDisputeMsg ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                      Send
+                    </button>
+                  </form>
+                )}
               </div>
 
               {/* Split Payout mediating area */}

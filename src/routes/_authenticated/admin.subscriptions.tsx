@@ -49,14 +49,42 @@ function SubscriptionsManager() {
     if (!supabase) return;
     setLoading(true);
     try {
-      // Query profiles that have is_seller true or are already on premium tiers
-      const { data, error } = await supabase
+      // 1. Fetch all sellers from profiles
+      const { data: profiles, error: pErr } = await supabase
         .from("profiles")
-        .select("id, username, display_name, email, subscription_tier, subscription_expires_at")
+        .select("id, username, display_name, email")
         .eq("is_seller", true);
 
-      if (error) throw error;
-      setSubscribers(data || []);
+      if (pErr) throw pErr;
+
+      if (profiles && profiles.length > 0) {
+        const uids = profiles.map((p) => p.id);
+        
+        // 2. Fetch their seller_subscriptions details
+        const { data: subs, error: sErr } = await supabase
+          .from("seller_subscriptions")
+          .select("seller_id, plan_name, expiry_date, status, suspension_status")
+          .in("seller_id", uids);
+
+        if (sErr) throw sErr;
+
+        // 3. Map together
+        const records = profiles.map((p) => {
+          const sub = subs?.find((s) => s.seller_id === p.id);
+          return {
+            id: p.id,
+            username: p.username,
+            display_name: p.display_name,
+            email: p.email,
+            subscription_tier: sub ? sub.plan_name.toLowerCase() : "free",
+            subscription_expires_at: sub ? sub.expiry_date : null
+          };
+        });
+
+        setSubscribers(records);
+      } else {
+        setSubscribers([]);
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(`Failed to load subscribers list: ${e.message}`);
@@ -91,11 +119,36 @@ function SubscriptionsManager() {
 
       const expiryIso = selectedExpiry ? new Date(selectedExpiry).toISOString() : null;
 
+      // Get configuration for target plan from configuration table
+      const { data: planConfig, error: cfgErr } = await supabase
+        .from("subscription_plans_config")
+        .select("boost_tokens_per_month")
+        .eq("id", selectedTier)
+        .single();
+
+      if (cfgErr) throw cfgErr;
+      const tokens = planConfig?.boost_tokens_per_month || 0;
+
+      const planNameMap: Record<string, string> = {
+        free: "Free",
+        verified: "Verified",
+        pro: "Pro",
+        elite: "Elite",
+        enterprise: "Enterprise"
+      };
+      const planName = planNameMap[selectedTier] || "Free";
+
+      // Profiles tier name matching Tanstack tier context mapping
+      let profileTier = "standard";
+      if (selectedTier === "pro") profileTier = "pro";
+      else if (selectedTier === "elite") profileTier = "elite";
+      else if (selectedTier === "enterprise") profileTier = "enterprise";
+
       // 1. Update profiles table
       const { error: updErr } = await supabase
         .from("profiles")
         .update({
-          subscription_tier: selectedTier,
+          subscription_tier: profileTier,
           subscription_expires_at: expiryIso,
           updated_at: new Date().toISOString()
         })
@@ -103,7 +156,23 @@ function SubscriptionsManager() {
 
       if (updErr) throw updErr;
 
-      // 2. Log staff action
+      // 2. Update/Upsert seller_subscriptions table
+      const { error: subErr } = await supabase
+        .from("seller_subscriptions")
+        .upsert({
+          seller_id: editingUser.id,
+          plan_name: planName,
+          start_date: new Date().toISOString(),
+          expiry_date: expiryIso,
+          status: "Active",
+          suspension_status: false,
+          boost_tokens_remaining: tokens,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "seller_id" });
+
+      if (subErr) throw subErr;
+
+      // 3. Log staff action
       if (staffId) {
         await supabase.from("staff_action_logs").insert({
           staff_id: staffId,
@@ -116,18 +185,19 @@ function SubscriptionsManager() {
           }),
           new_value: JSON.stringify({
             tier: selectedTier,
-            expiry: expiryIso
+            expiry: expiryIso,
+            tokens
           }),
-          notes: `Manually changed seller subscription plan to ${selectedTier.toUpperCase()}`
+          notes: `Manually changed seller subscription plan to ${planName.toUpperCase()} with ${tokens} boost tokens`
         });
       }
 
-      // 3. Notify user
+      // 4. Notify user
       await supabase.from("notifications").insert({
         user_id: editingUser.id,
         kind: "subscription.updated",
         title: "Subscription Status Changed",
-        body: `Your seller subscription plan has been updated to ${selectedTier.toUpperCase()} by the platform administrator.`
+        body: `Your seller subscription plan has been updated to ${planName.toUpperCase()} by the platform administrator.`
       });
 
       toast.success("Seller subscription tier updated successfully.");
@@ -157,12 +227,14 @@ function SubscriptionsManager() {
 
   const getTierColor = (tier: string | null) => {
     switch (tier) {
+      case "enterprise":
+        return "text-blue-400 bg-blue-500/10 border-blue-500/20";
       case "elite":
         return "text-purple-400 bg-purple-500/10 border-purple-500/20";
       case "pro":
         return "text-gold bg-gold/10 border-gold/20";
-      case "enterprise":
-        return "text-blue-400 bg-blue-500/10 border-blue-500/20";
+      case "verified":
+        return "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
       case "free":
       case null:
       default:
@@ -314,6 +386,7 @@ function SubscriptionsManager() {
                   className="w-full h-10 px-3 rounded-lg border border-border bg-black focus:border-gold outline-none text-sm text-foreground"
                 >
                   <option value="free">Free / Basic Seller</option>
+                  <option value="verified">Verified Seller</option>
                   <option value="pro">Pro Seller Plan</option>
                   <option value="elite">Elite Seller Plan</option>
                   <option value="enterprise">Enterprise Partner Plan</option>

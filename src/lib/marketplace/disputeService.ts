@@ -87,3 +87,52 @@ export async function updateDisputeStatus(params: {
   if (error) throw error;
   return data as Dispute;
 }
+
+/** Submit seller response to dispute */
+export async function respondToDispute(params: {
+  disputeId: string;
+  responseNotes: string;
+  evidenceFiles?: File[];
+}) {
+  let newEvidenceUrls: string[] = [];
+  if (params.evidenceFiles && params.evidenceFiles.length > 0) {
+    for (const file of params.evidenceFiles) {
+      const fileName = `${Date.now()}_${file.name}`;
+      const { data, error } = await supabase.storage
+        .from("dispute-evidence")
+        .upload(`evidence/${fileName}`, file);
+      if (error) throw error;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from("dispute-evidence")
+        .getPublicUrl(`evidence/${fileName}`);
+      newEvidenceUrls.push(publicUrl);
+    }
+  }
+
+  // Fetch existing dispute to preserve/append evidence urls
+  const { data: current, error: getErr } = await supabase
+    .from("disputes")
+    .select("evidence_urls")
+    .eq("id", params.disputeId)
+    .single();
+
+  if (getErr) throw getErr;
+
+  const oldUrls = current?.evidence_urls || [];
+  const mergedUrls = [...oldUrls, ...newEvidenceUrls];
+
+  const { data, error } = await supabase
+    .from("disputes")
+    .update({
+      status: "investigating",
+      resolution: params.responseNotes,
+      evidence_urls: mergedUrls.length > 0 ? mergedUrls : null
+    })
+    .eq("id", params.disputeId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Dispute;
+}

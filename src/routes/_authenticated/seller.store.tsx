@@ -6,6 +6,7 @@ import { useSellerTier, tierAtLeast } from "@/lib/seller/tier-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
+import { PremiumLockScreen } from "@/components/seller/PremiumLockScreen";
 
 export const Route = createFileRoute("/_authenticated/seller/store")({
   head: () => ({ meta: [{ title: "Store Customization — HUXZAIN Seller" }] }),
@@ -30,7 +31,9 @@ const themes: Array<{
 function Page() {
   const { user, profile } = useAuth();
   const { tier } = useSellerTier();
-  const isPro = tierAtLeast(tier, "pro");
+  
+  // Store customization requires Elite or above (rank >= 3)
+  const isLocked = !tierAtLeast(tier, "elite");
 
   // Customization States
   const [logo, setLogo] = useState("");
@@ -41,6 +44,10 @@ function Page() {
   const [themeEnabled, setThemeEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  if (isLocked) {
+    return <PremiumLockScreen featureName="Storefront Theme branding customization" requiredTier="elite" />;
+  }
 
 
   async function loadCustomizations() {

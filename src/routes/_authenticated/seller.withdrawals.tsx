@@ -282,7 +282,7 @@ function Page() {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Available Wallet Balance" value={fmt(wallet?.available_balance)} icon={Wallet} />
+            <StatCard label="Eligible Settlement" value={fmt(wallet?.available_balance)} icon={Wallet} />
             <StatCard label="Total Pending Holds" value={fmt(wallet?.pending_balance)} icon={Clock} />
             <StatCard
               label="Selected for Payout"
@@ -666,7 +666,17 @@ function Page() {
                           </td>
                           <td className="py-3 text-right">
                             <StatusPill
-                              status={h.status === "pending" ? "Pending" : h.status === "completed" ? "Completed" : "Disputed"}
+                              status={
+                                h.status === "pending"
+                                  ? "Request"
+                                  : h.status === "review"
+                                    ? "Review"
+                                    : h.status === "approved"
+                                      ? "Approved"
+                                      : h.status === "completed" || h.status === "paid"
+                                        ? "Paid"
+                                        : "Rejected"
+                              }
                             />
                           </td>
                           <td className="py-3 text-right font-mono font-bold text-foreground">

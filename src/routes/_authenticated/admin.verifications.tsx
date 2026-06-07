@@ -12,7 +12,9 @@ import {
   XCircle, 
   AlertCircle,
   Eye,
-  FileText
+  FileText,
+  UserSquare2,
+  Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,8 +26,17 @@ export const Route = createFileRoute("/_authenticated/admin/verifications")({
 interface VerificationRecord {
   id: string;
   government_id_url: string | null;
+  selfie_url: string | null;
   address_proof_url: string | null;
+  payout_details: {
+    method?: "upi" | "bank_transfer";
+    accountHolder?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    upiId?: string;
+  } | null;
   status: string;
+  admin_notes: string | null;
   created_at: string;
   updated_at: string;
   profile?: {
@@ -42,6 +53,12 @@ function KYCVerifications() {
   const [filter, setFilter] = useState("pending");
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [viewingDocUrl, setViewingDocUrl] = useState<string | null>(null);
+  
+  // Auditing details popup
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [notesDecision, setNotesDecision] = useState<"rejected" | "action_required">("rejected");
+  const [adminNotes, setAdminNotes] = useState("");
 
   const supabase = getSupabase();
 
@@ -90,20 +107,30 @@ function KYCVerifications() {
     loadKYC();
   }, []);
 
-  const handleDecision = async (id: string, decision: "approved" | "rejected") => {
-    if (!supabase) return;
-    const confirmMsg = `Are you sure you want to mark this KYC verification as ${decision}?`;
-    if (!confirm(confirmMsg)) return;
+  const triggerNotesModal = (id: string, decision: "rejected" | "action_required") => {
+    setSelectedRecordId(id);
+    setNotesDecision(decision);
+    setAdminNotes("");
+    setShowNotesModal(true);
+  };
 
+  const handleDecision = async (id: string, decision: "approved" | "rejected" | "action_required", notes = "") => {
+    if (!supabase) return;
+    
     setActioningId(id);
     try {
       const { data: authUser } = await supabase.auth.getUser();
       const staffId = authUser.user?.id;
 
-      // 1. Update verifications status
+      // 1. Update verifications status and notes
       const { error: vErr } = await supabase
         .from("verifications")
-        .update({ status: decision, updated_at: new Date().toISOString() })
+        .update({ 
+          status: decision, 
+          admin_notes: notes || null,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString() 
+        })
         .eq("id", id);
 
       if (vErr) throw vErr;
@@ -111,7 +138,10 @@ function KYCVerifications() {
       // 2. Update profiles table verification status
       const { error: pErr } = await supabase
         .from("profiles")
-        .update({ is_verified: decision === "approved", updated_at: new Date().toISOString() })
+        .update({ 
+          is_verified: decision === "approved", 
+          updated_at: new Date().toISOString() 
+        })
         .eq("id", id);
 
       if (pErr) throw pErr;
@@ -120,30 +150,63 @@ function KYCVerifications() {
       if (staffId) {
         await supabase.from("staff_action_logs").insert({
           staff_id: staffId,
-          action: decision === "approved" ? "approve_kyc" : "reject_kyc",
+          action: decision === "approved" ? "approve_kyc" : decision === "action_required" ? "request_kyc_resubmission" : "reject_kyc",
           target_type: "profile",
           target_id: id,
           previous_value: "pending",
           new_value: decision,
-          notes: `KYC verification request resolved: ${decision}`
+          new_value_meta: JSON.stringify({ notes }),
+          ip_address: null
         });
       }
 
       // 4. Notify user
+      let title = "KYC Verification Approved!";
+      let body = "Congratulations! Your account verification has been approved. You now have a verified seller status badge!";
+      let kind = "kyc.approved";
+
+      if (decision === "rejected") {
+        title = "KYC Verification Rejected";
+        body = `Your account verification request was rejected. Details: ${notes || "Please re-upload valid government ID and proofs."}`;
+        kind = "kyc.rejected";
+      } else if (decision === "action_required") {
+        title = "KYC Action Required: Resubmission Request";
+        body = `Your verification requires attention. Please view details and re-upload documents. Reason: ${notes || "Missing document files."}`;
+        kind = "kyc.action_required";
+      }
+
       await supabase.from("notifications").insert({
         user_id: id,
-        kind: decision === "approved" ? "kyc.approved" : "kyc.rejected",
-        title: decision === "approved" ? "KYC Verification Approved!" : "KYC Verification Rejected",
-        body: decision === "approved" 
-          ? "Congratulations! Your account verification has been approved. You now have a verified seller status badge!"
-          : "Your account verification request was rejected. Please ensure uploaded documents are clear and submit again."
+        kind,
+        title,
+        body
       });
 
-      toast.success(`Verification status set to ${decision}.`);
+      // If approved, update active subscription to 'Verified' plan if they are currently on 'Free'
+      if (decision === "approved") {
+        const { data: sub } = await supabase
+          .from("seller_subscriptions")
+          .select("plan_name")
+          .eq("seller_id", id)
+          .maybeSingle();
+
+        if (sub && sub.plan_name === "Free") {
+          await supabase
+            .from("seller_subscriptions")
+            .update({ 
+              plan_name: "Verified",
+              updated_at: new Date().toISOString()
+            })
+            .eq("seller_id", id);
+        }
+      }
+
+      toast.success(`Verification status updated to ${decision}.`);
+      setShowNotesModal(false);
       await loadKYC();
     } catch (e: any) {
       console.error(e);
-      toast.error(`Recreation failed: ${e.message}`);
+      toast.error(`Operation failed: ${e.message}`);
     } finally {
       setActioningId(null);
     }
@@ -172,12 +235,12 @@ function KYCVerifications() {
             <ShieldCheck className="size-6 text-gold" /> KYC Verification Center
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Review uploaded seller identity verifications, compare documents, and grant verified badges.
+            Auditing verifications ledger: Government ID, Selfie holds, utility address proofs, and payout account details.
           </p>
         </div>
         <button
           onClick={loadKYC}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-border text-sm hover:border-gold/50 cursor-pointer bg-surface/20"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-border text-sm hover:border-gold/50 cursor-pointer bg-surface/20 animate-in fade-in"
         >
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
@@ -203,12 +266,13 @@ function KYCVerifications() {
           >
             <option value="all">All Submissions</option>
             <option value="pending">Pending Review</option>
+            <option value="action_required">Action Required (Resubmit)</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
         </div>
-        <div className="text-right flex items-center justify-end text-xs text-muted-foreground font-medium">
-          Showing {filtered.length} verification requests
+        <div className="text-right flex items-center justify-end text-xs text-muted-foreground font-medium font-mono">
+          Total Queue: {filtered.length} submissions
         </div>
       </div>
 
@@ -221,95 +285,167 @@ function KYCVerifications() {
         <EmptyState title="No KYC requests found" desc="All submitted verifications have been fully audited." />
       ) : (
         <div className="rounded-2xl border border-border bg-surface/30 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto font-sans">
+            <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="border-b border-border bg-surface/60 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="px-6 py-4">Seller Details</th>
-                  <th className="px-6 py-4">Government ID Link</th>
-                  <th className="px-6 py-4">Address Proof Link</th>
-                  <th className="px-6 py-4">Submission Date</th>
-                  <th className="px-6 py-4">Audited Date</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-5 py-4">Seller</th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Government ID</span></th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><UserSquare2 size={12}/> Verification Selfie</span></th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Address Proof</span></th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><Wallet size={12}/> Payout Account Details</span></th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60 text-xs">
                 {filtered.map((v) => (
                   <tr key={v.id} className="hover:bg-surface/20 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4">
                       <div className="font-semibold text-foreground">
                         {v.profile?.display_name || v.profile?.username || "Anonymous User"}
                       </div>
                       <div className="text-[10px] text-muted-foreground font-mono mt-0.5">UID: {v.id}</div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4">
                       {v.government_id_url ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setViewingDocUrl(v.government_id_url)}
-                            className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
-                          >
-                            <Eye size={12} /> View ID Document
-                          </button>
-                          <a href={v.government_id_url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                            <ExternalLink size={11} />
-                          </a>
-                        </div>
+                        <button
+                          onClick={() => setViewingDocUrl(v.government_id_url)}
+                          className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
+                        >
+                          <Eye size={12} /> View Document
+                        </button>
                       ) : (
                         <span className="text-muted-foreground/60">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4">
+                      {v.selfie_url ? (
+                        <button
+                          onClick={() => setViewingDocUrl(v.selfie_url)}
+                          className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
+                        >
+                          <Eye size={12} /> View Selfie
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground/60">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
                       {v.address_proof_url ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setViewingDocUrl(v.address_proof_url)}
-                            className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
-                          >
-                            <Eye size={12} /> View Address Proof
-                          </button>
-                          <a href={v.address_proof_url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                            <ExternalLink size={11} />
-                          </a>
+                        <button
+                          onClick={() => setViewingDocUrl(v.address_proof_url)}
+                          className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
+                        >
+                          <Eye size={12} /> View Address
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground/60">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      {v.payout_details ? (
+                        <div className="space-y-1 text-[10px] max-w-[220px] bg-background/30 p-2 rounded border border-border/50">
+                          <div className="font-bold uppercase text-gold">
+                            {v.payout_details.method === "upi" ? "UPI Payout" : "Bank Transfer"}
+                          </div>
+                          {v.payout_details.method === "upi" ? (
+                            <div className="font-mono truncate">{v.payout_details.upiId}</div>
+                          ) : (
+                            <div className="space-y-0.5 font-mono">
+                              <div className="truncate font-sans font-semibold text-foreground">{v.payout_details.accountHolder}</div>
+                              <div>Ac: {v.payout_details.accountNumber}</div>
+                              <div>IFSC: {v.payout_details.ifscCode}</div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-muted-foreground/60">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground font-mono">
-                      {new Date(v.created_at).toLocaleDateString()}
+                    <td className="px-5 py-4">
+                      <StatusPill 
+                        status={
+                          v.status === 'pending' 
+                            ? 'Pending' 
+                            : v.status === 'approved' 
+                              ? 'Completed' 
+                              : v.status === 'action_required'
+                                ? 'Review'
+                                : 'Paused'
+                        } 
+                      />
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground font-mono">
-                      {new Date(v.updated_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <StatusPill status={v.status === 'pending' ? 'Pending' : v.status === 'approved' ? 'Completed' : 'Paused'} />
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
+                    <td className="px-5 py-4 text-right space-y-1.5 whitespace-nowrap">
                       {v.status === "pending" && (
-                        <>
+                        <div className="flex flex-col gap-1.5 justify-end">
                           <button
                             disabled={actioningId !== null}
                             onClick={() => handleDecision(v.id, "approved")}
-                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold bg-gold text-black hover:brightness-110 disabled:opacity-50 transition-all border-none cursor-pointer"
+                            className="inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold bg-gold text-black hover:brightness-110 disabled:opacity-50 transition-all border-none cursor-pointer"
                           >
                             Approve
                           </button>
                           <button
                             disabled={actioningId !== null}
-                            onClick={() => handleDecision(v.id, "rejected")}
-                            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50 transition-all cursor-pointer"
+                            onClick={() => triggerNotesModal(v.id, "action_required")}
+                            className="inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 disabled:opacity-50 transition-all cursor-pointer"
+                          >
+                            Need Resubmit
+                          </button>
+                          <button
+                            disabled={actioningId !== null}
+                            onClick={() => triggerNotesModal(v.id, "rejected")}
+                            className="inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50 transition-all cursor-pointer"
                           >
                             Reject
                           </button>
-                        </>
+                        </div>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Action Notes Modal */}
+      {showNotesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-surface-elevated p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <h3 className="font-display font-bold text-foreground text-sm uppercase tracking-wider">
+              {notesDecision === "action_required" ? "KYC Action Required Notes" : "Reject KYC Verification"}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Provide feedback detailing the document issues or resubmission instructions. This message will be sent to the seller.
+            </p>
+            <textarea
+              required
+              rows={4}
+              value={adminNotes}
+              onChange={(e) => setAdminNotes(e.target.value)}
+              placeholder="e.g. Please upload a clearer selfie holding your passport. The ID image was blurry."
+              className="w-full p-3 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-gold/50 resize-none"
+            />
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowNotesModal(false)}
+                className="flex-1 h-10 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-surface hover:text-foreground transition-all active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDecision(selectedRecordId!, notesDecision, adminNotes)}
+                disabled={actioningId !== null || !adminNotes.trim()}
+                className="flex-1 h-10 rounded-xl bg-gold text-black text-xs font-bold hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-50"
+              >
+                Submit Action
+              </button>
+            </div>
           </div>
         </div>
       )}

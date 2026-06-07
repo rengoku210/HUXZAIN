@@ -96,6 +96,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Moderated marketplace for digital products and services. Verified sellers, order protection, dispute resolution.",
       },
+      { property: "og:image", content: "https://huxzain.shop/og-image.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "HUXZAIN — India's Secure Digital Marketplace" },
+      { name: "twitter:image", content: "https://huxzain.shop/og-image.png" },
+      { property: "og:url", content: "https://huxzain.shop" },
+      { property: "og:site_name", content: "HUXZAIN" },
+      { name: "theme-color", content: "#0B0C10" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

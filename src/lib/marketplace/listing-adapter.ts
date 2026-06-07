@@ -3,7 +3,12 @@ export type ListingLike = {
   title: string;
   seller?: string | null;
   seller_id?: string | null;
-  profiles?: { display_name?: string | null; username?: string | null } | null;
+  profiles?: { 
+    display_name?: string | null; 
+    username?: string | null;
+    subscription_tier?: string | null;
+    is_verified?: boolean | null;
+  } | null;
   level?: string | null;
   rating?: number | null;
   rating_avg?: number | null;
@@ -24,6 +29,11 @@ export type ListingLike = {
   description?: string | null;
   status?: string | null;
   attributes?: Record<string, any> | null;
+  is_featured?: boolean;
+  is_homepage_featured?: boolean;
+  is_urgent?: boolean;
+  has_glow?: boolean;
+  boost_score?: number;
 };
 
 export function listingPrice(listing: ListingLike): number {

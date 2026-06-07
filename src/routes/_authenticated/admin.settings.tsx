@@ -12,6 +12,8 @@ export const Route = createFileRoute("/_authenticated/admin/settings")({
 
 function Page() {
   const [saving, setSaving] = useState(false);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [loadingConfig, setLoadingConfig] = useState(true);
 
   // Platform Form States
   const [platformName, setPlatformName] = useState("HUXZAIN");
@@ -21,6 +23,7 @@ function Page() {
   const [kycRequired, setKycRequired] = useState(true);
   const [escrowTimeout, setEscrowTimeout] = useState("24");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maxSpotlightSlots, setMaxSpotlightSlots] = useState("5");
 
   // Email Broadcaster States
   const [activeListings, setActiveListings] = useState<any[]>([]);
@@ -31,23 +34,56 @@ function Page() {
   const [sendEnabled, setSendEnabled] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
 
-  // Load from localStorage if present
+  // Load configuration from database
   useEffect(() => {
-    const savedName = localStorage.getItem("huxzain_platform_name");
-    const savedEmail = localStorage.getItem("huxzain_support_email");
-    const savedCommission = localStorage.getItem("huxzain_commission_rate");
-    const savedPayout = localStorage.getItem("huxzain_payout_fee");
-    const savedKyc = localStorage.getItem("huxzain_kyc_required");
-    const savedEscrow = localStorage.getItem("huxzain_escrow_timeout");
-    const savedMaint = localStorage.getItem("huxzain_maintenance_mode");
+    async function loadSettings() {
+      const supabase = getSupabase();
+      if (!supabase) {
+        setLoadingConfig(false);
+        return;
+      }
+      setLoadingConfig(true);
+      try {
+        // 1. Load general settings from platform_settings
+        const { data: dbSettings, error: dbErr } = await supabase
+          .from("platform_settings")
+          .select("key, value");
 
-    if (savedName) setPlatformName(savedName);
-    if (savedEmail) setSupportEmail(savedEmail);
-    if (savedCommission) setCommissionRate(savedCommission);
-    if (savedPayout) setPayoutFee(savedPayout);
-    if (savedKyc) setKycRequired(savedKyc === "true");
-    if (savedEscrow) setEscrowTimeout(savedEscrow);
-    if (savedMaint) setMaintenanceMode(savedMaint === "true");
+        if (!dbErr && dbSettings) {
+          dbSettings.forEach((item) => {
+            if (item.key === "branding") {
+              setPlatformName(item.value.platform_name || "HUXZAIN");
+              setSupportEmail(item.value.support_email || "support@huxzain.shop");
+            } else if (item.key === "fees") {
+              setCommissionRate(String(item.value.commission_rate_percent ?? "1.9"));
+              setPayoutFee(String(item.value.payout_fee_percent ?? "0.0"));
+            } else if (item.key === "moderation") {
+              setKycRequired(!!item.value.kyc_required);
+              setEscrowTimeout(String(item.value.escrow_timeout_hours ?? "24"));
+            } else if (item.key === "maintenance") {
+              setMaintenanceMode(!!item.value.maintenance_mode);
+            } else if (item.key === "homepage_boosts") {
+              setMaxSpotlightSlots(String(item.value.max_spotlight_slots ?? "5"));
+            }
+          });
+        }
+
+        // 2. Load plan configs
+        const { data: dbPlans, error: plansErr } = await supabase
+          .from("subscription_plans_config")
+          .select("*")
+          .order("monthly_price_inr", { ascending: true });
+
+        if (plansErr) throw plansErr;
+        if (dbPlans) setPlans(dbPlans);
+      } catch (err: any) {
+        console.error("Failed to load DB config:", err.message);
+        toast.error("Failed to load settings from database.");
+      } finally {
+        setLoadingConfig(false);
+      }
+    }
+    loadSettings();
   }, []);
 
   useEffect(() => {
@@ -108,22 +144,67 @@ function Page() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const supabase = getSupabase();
+    if (!supabase) return;
 
+    setSaving(true);
     try {
-      localStorage.setItem("huxzain_platform_name", platformName);
-      localStorage.setItem("huxzain_support_email", supportEmail);
-      localStorage.setItem("huxzain_commission_rate", commissionRate);
-      localStorage.setItem("huxzain_payout_fee", payoutFee);
-      localStorage.setItem("huxzain_kyc_required", kycRequired ? "true" : "false");
-      localStorage.setItem("huxzain_escrow_timeout", escrowTimeout);
-      localStorage.setItem("huxzain_maintenance_mode", maintenanceMode ? "true" : "false");
-      
-      toast.success("Platform settings updated successfully!");
+      // 1. Save branding
+      const { error: e1 } = await supabase.from("platform_settings").upsert({
+        key: "branding",
+        value: { platform_name: platformName, support_email: supportEmail }
+      });
+      if (e1) throw e1;
+
+      // 2. Save fees
+      const { error: e2 } = await supabase.from("platform_settings").upsert({
+        key: "fees",
+        value: { commission_rate_percent: parseFloat(commissionRate), payout_fee_percent: parseFloat(payoutFee) }
+      });
+      if (e2) throw e2;
+
+      // 3. Save moderation
+      const { error: e3 } = await supabase.from("platform_settings").upsert({
+        key: "moderation",
+        value: { kyc_required: kycRequired, escrow_timeout_hours: parseInt(escrowTimeout) }
+      });
+      if (e3) throw e3;
+
+      // 4. Save maintenance
+      const { error: e4 } = await supabase.from("platform_settings").upsert({
+        key: "maintenance",
+        value: { maintenance_mode: maintenanceMode }
+      });
+      if (e4) throw e4;
+
+      // 5. Save homepage_boosts
+      const { error: e5 } = await supabase.from("platform_settings").upsert({
+        key: "homepage_boosts",
+        value: { max_spotlight_slots: parseInt(maxSpotlightSlots) }
+      });
+      if (e5) throw e5;
+
+      // 6. Save each plan configuration in subscription_plans_config
+      for (const plan of plans) {
+        const { error: pErr } = await supabase
+          .from("subscription_plans_config")
+          .update({
+            monthly_price_inr: parseInt(plan.monthly_price_inr),
+            listing_limit_per_category: parseInt(plan.listing_limit_per_category),
+            boost_tokens_per_month: parseInt(plan.boost_tokens_per_month),
+            visibility_multiplier: parseFloat(plan.visibility_multiplier),
+            settlement_days: parseInt(plan.settlement_days),
+            verification_required: !!plan.verification_required,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", plan.id);
+        
+        if (pErr) throw pErr;
+      }
+
+      toast.success("All platform settings and subscription plan config saved to DB!");
     } catch (err: any) {
+      console.error(err);
       toast.error("Failed to save settings: " + err.message);
     } finally {
       setSaving(false);
@@ -223,6 +304,16 @@ function Page() {
                   className="mt-1 w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
                 />
               </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Max Homepage Spotlight Slots</label>
+                <input
+                  type="number"
+                  required
+                  value={maxSpotlightSlots}
+                  onChange={(e) => setMaxSpotlightSlots(e.target.value)}
+                  className="mt-1 w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                />
+              </div>
               <label className="flex items-center gap-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -262,6 +353,125 @@ function Page() {
               </label>
             </div>
           </div>
+        </div>
+
+        {/* Subscription Plans Configuration */}
+        <div className="rounded-2xl border border-border bg-surface/40 p-6 space-y-6">
+          <div>
+            <h2 className="font-display text-lg font-bold flex items-center gap-2">
+              <ShieldCheck className="text-gold" size={20} /> Subscription Plans & Feature Limits Configuration
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Configure monthly pricing, dynamic listing limits, visibility multipliers, boost token allocations, and settlement times.
+            </p>
+          </div>
+
+          {loadingConfig ? (
+            <div className="h-40 flex items-center justify-center">
+              <RefreshCw className="animate-spin text-gold size-6" />
+            </div>
+          ) : (
+            <div className="grid lg:grid-cols-2 gap-6">
+              {plans.map((plan, idx) => (
+                <div key={plan.id} className="p-4 rounded-xl border border-border/80 bg-background/50 space-y-4">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                    <h3 className="font-bold text-sm text-gold uppercase tracking-wider">{plan.name} Tier</h3>
+                    <span className="text-[10px] text-muted-foreground font-mono">ID: {plan.id}</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Price (₹ INR / mo)</label>
+                      <input
+                        type="number"
+                        value={plan.monthly_price_inr}
+                        onChange={(e) => {
+                          const updated = [...plans];
+                          updated[idx] = { ...updated[idx], monthly_price_inr: e.target.value };
+                          setPlans(updated);
+                        }}
+                        className="mt-1 w-full h-8 px-2 rounded bg-surface border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Listing Limit / Category</label>
+                      <input
+                        type="number"
+                        value={plan.listing_limit_per_category}
+                        onChange={(e) => {
+                          const updated = [...plans];
+                          updated[idx] = { ...updated[idx], listing_limit_per_category: e.target.value };
+                          setPlans(updated);
+                        }}
+                        className="mt-1 w-full h-8 px-2 rounded bg-surface border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Boost Tokens / Month</label>
+                      <input
+                        type="number"
+                        value={plan.boost_tokens_per_month}
+                        onChange={(e) => {
+                          const updated = [...plans];
+                          updated[idx] = { ...updated[idx], boost_tokens_per_month: e.target.value };
+                          setPlans(updated);
+                        }}
+                        className="mt-1 w-full h-8 px-2 rounded bg-surface border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Visibility Multiplier</label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={plan.visibility_multiplier}
+                        onChange={(e) => {
+                          const updated = [...plans];
+                          updated[idx] = { ...updated[idx], visibility_multiplier: e.target.value };
+                          setPlans(updated);
+                        }}
+                        className="mt-1 w-full h-8 px-2 rounded bg-surface border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Settlement Time (Days)</label>
+                      <input
+                        type="number"
+                        value={plan.settlement_days}
+                        onChange={(e) => {
+                          const updated = [...plans];
+                          updated[idx] = { ...updated[idx], settlement_days: e.target.value };
+                          setPlans(updated);
+                        }}
+                        className="mt-1 w-full h-8 px-2 rounded bg-surface border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-5">
+                      <input
+                        type="checkbox"
+                        checked={plan.verification_required}
+                        onChange={(e) => {
+                          const updated = [...plans];
+                          updated[idx] = { ...updated[idx], verification_required: e.target.checked };
+                          setPlans(updated);
+                        }}
+                        className="rounded border-border bg-background text-gold focus:ring-gold size-4 accent-gold cursor-pointer"
+                        id={`chk-${plan.id}`}
+                      />
+                      <label htmlFor={`chk-${plan.id}`} className="text-[10px] text-muted-foreground cursor-pointer select-none">
+                        Requires KYC Proofs
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Submit Actions */}

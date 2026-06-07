@@ -732,9 +732,9 @@ function MessagesPage() {
         is_system: true
       });
 
-      // Update order status to "delivering" (Work in Progress)
+      // Update buyer requirements payload on the order
       await supabase.from("orders").update({
-        status: "delivering",
+        buyer_requirements_payload: payload,
         updated_at: new Date().toISOString()
       }).eq("id", activeConv.order_id);
 
@@ -750,6 +750,72 @@ function MessagesPage() {
       toast.error("Failed to submit requirements: " + e.message);
     } finally {
       setReqSubmitting(false);
+    }
+  }
+
+  // Seller accepts the order
+  async function handleAcceptOrder() {
+    if (!activeConv || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      // Update order status to "order_active"
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          status: "order_active",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", activeConv.order_id);
+
+      if (error) throw error;
+
+      // Insert system message in chat
+      await supabase.from("messages").insert({
+        conversation_id: activeConv.id,
+        sender_id: user.id,
+        body: `[SYSTEM_ORDER_ACCEPTED]: Seller accepted the order. Fulfillment in progress.`,
+        is_system: true
+      });
+
+      toast.success("Order accepted successfully! You can now start delivery.");
+      void loadConversations(activeConv.id);
+    } catch (e: any) {
+      toast.error("Failed to accept order: " + e.message);
+    }
+  }
+
+  // Seller starts delivery
+  async function handleStartDelivery() {
+    if (!activeConv || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      // Update order status to "seller_delivering"
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          status: "seller_delivering",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", activeConv.order_id);
+
+      if (error) throw error;
+
+      // Insert system message in chat
+      await supabase.from("messages").insert({
+        conversation_id: activeConv.id,
+        sender_id: user.id,
+        body: `[SYSTEM_DELIVERY_STARTED]: Seller started the delivery process.`,
+        is_system: true
+      });
+
+      toast.success("Fulfillment status set to delivering.");
+      void loadConversations(activeConv.id);
+    } catch (e: any) {
+      toast.error("Failed to start delivery: " + e.message);
     }
   }
 
@@ -781,10 +847,11 @@ function MessagesPage() {
         is_system: true
       });
 
-      // Update order status to "delivered" and record delivered_at
+      // Update order status to "buyer_reviewing", set delivered_at and set delivery_payload
       await supabase.from("orders").update({
-        status: "delivered",
+        status: "buyer_reviewing",
         delivered_at: new Date().toISOString(),
+        delivery_payload: payload,
         updated_at: new Date().toISOString()
       }).eq("id", activeConv.order_id);
 
@@ -1281,79 +1348,131 @@ function MessagesPage() {
                   <div className="space-y-3 pb-3.5 border-b border-border/40 text-[11px]">
                     <div className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Fulfillment Progress</div>
                     
-                    {/* Step 1: Paid */}
-                    <div className="flex items-start gap-2.5">
-                      <div className="size-4.5 rounded-full bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-[9px] font-bold text-emerald-400 shrink-0">✓</div>
-                      <div>
-                        <div className="font-semibold text-foreground/90">Funds Escrowed</div>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">₹{(activeConv.order.amount_inr || activeConv.order.amount_total || 0)} secured in HUXZAIN vault</div>
-                      </div>
-                    </div>
-
-                    {/* Step 2: Requirements */}
-                    <div className="flex items-start gap-2.5">
-                      <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
-                        requirementsPayload 
-                          ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400" 
-                          : "bg-surface-elevated border border-border text-muted-foreground"
-                      }`}>
-                        {requirementsPayload ? "✓" : "2"}
-                      </div>
-                      <div>
-                        <div className={`font-semibold ${requirementsPayload ? "text-foreground/90" : "text-muted-foreground"}`}>Buyer Requirements</div>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">
-                          {requirementsPayload ? "Instructions submitted by buyer" : "Awaiting account ID & instructions"}
+                    {/* Step 1: Payment Approved */}
+                    {(() => {
+                      const isDone = ["payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "completed", "disputed"].includes(activeConv.order.status);
+                      return (
+                        <div className="flex items-start gap-2.5">
+                          <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${isDone ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400" : "bg-surface-elevated border border-border text-muted-foreground"}`}>
+                            {isDone ? "✓" : "1"}
+                          </div>
+                          <div>
+                            <div className={`font-semibold ${isDone ? "text-foreground/90" : "text-muted-foreground"}`}>Payment Approved</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">₹{(activeConv.order.amount_inr || activeConv.order.amount_total || 0)} secured in HUXZAIN vault</div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
-                    {/* Step 3: Work in Progress / Seller Delivery */}
-                    <div className="flex items-start gap-2.5">
-                      <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
-                        deliveryPayload
-                          ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"
-                          : requirementsPayload
-                            ? "bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse"
-                            : "bg-surface-elevated border border-border text-muted-foreground"
-                      }`}>
-                        {deliveryPayload ? "✓" : "3"}
-                      </div>
-                      <div>
-                        <div className={`font-semibold ${deliveryPayload ? "text-foreground/90" : requirementsPayload ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>Seller Delivery</div>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">
-                          {deliveryPayload ? "Deliverables submitted" : "Awaiting credential upload"}
+                    {/* Step 2: Seller Accepted Order */}
+                    {(() => {
+                      const isDone = ["order_active", "seller_delivering", "buyer_reviewing", "completed", "disputed"].includes(activeConv.order.status);
+                      const isActive = activeConv.order.status === "payment_approved";
+                      return (
+                        <div className="flex items-start gap-2.5">
+                          <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                            isDone 
+                              ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400" 
+                              : isActive 
+                              ? "bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse"
+                              : "bg-surface-elevated border border-border text-muted-foreground"
+                          }`}>
+                            {isDone ? "✓" : "2"}
+                          </div>
+                          <div>
+                            <div className={`font-semibold ${isDone ? "text-foreground/90" : isActive ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>Seller Accepted Order</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">
+                              {isDone ? "Seller accepted order" : isActive ? "Awaiting seller acceptance" : "Pending payment"}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
-                    {/* Step 4: Verification Period */}
-                    <div className="flex items-start gap-2.5">
-                      <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
-                        activeConv.order.status === "completed"
-                          ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"
-                          : activeConv.order.status === "delivered"
-                            ? "bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse"
-                            : "bg-surface-elevated border border-border text-muted-foreground"
-                      }`}>
-                        {activeConv.order.status === "completed" ? "✓" : "4"}
-                      </div>
-                      <div>
-                        <div className={`font-semibold ${activeConv.order.status === "completed" ? "text-foreground/90" : activeConv.order.status === "delivered" ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>Inspection Phase</div>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">
-                          {activeConv.order.status === "completed" 
-                            ? "Completed successfully" 
-                            : activeConv.order.status === "delivered" 
-                              ? "Buyer is inspecting deliverables" 
-                              : "Pending delivery"}
+                    {/* Step 3: Delivery Started */}
+                    {(() => {
+                      const isDone = ["seller_delivering", "buyer_reviewing", "completed", "disputed"].includes(activeConv.order.status);
+                      const isActive = activeConv.order.status === "order_active";
+                      return (
+                        <div className="flex items-start gap-2.5">
+                          <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                            isDone
+                              ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"
+                              : isActive
+                                ? "bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse"
+                                : "bg-surface-elevated border border-border text-muted-foreground"
+                          }`}>
+                            {isDone ? "✓" : "3"}
+                          </div>
+                          <div>
+                            <div className={`font-semibold ${isDone ? "text-foreground/90" : isActive ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>Delivery Started</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">
+                              {isDone ? "Fulfillment work started" : isActive ? "Seller processing deliverables" : "Pending acceptance"}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
+
+                    {/* Step 4: Buyer Reviewing */}
+                    {(() => {
+                      const isDone = ["buyer_reviewing", "completed"].includes(activeConv.order.status);
+                      const isActive = activeConv.order.status === "seller_delivering";
+                      return (
+                        <div className="flex items-start gap-2.5">
+                          <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                            isDone
+                              ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"
+                              : isActive
+                                ? "bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse"
+                                : "bg-surface-elevated border border-border text-muted-foreground"
+                          }`}>
+                            {isDone ? "✓" : "4"}
+                          </div>
+                          <div>
+                            <div className={`font-semibold ${isDone ? "text-foreground/90" : isActive ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>Buyer Reviewing</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">
+                              {activeConv.order.status === "completed" 
+                                ? "Inspected & confirmed" 
+                                : activeConv.order.status === "buyer_reviewing" 
+                                  ? "Awaiting buyer confirmation" 
+                                  : "Pending delivery submission"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Step 5: Completed */}
+                    {(() => {
+                      const isDone = activeConv.order.status === "completed";
+                      const isActive = activeConv.order.status === "buyer_reviewing";
+                      return (
+                        <div className="flex items-start gap-2.5">
+                          <div className={`size-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                            isDone
+                              ? "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"
+                              : isActive
+                                ? "bg-amber-500/10 border border-amber-500/40 text-amber-400 animate-pulse"
+                                : "bg-surface-elevated border border-border text-muted-foreground"
+                          }`}>
+                            {isDone ? "✓" : "5"}
+                          </div>
+                          <div>
+                            <div className={`font-semibold ${isDone ? "text-foreground/90" : isActive ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>Completed</div>
+                            <div className="text-[9px] text-muted-foreground mt-0.5">
+                              {isDone ? "Order escrow completed successfully" : "Pending buyer confirmation"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Action Forms / Context Alerts */}
 
                   {/* A: Buyer Requirement Form */}
-                  {isBuyer && activeConv.order.status === "paid" && !requirementsPayload && (
+                  {isBuyer && (activeConv.order.status === "payment_approved" || activeConv.order.status === "order_active") && !requirementsPayload && (
                     <form onSubmit={handleSubmitRequirements} className="p-3.5 rounded-2xl border border-gold/30 bg-gold/5 space-y-3">
                       <div className="font-bold text-[10px] uppercase tracking-wider text-gold">Submit Buyer Requirements</div>
                       <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -1425,7 +1544,7 @@ function MessagesPage() {
                       <button
                         type="submit"
                         disabled={reqSubmitting}
-                        className="w-full h-8 rounded-lg bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                        className="w-full h-8 rounded-lg bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 cursor-pointer border-none"
                       >
                         {reqSubmitting ? "Submitting Requirements…" : "Send Requirements"}
                       </button>
@@ -1461,8 +1580,40 @@ function MessagesPage() {
                     </div>
                   )}
 
+                  {/* Seller Action Required: Accept Order */}
+                  {isSeller && activeConv.order.status === "payment_approved" && (
+                    <div className="p-3.5 rounded-2xl border border-gold/30 bg-gold/5 space-y-2 text-xs">
+                      <div className="font-bold text-[10px] uppercase tracking-wider text-gold">Action Required: Accept Order</div>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Please accept the order to confirm you can fulfill the requested digital item/service.
+                      </p>
+                      <button
+                        onClick={handleAcceptOrder}
+                        className="w-full h-8 rounded-lg bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer border-none"
+                      >
+                        Accept Order
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Seller Action Required: Start Fulfillment */}
+                  {isSeller && activeConv.order.status === "order_active" && (
+                    <div className="p-3.5 rounded-2xl border border-gold/30 bg-gold/5 space-y-2 text-xs">
+                      <div className="font-bold text-[10px] uppercase tracking-wider text-gold">Action Required: Start Fulfillment</div>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Set the status to delivering when you begin working on configuring the account or compiling deliverables.
+                      </p>
+                      <button
+                        onClick={handleStartDelivery}
+                        className="w-full h-8 rounded-lg bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer border-none"
+                      >
+                        Start Delivery / Fulfill Order
+                      </button>
+                    </div>
+                  )}
+
                   {/* C: Seller Delivery Form */}
-                  {isSeller && activeConv.order.status === "delivering" && (
+                  {isSeller && activeConv.order.status === "seller_delivering" && (
                     <form onSubmit={handleSubmitDelivery} className="p-3.5 rounded-2xl border border-gold/30 bg-gold/5 space-y-3">
                       <div className="font-bold text-[10px] uppercase tracking-wider text-gold">Submit Official Order Delivery</div>
                       <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -1543,7 +1694,7 @@ function MessagesPage() {
                       <button
                         type="submit"
                         disabled={delSubmitting}
-                        className="w-full h-8 rounded-lg bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                        className="w-full h-8 rounded-lg bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 cursor-pointer border-none"
                       >
                         {delSubmitting ? "Submitting Deliverables…" : "Complete Delivery"}
                       </button>
@@ -1601,20 +1752,44 @@ function MessagesPage() {
                   )}
 
                   {/* E: Awaiting Requirements / Seller Processing status text */}
-                  {activeConv.order.status === "paid" && requirementsPayload && !deliveryPayload && (
+                  {activeConv.order.status === "payment_approved" && requirementsPayload && !deliveryPayload && (
+                    <div className="p-3.5 rounded-2xl border border-border bg-surface/30 text-center space-y-1 text-xs">
+                      <Clock size={16} className="text-gold mx-auto animate-pulse" />
+                      <div className="font-bold">Awaiting Seller Acceptance</div>
+                      <div className="text-[10px] text-muted-foreground leading-relaxed">
+                        {isSeller 
+                          ? "Review the buyer requirements above and accept the order to proceed with fulfillment." 
+                          : "You have submitted requirements. Awaiting seller order acceptance."}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeConv.order.status === "order_active" && requirementsPayload && !deliveryPayload && (
                     <div className="p-3.5 rounded-2xl border border-border bg-surface/30 text-center space-y-1 text-xs">
                       <Clock size={16} className="text-gold mx-auto animate-pulse" />
                       <div className="font-bold">Work in Progress</div>
                       <div className="text-[10px] text-muted-foreground leading-relaxed">
                         {isSeller 
-                          ? "Review the buyer requirements above, generate or configure the credentials, and upload them via the Delivery form." 
-                          : "The seller has been notified and is configuring your credentials. Check back soon!"}
+                          ? "Fulfillment begun. Configure credentials and click Start Delivery when ready." 
+                          : "The seller has accepted and is configuring your credentials. Check back soon!"}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeConv.order.status === "seller_delivering" && (
+                    <div className="p-3.5 rounded-2xl border border-border bg-surface/30 text-center space-y-1 text-xs">
+                      <Clock size={16} className="text-gold mx-auto animate-pulse" />
+                      <div className="font-bold">Fulfillment Delivery Started</div>
+                      <div className="text-[10px] text-muted-foreground leading-relaxed">
+                        {isSeller 
+                          ? "Please upload the credentials/serial key/file link using the Delivery form above." 
+                          : "The seller is uploading your deliverables. Please stand by."}
                       </div>
                     </div>
                   )}
 
                   {/* F: Inspection Countdown & Buyer Actions (Autocomplete / Dispute) */}
-                  {activeConv.order.status === "delivered" && (
+                  {activeConv.order.status === "buyer_reviewing" && (
                     <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-3 text-xs">
                       <div className="font-bold text-[10px] uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                         <Clock size={13} className="animate-spin" /> Inspection Period Countdown

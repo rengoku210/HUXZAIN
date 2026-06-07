@@ -26,6 +26,7 @@ export type Profile = {
   is_verified: boolean;
   email_verified?: boolean | null;
   phone_verified?: boolean | null;
+  phone_verified_at?: string | null;
   seller_approved?: boolean;
   subscription_tier?: string | null;
   subscription_expires_at?: string | null;
@@ -178,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: userId,
               display_name: displayName,
               username: generatedUsername,
-              is_seller: true, // Mark as seller by default when recovering
+              is_seller: false, // Users start as buyers; seller role is granted explicitly
             })
             .select()
             .maybeSingle();
@@ -190,9 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: userId,
               display_name: displayName,
               username: generatedUsername,
-              is_seller: true,
+              is_seller: false,
               is_verified: false,
-              seller_approved: true,
+              seller_approved: false,
               avatar_url: null,
             } as any;
           } else if (newProfile) {
@@ -205,9 +206,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: userId,
             display_name: displayName,
             username: generatedUsername,
-            is_seller: true,
+            is_seller: false,
             is_verified: false,
-            seller_approved: true,
+            seller_approved: false,
             avatar_url: null,
           } as any;
         }
@@ -250,24 +251,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           dbRoles.push("buyer");
         }
 
-        // If the profile did not exist previously (!p), also ensure they get the "seller" role automatically
-        if (!p || !dbRoles.includes("seller")) {
-          console.log(`[Auth] Ensuring seller role for ${userId}...`);
-          const { error: syncErr } = await supabase
-            .from("user_roles")
-            .insert({ user_id: userId, role: "seller" as Role });
-          
-          if (!syncErr) {
-            if (!dbRoles.includes("seller")) dbRoles.push("seller");
-          } else {
-            console.warn("[Auth] Seller role auto-grant failed:", syncErr.message);
-          }
-        }
-
-        // Sync seller intent from metadata if they don't have the role yet
+        // Only auto-grant seller role if the user signed up with explicit seller intent
         const intent = fallbackUser?.user_metadata?.intent;
-        if (intent === "seller" && !dbRoles.includes("seller")) {
-          console.log(`[Auth] Syncing seller intent from metadata for ${userId}...`);
+        if (!p && intent === "seller" && !dbRoles.includes("seller")) {
+          console.log(`[Auth] Granting seller role for new seller-intent user: ${userId}...`);
           const { error: syncErr } = await supabase
             .from("user_roles")
             .insert({ user_id: userId, role: "seller" as Role });
@@ -275,7 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!syncErr) {
             if (!dbRoles.includes("seller")) dbRoles.push("seller");
           } else {
-            console.warn("[Auth] Seller intent sync failed:", syncErr.message);
+            console.warn("[Auth] Seller role grant failed:", syncErr.message);
           }
         }
       } catch (err) {

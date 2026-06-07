@@ -125,8 +125,10 @@ export const requestOtp = createServerFn({ method: "POST" })
     const hash = hashOtp(code);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Log the generated OTP to the server console for easy testing
-    console.log(`\n========================================\n[DEV LOGIN OTP CODE FOR ${email}]: ${code}\n========================================\n`);
+    // Log the generated OTP to the server console for dev only — NEVER in production
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n========================================\n[DEV OTP FOR ${email}]: ${code}\n========================================\n`);
+    }
 
     const supabase = getAdminClient();
     if (!supabase) {
