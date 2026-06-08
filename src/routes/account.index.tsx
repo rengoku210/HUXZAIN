@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/account")({
+export const Route = createFileRoute("/account/")({
   validateSearch: (s: Record<string, unknown>): { intent?: string } => ({
     intent: s.intent ? String(s.intent) : undefined,
   }),

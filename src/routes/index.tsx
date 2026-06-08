@@ -237,13 +237,21 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
           </div>
         </div>
 
-        <div className="relative">
-          {/* STATE 1 - Idle: Breathing scale animation */}
-          <div
-            className="absolute inset-0 -m-10 bg-[radial-gradient(circle_at_center,oklch(0.82_0.13_82/0.22),transparent_60%)]"
-            aria-hidden
-          />
-          <HeroLogo />
+        <div className="relative flex justify-center items-center">
+          {/* Very subtle ambient glow behind the card for depth */}
+          <div className="absolute inset-0 bg-gold/5 blur-[100px] scale-110 rounded-full pointer-events-none" aria-hidden />
+          
+          {/* Premium Glassmorphism Card */}
+          <div className="relative rounded-[2rem] border border-gold/20 bg-[#0B0C10]/40 backdrop-blur-xl p-8 sm:p-12 shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05)] overflow-hidden">
+            
+            {/* Small soft gold glow accents on the corners */}
+            <div className="absolute top-0 left-0 w-32 h-32 bg-gold/10 blur-[40px] rounded-full mix-blend-screen -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-32 h-32 bg-gold/10 blur-[40px] rounded-full mix-blend-screen translate-x-1/2 translate-y-1/2 pointer-events-none" />
+
+            <div className="relative z-10">
+              <HeroLogo />
+            </div>
+          </div>
         </div>
       </div>
     </section>

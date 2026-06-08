@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/auth/auth-context";
-import { sendPhoneOtpFn, verifyPhoneOtpFn } from "@/lib/sms/phone-verification.functions";
+import { verifyPhoneOtpFn } from "@/lib/sms/phone-verification.functions";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -251,6 +251,51 @@ export function PhoneVerificationModal({
     }
   }, [isOpen]);
 
+  // Inject MSG91 Widget Script
+  useEffect(() => {
+    if (isOpen && typeof window !== "undefined") {
+      const rawWidgetId = import.meta.env.VITE_MSG91_WIDGET_ID || "";
+      const rawToken = import.meta.env.VITE_MSG91_WIDGET_TOKEN || "";
+      const widgetId = (rawWidgetId || "").trim().replace(/['"]/g, '');
+      const tokenAuth = (rawToken || "").trim().replace(/['"]/g, '');
+      console.log("Widget ID:", widgetId);
+      console.log("TokenAuth Length:", tokenAuth?.length);
+
+      const config = {
+        widgetId,
+        tokenAuth,
+        exposeMethods: true,
+        success: (data: any) => {
+          console.log("MSG91 Success callback:", data);
+        },
+        failure: (error: any) => {
+          console.log("MSG91 Failure callback:", error);
+        }
+      };
+      
+      (window as any).configuration = config;
+      console.log("Final window.configuration object inside Modal:", { ...config, tokenAuth: "HIDDEN_BUT_EXISTS" });
+
+      // Don't inject multiple times
+      if (!document.getElementById("msg91-widget-script")) {
+        const script = document.createElement("script");
+        script.id = "msg91-widget-script";
+        script.type = "text/javascript";
+        script.src = "https://verify.msg91.com/otp-provider.js";
+        script.onload = () => {
+          if (typeof (window as any).initSendOTP === "function") {
+            (window as any).initSendOTP(config);
+          }
+        };
+        document.head.appendChild(script);
+      } else {
+        if (typeof (window as any).initSendOTP === "function") {
+          (window as any).initSendOTP(config);
+        }
+      }
+    }
+  }, [isOpen]);
+
   const fullPhone = `${selectedCountry.dialCode}${localNumber.replace(/\s/g, "")}`;
 
   const triggerOtpSend = useCallback(async () => {
@@ -264,40 +309,50 @@ export function PhoneVerificationModal({
       return;
     }
 
-    const phone = `${selectedCountry.dialCode}${trimmedNumber}`;
-
-    // Basic E.164 length check
-    if (phone.length < 8 || phone.length > 16) {
+    // Use full phone without '+' sign for MSG91 widget
+    const phoneWithoutPlus = `${selectedCountry.dialCode.replace("+", "")}${trimmedNumber}`;
+    if (phoneWithoutPlus.length < 8 || phoneWithoutPlus.length > 16) {
       toast.error("Please enter a valid phone number.");
       return;
     }
 
-    console.log("[PhoneVerification] Sending OTP to:", phone);
+    console.log("[PhoneVerificationModal] Sending OTP to:", phoneWithoutPlus);
+    setSending(true);
 
-    try {
-      setSending(true);
-      const res = await sendPhoneOtpFn({
-        data: { phone, userId: user.id },
-      });
+    if (typeof (window as any).sendOtp !== "function") {
+      toast.error("OTP Service is still loading. Please wait a moment.");
+      setSending(false);
+      return;
+    }
 
-      console.log("[PhoneVerification] sendPhoneOtpFn response:", res);
+    const config = (window as any).configuration || {};
+    const widgetId = config.widgetId;
+    const tokenAuth = config.tokenAuth;
+    console.log("Widget ID:", widgetId);
+    console.log("TokenAuth Length:", tokenAuth?.length);
 
-      if (res?.success) {
+    console.log("Executing window.sendOtp in modal with phone:", phoneWithoutPlus);
+
+    (window as any).sendOtp(
+      phoneWithoutPlus,
+      (data: any) => {
+        console.log("OTP Sent Successfully inside Modal", data);
         resendCount.current += 1;
         setStep(2);
         setCooldown(30);
-        toast.success(`Verification code sent to ${phone}`, {
-          description: "Check your SMS messages.",
-        });
+        toast.success(`Verification code sent to +${phoneWithoutPlus}`);
+        
+        if (data.reqId) {
+          localStorage.setItem("msg91_req_id", data.reqId);
+        }
+        setSending(false);
+      },
+      (error: any) => {
+        console.error("[PhoneVerificationModal] Send OTP error:", error);
+        toast.error(error.message || "Failed to send verification code.");
+        setSending(false);
       }
-    } catch (err: any) {
-      console.error("[PhoneVerification] Error sending OTP:", err);
-      // Show the exact server error, not a generic message
-      const msg = err?.message || "Failed to send verification code.";
-      toast.error(msg);
-    } finally {
-      setSending(false);
-    }
+    );
   }, [localNumber, selectedCountry, user]);
 
   const triggerOtpVerify = useCallback(async () => {
@@ -310,37 +365,82 @@ export function PhoneVerificationModal({
     const trimmedNumber = localNumber.replace(/\s/g, "").replace(/^0+/, "");
     const phone = `${selectedCountry.dialCode}${trimmedNumber}`;
 
-    console.log("[PhoneVerification] Verifying OTP for:", phone);
+    console.log("[PhoneVerificationModal] Verifying OTP via MSG91 Widget...");
+    setVerifying(true);
 
-    try {
-      setVerifying(true);
-      const res = await verifyPhoneOtpFn({
-        data: { phone, code: otp, userId: user.id },
-      });
-
-      console.log("[PhoneVerification] verifyPhoneOtpFn response:", res);
-
-      if (res?.success) {
-        // Refresh profile so phone_verified = true propagates everywhere
-        await refreshUserMeta();
-        setStep(3);
-        toast.success("Phone number verified successfully! ✓");
-        // Give a moment to show success state then call onSuccess
-        setTimeout(() => {
-          if (onSuccess) onSuccess();
-          onClose();
-        }, 1800);
-      }
-    } catch (err: any) {
-      console.error("[PhoneVerification] Error verifying OTP:", err);
-      const msg = err?.message || "Invalid or expired verification code.";
-      toast.error(msg);
-      // Clear OTP on wrong code so user can re-enter
-      setOtp("");
-    } finally {
+    if (typeof (window as any).verifyOtp !== "function") {
+      toast.error("OTP Service is not available.");
       setVerifying(false);
+      return;
     }
+
+    (window as any).verifyOtp(
+      otp,
+      async (data: any) => {
+        console.log("MSG91 verify response:", data);
+        console.log("Extracted access token:", data.message);
+        console.log("Access token length:", data.message?.length);
+        const accessToken = data.message;
+        
+        try {
+          const res = await verifyPhoneOtpFn({
+            data: { accessToken, phone, userId: user.id },
+          });
+
+          console.log("[PhoneVerificationModal] verifyPhoneOtpFn response:", res);
+
+          if (res?.success) {
+            await refreshUserMeta();
+            setStep(3);
+            toast.success("Phone number verified successfully! ✓");
+            setTimeout(() => {
+              if (onSuccess) onSuccess();
+              onClose();
+            }, 1800);
+          }
+        } catch (err: any) {
+          console.error("[PhoneVerificationModal] Error verifying OTP:", err);
+          const msg = err?.message || "Invalid or expired verification code.";
+          toast.error(msg);
+          setOtp("");
+        } finally {
+          setVerifying(false);
+        }
+      },
+      (error: any) => {
+        console.error("[PhoneVerificationModal] Verify OTP Widget error:", error);
+        toast.error(error.message || "Invalid OTP");
+        setOtp("");
+        setVerifying(false);
+      },
+      localStorage.getItem("msg91_req_id")
+    );
   }, [otp, localNumber, selectedCountry, user, refreshUserMeta, onSuccess, onClose]);
+
+  const handleResendOtp = useCallback(() => {
+    setSending(true);
+    if (typeof (window as any).retryOtp !== "function") {
+      toast.error("OTP Service is not available.");
+      setSending(false);
+      return;
+    }
+    
+    (window as any).retryOtp(
+      null,
+      (data: any) => {
+        console.log("OTP Resent in Modal", data);
+        setCooldown(30);
+        toast.success("Verification code resent.");
+        setSending(false);
+      },
+      (error: any) => {
+        console.error("[PhoneVerificationModal] Resend OTP error:", error);
+        toast.error(error.message || "Failed to resend OTP");
+        setSending(false);
+      },
+      localStorage.getItem("msg91_req_id")
+    );
+  }, []);
 
   // Auto-verify when 6 digits entered
   useEffect(() => {
@@ -521,7 +621,7 @@ export function PhoneVerificationModal({
                     ) : (
                       <button
                         type="button"
-                        onClick={triggerOtpSend}
+                        onClick={handleResendOtp}
                         disabled={sending}
                         className="text-gold hover:underline font-bold transition-colors disabled:opacity-50"
                       >

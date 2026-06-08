@@ -32,10 +32,10 @@ import { Route as CareersRouteImport } from './routes/careers'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as BecomeGameBuddyRouteImport } from './routes/become-game-buddy'
 import { Route as BecomeCoachRouteImport } from './routes/become-coach'
-import { Route as AccountRouteImport } from './routes/account'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountIndexRouteImport } from './routes/account.index'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as GameBuddiesIdRouteImport } from './routes/game-buddies.$id'
 import { Route as CoachingIdRouteImport } from './routes/coaching.$id'
@@ -205,11 +205,6 @@ const BecomeCoachRoute = BecomeCoachRouteImport.update({
   path: '/become-coach',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -222,6 +217,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountIndexRoute = AccountIndexRouteImport.update({
+  id: '/account/',
+  path: '/account/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductIdRoute = ProductIdRouteImport.update({
@@ -255,9 +255,9 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountVerifyPhoneRoute = AccountVerifyPhoneRouteImport.update({
-  id: '/verify-phone',
-  path: '/verify-phone',
-  getParentRoute: () => AccountRoute,
+  id: '/account/verify-phone',
+  path: '/account/verify-phone',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSellerRoute = AuthenticatedSellerRouteImport.update({
   id: '/seller',
@@ -531,7 +531,6 @@ const AuthenticatedSellerSubscriptionPaymentRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account': typeof AccountRouteWithChildren
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
@@ -565,6 +564,7 @@ export interface FileRoutesByFullPath {
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/account/': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
@@ -612,7 +612,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account': typeof AccountRouteWithChildren
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
@@ -644,6 +643,7 @@ export interface FileRoutesByTo {
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/account': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
@@ -693,7 +693,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/about': typeof AboutRoute
-  '/account': typeof AccountRouteWithChildren
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
@@ -727,6 +726,7 @@ export interface FileRoutesById {
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/account/': typeof AccountIndexRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/_authenticated/admin/disputes': typeof AuthenticatedAdminDisputesRoute
@@ -776,7 +776,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
-    | '/account'
     | '/become-coach'
     | '/become-game-buddy'
     | '/blog'
@@ -810,6 +809,7 @@ export interface FileRouteTypes {
     | '/coaching/$id'
     | '/game-buddies/$id'
     | '/product/$id'
+    | '/account/'
     | '/admin/analytics'
     | '/admin/categories'
     | '/admin/disputes'
@@ -857,7 +857,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
-    | '/account'
     | '/become-coach'
     | '/become-game-buddy'
     | '/blog'
@@ -889,6 +888,7 @@ export interface FileRouteTypes {
     | '/coaching/$id'
     | '/game-buddies/$id'
     | '/product/$id'
+    | '/account'
     | '/admin/analytics'
     | '/admin/categories'
     | '/admin/disputes'
@@ -937,7 +937,6 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/about'
-    | '/account'
     | '/become-coach'
     | '/become-game-buddy'
     | '/blog'
@@ -971,6 +970,7 @@ export interface FileRouteTypes {
     | '/coaching/$id'
     | '/game-buddies/$id'
     | '/product/$id'
+    | '/account/'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/categories'
     | '/_authenticated/admin/disputes'
@@ -1020,7 +1020,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AboutRoute: typeof AboutRoute
-  AccountRoute: typeof AccountRouteWithChildren
   BecomeCoachRoute: typeof BecomeCoachRoute
   BecomeGameBuddyRoute: typeof BecomeGameBuddyRoute
   BlogRoute: typeof BlogRoute
@@ -1044,10 +1043,12 @@ export interface RootRouteChildren {
   TeamLoginRoute: typeof TeamLoginRoute
   TermsRoute: typeof TermsRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  AccountVerifyPhoneRoute: typeof AccountVerifyPhoneRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthVerifiedRoute: typeof AuthVerifiedRoute
   CategorySlugRoute: typeof CategorySlugRoute
   ProductIdRoute: typeof ProductIdRoute
+  AccountIndexRoute: typeof AccountIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1213,13 +1214,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BecomeCoachRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -1239,6 +1233,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account/': {
+      id: '/account/'
+      path: '/account'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/product/$id': {
@@ -1285,10 +1286,10 @@ declare module '@tanstack/react-router' {
     }
     '/account/verify-phone': {
       id: '/account/verify-phone'
-      path: '/verify-phone'
+      path: '/account/verify-phone'
       fullPath: '/account/verify-phone'
       preLoaderRoute: typeof AccountVerifyPhoneRouteImport
-      parentRoute: typeof AccountRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/seller': {
       id: '/_authenticated/seller'
@@ -1738,17 +1739,6 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
-interface AccountRouteChildren {
-  AccountVerifyPhoneRoute: typeof AccountVerifyPhoneRoute
-}
-
-const AccountRouteChildren: AccountRouteChildren = {
-  AccountVerifyPhoneRoute: AccountVerifyPhoneRoute,
-}
-
-const AccountRouteWithChildren =
-  AccountRoute._addFileChildren(AccountRouteChildren)
-
 interface CoachingRouteChildren {
   CoachingIdRoute: typeof CoachingIdRoute
 }
@@ -1777,7 +1767,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AboutRoute: AboutRoute,
-  AccountRoute: AccountRouteWithChildren,
   BecomeCoachRoute: BecomeCoachRoute,
   BecomeGameBuddyRoute: BecomeGameBuddyRoute,
   BlogRoute: BlogRoute,
@@ -1801,10 +1790,12 @@ const rootRouteChildren: RootRouteChildren = {
   TeamLoginRoute: TeamLoginRoute,
   TermsRoute: TermsRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  AccountVerifyPhoneRoute: AccountVerifyPhoneRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthVerifiedRoute: AuthVerifiedRoute,
   CategorySlugRoute: CategorySlugRoute,
   ProductIdRoute: ProductIdRoute,
+  AccountIndexRoute: AccountIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
