@@ -136,6 +136,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
+import { useTrafficTracker } from "@/lib/analytics/useTrafficTracker";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
@@ -153,6 +154,8 @@ function RootLayout() {
   const auth = useAuth();
   const routerState = useRouterState();
   const path = routerState.location.pathname;
+
+  useTrafficTracker();
 
   useEffect(() => {
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;

@@ -102,7 +102,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
 
     // Confirm Plan Meta Renders Correctly
     await expect(page.locator("text=Enterprise Subscription")).toBeVisible();
-    await expect(page.locator("text=₹999")).toBeVisible();
+    await expect(page.locator("text=₹999").first()).toBeVisible();
 
     // Confirm instructions notice renders
     await expect(page.locator("text=Important Payment Instructions")).toBeVisible();

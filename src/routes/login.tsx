@@ -74,6 +74,13 @@ function LoginPage() {
 
   const oauth = async (p: "google" | "apple") => {
     setErr(null);
+    if (p === "apple") {
+      toast.info("Apple Sign-In is currently undergoing verification. Please sign in with Google or Email OTP for now.", {
+        id: "apple-auth-notice",
+        duration: 5000
+      });
+      return;
+    }
     try {
       await auth.signInWithOAuth(p);
     } catch (ex) {

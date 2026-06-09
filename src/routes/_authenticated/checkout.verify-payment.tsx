@@ -54,6 +54,8 @@ function VerifyPayment() {
   const [submitting, setSubmitting] = useState(false);
   const [verificationId, setVerificationId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [uploadErrorMsg, setUploadErrorMsg] = useState<string | null>(null);
   
   const fallbackPrice = parseFloat(search.price || "0");
   const price = order?.amount_inr ?? order?.amount_total ?? fallbackPrice;
@@ -87,12 +89,17 @@ function VerifyPayment() {
     if (!supabase) return;
 
     setSubmitting(true);
+    setUploadErrorMsg(null);
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       // 1. Upload proof image
       const uploadResult = await uploadPaymentProof({
         file,
         userId: user.id,
         orderId: orderId,
+        signal: controller.signal,
       });
 
       // 2. Create verification record (handles fallback to payment_events)
@@ -122,9 +129,15 @@ function VerifyPayment() {
       setStep("done");
       toast.success("Payment verification submitted successfully.");
     } catch (e: any) {
-      toast.error(`Submission failed: ${e.message}`);
+      if (e.name === "AbortError" || e.message?.includes("aborted") || e.message?.includes("cancelled")) {
+        setUploadErrorMsg("Upload cancelled.");
+        toast.error("Upload cancelled.");
+      } else {
+        toast.error(`Submission failed: ${e.message}`);
+      }
     } finally {
       setSubmitting(false);
+      setAbortController(null);
     }
   }
 
@@ -253,7 +266,7 @@ function VerifyPayment() {
           </div>
 
           <div className="rounded-2xl border border-border bg-surface/40 p-5 h-fit">
-            <h2 className="font-semibold mb-1">Verify Payment</h2>
+            <h1 className="font-display text-2xl font-bold mb-1">Upload Payment Proof</h1>
             <p className="text-xs text-muted-foreground mb-4">
               Upload your receipt screenshot and enter your transaction reference.
             </p>
@@ -324,10 +337,28 @@ function VerifyPayment() {
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="size-4" /> Submit Verification
+                  <ShieldCheck className="size-4" /> Upload & Verify
                 </>
               )}
             </button>
+            {submitting && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (abortController) {
+                    abortController.abort();
+                  }
+                }}
+                className="w-full mt-2 h-12 rounded-xl border border-border text-sm hover:border-gold/40 inline-flex items-center justify-center bg-transparent cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
+            {uploadErrorMsg && (
+              <div className="text-red-500 text-xs mt-2 text-center font-medium">
+                {uploadErrorMsg}
+              </div>
+            )}
           </div>
         </div>
       </main>

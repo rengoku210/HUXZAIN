@@ -8,7 +8,7 @@ test.beforeAll(async ({}) => {
 
 test("server boots and basic page loads", async ({ page }) => {
   // Adjust the URL if you have a custom dev server port
-  await page.goto("http://localhost:8080/", { waitUntil: "networkidle" });
+  await page.goto("http://localhost:8080/", { waitUntil: "load" });
   await expect(page).toHaveTitle(/HUXZAIN/i);
 });
 

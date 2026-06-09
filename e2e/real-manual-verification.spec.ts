@@ -9,14 +9,14 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Navigate to login page
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(8500);
     await page.fill('input[type="email"]', "lullilullivabhaiva@gmail.com");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
 
-    // Wait for redirect to dashboard
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    // Wait for redirect to dashboard/orders
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
     console.log("Logged in successfully as lullilullivabhaiva@gmail.com!");
 
     // Navigate to admin users panel
@@ -73,12 +73,12 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
   test("2. Payment approval, order status, notifications, and sound chimes", async ({ page }) => {
     // Navigate to admin payments panel
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(8500);
     await page.fill('input[type="email"]', "lullilullivabhaiva@gmail.com");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
 
     await page.goto("http://localhost:8080/admin/payments");
     await page.waitForSelector("text=Payment Verifications", { timeout: 15000 });
@@ -103,7 +103,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Log out as admin
     await page.goto("http://localhost:8080/orders");
-    const accountBtn = page.locator('button:has-text("lullilullivabhaiva")');
+    const accountBtn = page.locator('button[aria-label="User menu"]');
     await accountBtn.click({ force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
@@ -111,12 +111,12 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Log in as buyer (test_buyer@huxzain.app)
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(8500);
     await page.fill('input[type="email"]', "test_buyer@huxzain.app");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
     console.log("Logged in successfully as buyer test_buyer@huxzain.app!");
 
     // 1. Verify payment status is Paid, CTA disappears, Contact Seller appears
@@ -157,7 +157,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     console.log("Buyer successfully sent a message!");
 
     // Log out as buyer
-    const buyerAccountBtn = page.locator('button:has-text("Test Buyer")');
+    const buyerAccountBtn = page.locator('button[aria-label="User menu"]');
     await buyerAccountBtn.click({ force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
@@ -169,12 +169,12 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     // Actually, lullilullivabhaiva@gmail.com as Admin can open `/messages` and see all conversations!
     // Let's log in as lullilullivabhaiva@gmail.com to verify conversation persists and reply.
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(8500);
     await page.fill('input[type="email"]', "lullilullivabhaiva@gmail.com");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
 
     await page.goto("http://localhost:8080/messages");
     await page.waitForSelector('text=Escrow Chat Panel', { timeout: 15000 });

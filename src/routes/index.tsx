@@ -27,6 +27,9 @@ import {
   Briefcase,
   Megaphone,
   Store,
+  MessageSquare,
+  LayoutGrid,
+  Flame,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -61,45 +64,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Home,
 });
-
-function TopBenefitsBar() {
-  const benefits = [
-    {
-      icon: ShieldCheck,
-      title: "SECURE PAYMENTS",
-      desc: "Full protection for your money",
-    },
-    {
-      icon: Truck,
-      title: "FAST DELIVERY",
-      desc: "Get your digital items instantly",
-    },
-    {
-      icon: Headphones,
-      title: "24/7 SUPPORT",
-      desc: "We are always here to help you",
-    },
-    {
-      icon: Users,
-      title: "TRUSTED COMMUNITY",
-      desc: "Join thousands of active users",
-    },
-  ];
-
-  return <div className="bg-[#101114] border-b border-gold/10 py-4 shadow-[0_1px_10px_rgba(212,160,23,0.05)]">
-  <div className="container-page grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center md:text-left">
-    {benefits.map((b, idx) => (
-      <div key={idx} className="bg-[#101114] border border-gold/20 rounded-xl p-4 flex flex-col items-center justify-center h-full">
-        <div className="size-11 rounded-full border border-gold/30 bg-gold/5 flex items-center justify-center text-gold shrink-0 shadow-[0_0_15px_rgba(212,160,23,0.1)] mb-2">
-          <b.icon className="size-5" />
-        </div>
-        <div className="text-xs font-bold tracking-wider text-gold uppercase">{b.title}</div>
-        <div className="text-[11px] text-muted-foreground mt-0.5">{b.desc}</div>
-      </div>
-    ))}
-  </div>
-</div>;
-}
 
 function Home() {
   const { roles } = useAuth();
@@ -154,16 +118,16 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-[#0B0C10]">
       <Header />
-      <TopBenefitsBar />
       <main className="flex-1">
         <Hero counts={counts} onSearch={(q) => setActiveSearch(q)} />
         <PopularCategories counts={counts} />
-        {!activeSearch && <PromotionBanners />}
         <FeaturedSection activeSearch={activeSearch} onClearSearch={() => setActiveSearch("")} />
-        {!activeSearch && <TrendingSellers />}
+        {!activeSearch && <TrendingListings />}
+        {!activeSearch && <TopRatedSellers />}
+        {!activeSearch && <PromotionBanners />}
         <HowItWorks />
-        <BigStats />
         <ReadyCTA />
+        {!activeSearch && <CommunitySection />}
       </main>
       <Footer />
     </div>
@@ -171,86 +135,98 @@ function Home() {
 }
 
 function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void }) {
-  const [query, setQuery] = useState("");
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearch(query.trim());
-  };
-
-  const statsList = [
-    { v: counts.users > 0 ? `${counts.users.toLocaleString()}+` : "10+", l: "Active Users" },
-    { v: counts.users > 0 ? `${Math.ceil(counts.users * 0.45).toLocaleString()}+` : "4+", l: "Verified Sellers" },
-    { v: counts.orders > 0 ? `${counts.orders.toLocaleString()}+` : "0+", l: "Orders Completed" },
-    { v: "99.8%", l: "Positive Feedback" },
-  ];
-
   return (
-    <section className="relative">
-      <div className="container-page py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center overflow-x-hidden">
-        <div>
-          <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight break-words">
-            India's Modern Digital Marketplace
+    <section className="relative overflow-hidden pt-12 md:pt-16 pb-6">
+      <div className="container-page grid lg:grid-cols-[1.1fr_0.9fr] gap-12 items-center relative z-10">
+        <div className="space-y-6">
+          <div className="inline-flex items-center gap-2">
+            <span className="h-0.5 w-6 bg-gold" />
+            <span className="font-display text-xs font-bold text-gold uppercase tracking-widest">
+              Welcome to Huxzain
+            </span>
+          </div>
+          
+          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-white animate-fade-in">
+            India's Modern <br />
+            <span className="text-gold">Digital Marketplace</span>
           </h1>
-          <p className="mt-5 text-muted-foreground max-w-lg text-sm sm:text-base">
-            A secure and trusted marketplace for digital products, services and gaming essentials.
+          
+          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-xl">
+            Discover digital products, services, gaming essentials, subscriptions and more — all in one secure ecosystem.
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs sm:text-sm">
-            {["Secure Escrow", "Verified Sellers", "24/7 Support", "Buyer Protection"].map((f) => (
-              <div key={f} className="flex items-center gap-2 text-muted-foreground">
-                <span className="size-4 rounded-full border border-gold/40 bg-gold/10 flex items-center justify-center">
-                  <span className="size-1.5 rounded-full bg-gold" />
-                </span>
-                {f}
-              </div>
-            ))}
-          </div>
-
-          <form onSubmit={handleSearchSubmit} className="mt-7 w-full max-w-xl flex items-stretch gap-0 rounded-xl border border-border bg-surface/80 overflow-hidden shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)]">
-            <input
-              placeholder="What are you looking for?"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 min-w-0 px-3 sm:px-4 bg-transparent outline-none text-xs sm:text-sm h-12 placeholder:text-muted-foreground"
-            />
-            <button type="button" className="px-4 text-xs sm:text-sm text-muted-foreground border-l border-border hover:text-foreground hidden sm:flex items-center gap-1">
-              All Categories
-            </button>
-            <button type="submit" className="px-4 sm:px-6 bg-gold text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-1.5 shrink-0">
-              <Search className="size-4" /> Search
-            </button>
-          </form>
-
-          <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl">
-            {statsList.map((s) => (
-              <div key={s.l} className="flex items-start gap-3">
-                <div className="size-9 rounded-md border border-gold/25 bg-gold/10 flex items-center justify-center shrink-0 text-gold text-xs font-bold">
-                  ★
-                </div>
-                <div>
-                  <div className="font-display text-lg sm:text-xl font-bold text-foreground">{s.v}</div>
-                  <div className="text-[10px] sm:text-[11px] text-muted-foreground">{s.l}</div>
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-4 pt-2">
+            <Link
+              to="/categories"
+              className="h-11 px-6 rounded-xl bg-gold text-primary-foreground text-sm font-bold hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_15px_rgba(212,160,23,0.3)] inline-flex items-center justify-center"
+            >
+              Start Exploring
+            </Link>
+            <Link
+              to="/how-it-works"
+              className="h-11 px-6 rounded-xl border border-border hover:border-gold/40 text-sm font-medium inline-flex items-center justify-center transition-colors"
+            >
+              How It Works
+            </Link>
           </div>
         </div>
 
-        <div className="relative flex justify-center items-center">
-          {/* Very subtle ambient glow behind the card for depth */}
-          <div className="absolute inset-0 bg-gold/5 blur-[100px] scale-110 rounded-full pointer-events-none" aria-hidden />
-          
-          {/* Premium Glassmorphism Card */}
-          <div className="relative rounded-[2rem] border border-gold/20 bg-[#0B0C10]/40 backdrop-blur-xl p-8 sm:p-12 shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05)] overflow-hidden">
-            
-            {/* Small soft gold glow accents on the corners */}
-            <div className="absolute top-0 left-0 w-32 h-32 bg-gold/10 blur-[40px] rounded-full mix-blend-screen -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-gold/10 blur-[40px] rounded-full mix-blend-screen translate-x-1/2 translate-y-1/2 pointer-events-none" />
+        <div className="relative flex justify-center items-center pointer-events-none">
+          {/* Subtle ambient glow behind the pedestal for depth */}
+          <div className="absolute inset-0 bg-gold/5 blur-[120px] scale-125 rounded-full pointer-events-none" aria-hidden />
+          <HeroLogo />
+        </div>
+      </div>
 
-            <div className="relative z-10">
-              <HeroLogo />
+      {/* Hero Benefits Bar */}
+      <div className="container-page pt-16">
+        <div className="rounded-2xl border border-gold/10 bg-[#101114]/40 backdrop-blur-md p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* Item 1: Secure Transactions */}
+            <div className="flex items-start gap-3.5">
+              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Secure Transactions</h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">Your safety is our priority. Every transaction is protected.</p>
+              </div>
             </div>
+
+            {/* Item 2: Verified Sellers */}
+            <div className="flex items-start gap-3.5">
+              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
+                <BadgeCheck className="size-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Verified Sellers</h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">All sellers are carefully verified for quality and reliability.</p>
+              </div>
+            </div>
+
+            {/* Item 3: Buyer Protection */}
+            <div className="flex items-start gap-3.5">
+              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
+                <Shield className="size-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Buyer Protection</h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">Get support and protection for every order you place.</p>
+              </div>
+            </div>
+
+            {/* Item 4: Dedicated Support */}
+            <div className="flex items-start gap-3.5">
+              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
+                <Headphones className="size-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Dedicated Support</h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">Our support team is available 24/7 to assist you.</p>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -260,56 +236,62 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
 
 function PromotionBanners() {
   return (
-    <section className="container-page py-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* GAME BUDDIES BANNER */}
+    <section className="container-page py-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        {/* GAME BUDDIES CARD */}
         <div 
-          className="relative overflow-hidden rounded-2xl border border-[#ff007f]/20 bg-gradient-to-br from-[#1b1024] via-[#100918] to-[#0b0610] p-6 md:p-8 flex flex-col justify-between min-h-[300px] shadow-[0_0_20px_rgba(255,0,127,0.05)] hover:border-[#ff007f]/40 transition-all duration-300 group"
+          className="relative overflow-hidden rounded-3xl border border-purple-500/10 bg-gradient-to-br from-[#12081c] via-[#09040e] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(157,78,221,0.05)] hover:border-purple-500/25 hover:shadow-[0_0_40px_rgba(157,78,221,0.1)] transition-all duration-500 group"
           style={{
-            backgroundImage: "linear-gradient(to right, rgba(16, 9, 24, 0.95) 45%, rgba(16, 9, 24, 0.5) 100%), url('https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=600&auto=format&fit=crop&q=60')",
+            backgroundImage: "linear-gradient(to right, rgba(9, 4, 14, 0.96) 50%, rgba(9, 4, 14, 0.4) 100%), url('https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=70')",
             backgroundSize: "cover",
             backgroundPosition: "right center",
             backgroundRepeat: "no-repeat"
           }}
         >
-          <div className="relative z-10 max-w-[280px] sm:max-w-[340px]">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-[#ff007f] text-white uppercase tracking-wider mb-3">
-              NEW
-            </span>
-            <h3 className="font-display text-2xl font-bold text-white tracking-wide uppercase">
-              Game Buddies
-            </h3>
-            <p className="text-xs text-purple-200 mt-1 font-medium">
-              Partner up. Play together. Win together.
-            </p>
+          {/* Neon Pink Ambient Glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-[#ff007f]/10 blur-[80px] rounded-full pointer-events-none group-hover:bg-[#ff007f]/15 transition-all duration-500" />
+          
+          <div className="relative z-10 max-w-[280px] sm:max-w-[360px] space-y-4">
+            <div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-[#ff007f]/15 text-[#ff007f] border border-[#ff007f]/30 uppercase tracking-widest mb-3">
+                Partner Up
+              </span>
+              <h3 className="font-display text-3xl font-extrabold text-white tracking-wide uppercase">
+                Game Buddies
+              </h3>
+              <p className="text-xs text-purple-200/80 mt-1 font-medium leading-relaxed">
+                Partner up. Play together. Win together.
+              </p>
+            </div>
 
-            <ul className="mt-4 space-y-2">
+            <ul className="space-y-2.5 pt-2">
               {[
                 "Find verified gamers & teammates",
                 "Duo, Squad or Clan - your choice",
                 "Play anytime, anywhere",
                 "Build friendships & rank up"
               ].map((bullet, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <li key={idx} className="flex items-center gap-2.5 text-xs text-muted-foreground">
                   <span className="size-4 rounded-full bg-[#ff007f]/10 border border-[#ff007f]/30 flex items-center justify-center shrink-0">
                     <Check className="size-2.5 text-[#ff007f]" />
                   </span>
-                  <span>{bullet}</span>
+                  <span className="text-foreground/90 font-medium">{bullet}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="relative z-10 mt-6 flex flex-wrap items-center gap-4">
+          <div className="relative z-10 mt-8 flex items-center gap-4 flex-wrap">
             <Link
               to="/game-buddies"
-              className="h-10 px-5 rounded-xl bg-[#ff007f] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_12px_rgba(255,0,127,0.3)] inline-flex items-center justify-center"
+              className="h-11 px-6 rounded-xl bg-[#ff007f] hover:bg-[#ff007f]/90 text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_20px_rgba(255,0,127,0.35)] inline-flex items-center justify-center gap-1.5"
             >
-              Find Game Buddies
+              Find Game Buddies <ArrowRight className="size-3.5" />
             </Link>
 
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-2 overflow-hidden">
+            <div className="flex items-center">
+              <div className="flex -space-x-2.5 overflow-hidden">
                 {[
                   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop",
                   "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=50&h=50&fit=crop",
@@ -317,65 +299,69 @@ function PromotionBanners() {
                 ].map((img, i) => (
                   <img
                     key={i}
-                    className="inline-block size-6 rounded-full ring-2 ring-[#100918] object-cover"
+                    className="inline-block size-7 rounded-full ring-2 ring-[#09040e] object-cover"
                     src={img}
                     alt="avatar"
                   />
                 ))}
               </div>
-              <span className="text-[10px] text-purple-300 font-bold">10K+ Active Gamers</span>
             </div>
           </div>
         </div>
 
-        {/* COACH & EARN BANNER */}
+        {/* COACH & EARN CARD */}
         <div 
-          className="relative overflow-hidden rounded-2xl border border-gold/20 bg-gradient-to-br from-[#241b10] via-[#181109] to-[#100b06] p-6 md:p-8 flex flex-col justify-between min-h-[300px] shadow-[0_0_20px_rgba(212,160,23,0.05)] hover:border-gold/40 transition-all duration-300 group"
+          className="relative overflow-hidden rounded-3xl border border-gold/10 bg-gradient-to-br from-[#1c1408] via-[#0e0a04] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(212,160,23,0.05)] hover:border-gold/25 hover:shadow-[0_0_40px_rgba(212,160,23,0.1)] transition-all duration-500 group"
           style={{
-            backgroundImage: "linear-gradient(to right, rgba(24, 17, 9, 0.95) 45%, rgba(24, 17, 9, 0.5) 100%), url('https://images.unsplash.com/photo-1588196749597-9ff075ee6b5b?w=600&auto=format&fit=crop&q=60')",
+            backgroundImage: "linear-gradient(to right, rgba(14, 10, 4, 0.96) 50%, rgba(14, 10, 4, 0.4) 100%), url('https://images.unsplash.com/photo-1560253023-3ec5d502959f?w=800&auto=format&fit=crop&q=70')",
             backgroundSize: "cover",
             backgroundPosition: "right center",
             backgroundRepeat: "no-repeat"
           }}
         >
-          <div className="relative z-10 max-w-[280px] sm:max-w-[340px]">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-gold text-primary-foreground uppercase tracking-wider mb-3">
-              JOIN AS A COACH
-            </span>
-            <h3 className="font-display text-2xl font-bold text-white tracking-wide uppercase">
-              Coach & Earn
-            </h3>
-            <p className="text-xs text-amber-200 mt-1 font-medium">
-              Share your skills. Inspire. Earn.
-            </p>
+          {/* Amber Ambient Glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-gold/10 blur-[80px] rounded-full pointer-events-none group-hover:bg-gold/15 transition-all duration-500" />
+          
+          <div className="relative z-10 max-w-[280px] sm:max-w-[360px] space-y-4">
+            <div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-gold/15 text-gold border border-gold/30 uppercase tracking-widest mb-3">
+                Share Your Skills
+              </span>
+              <h3 className="font-display text-3xl font-extrabold text-white tracking-wide uppercase">
+                Coach & Earn
+              </h3>
+              <p className="text-xs text-amber-200/80 mt-1 font-medium leading-relaxed">
+                Share your skills. Inspire. Earn.
+              </p>
+            </div>
 
-            <ul className="mt-4 space-y-2">
+            <ul className="space-y-2.5 pt-2">
               {[
                 "1-on-1 Coaching Sessions",
                 "Help players improve & rank up",
                 "Flexible schedule",
                 "Earn securely. Get paid for your skills"
               ].map((bullet, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <li key={idx} className="flex items-center gap-2.5 text-xs text-muted-foreground">
                   <span className="size-4 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0">
                     <Check className="size-2.5 text-gold" />
                   </span>
-                  <span>{bullet}</span>
+                  <span className="text-foreground/90 font-medium">{bullet}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="relative z-10 mt-6 flex flex-wrap items-center gap-4">
+          <div className="relative z-10 mt-8 flex items-center gap-4 flex-wrap">
             <Link
               to="/become-coach"
-              className="h-10 px-5 rounded-xl bg-gold text-primary-foreground text-xs font-bold hover:brightness-115 active:scale-95 transition-all shadow-[0_4px_12px_rgba(212,160,23,0.3)] inline-flex items-center justify-center"
+              className="h-11 px-6 rounded-xl bg-gold text-primary-foreground text-xs font-bold hover:brightness-115 active:scale-95 transition-all shadow-[0_4px_20px_rgba(212,160,23,0.35)] inline-flex items-center justify-center gap-1.5"
             >
-              Become a Coach
+              Become a Coach <ArrowRight className="size-3.5" />
             </Link>
 
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-2 overflow-hidden">
+            <div className="flex items-center">
+              <div className="flex -space-x-2.5 overflow-hidden">
                 {[
                   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop",
                   "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=50&h=50&fit=crop",
@@ -383,16 +369,16 @@ function PromotionBanners() {
                 ].map((img, i) => (
                   <img
                     key={i}
-                    className="inline-block size-6 rounded-full ring-2 ring-[#181109] object-cover"
+                    className="inline-block size-7 rounded-full ring-2 ring-[#0e0a04] object-cover"
                     src={img}
                     alt="avatar"
                   />
                 ))}
               </div>
-              <span className="text-[10px] text-amber-300 font-bold">500+ Verified Coaches</span>
             </div>
           </div>
         </div>
+
       </div>
     </section>
   );
@@ -402,7 +388,7 @@ function PopularCategories({ counts }: { counts: any }) {
   const customCategories = [
     {
       slug: "gaming-accounts",
-      title: "Gaming Accounts",
+      title: "Gaming Marketplace",
       subtitle: "Accounts & Profiles",
       icon: Gamepad2,
       color: "text-[#9d4edd]",
@@ -651,7 +637,71 @@ const mockTrendingSellers: SellerProfile[] = [
   }
 ];
 
-function TrendingSellers() {
+interface SellerProfile {
+  name: string;
+  avatar: string;
+  rating: number;
+  reviews: number;
+  orders: string;
+  successRate: string;
+  tier: "Top Seller" | "Rising Star" | "Elite Trader";
+  colorRing: string;
+}
+
+const mockTopRatedSellers: SellerProfile[] = [
+  {
+    name: "ProBoosters",
+    avatar: "https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&h=150&fit=crop",
+    rating: 5.0,
+    reviews: 312,
+    orders: "560+",
+    successRate: "100%",
+    tier: "Top Seller",
+    colorRing: "ring-gold",
+  },
+  {
+    name: "EliteStore",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+    rating: 4.9,
+    reviews: 128,
+    orders: "320+",
+    successRate: "99.4%",
+    tier: "Rising Star",
+    colorRing: "ring-blue-500",
+  },
+  {
+    name: "DigitalHub",
+    avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&h=150&fit=crop",
+    rating: 4.8,
+    reviews: 96,
+    orders: "210+",
+    successRate: "99.8%",
+    tier: "Top Seller",
+    colorRing: "ring-emerald-500",
+  },
+  {
+    name: "CoachMaster",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
+    rating: 4.8,
+    reviews: 184,
+    orders: "330+",
+    successRate: "99.1%",
+    tier: "Top Seller",
+    colorRing: "ring-amber-500",
+  },
+  {
+    name: "GameSquad",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+    rating: 4.7,
+    reviews: 86,
+    orders: "150+",
+    successRate: "98.5%",
+    tier: "Rising Star",
+    colorRing: "ring-purple-500",
+  }
+];
+
+function TopRatedSellers() {
   const [sellers, setSellers] = useState<SellerProfile[]>([]);
   const [startIndex, setStartIndex] = useState(0);
 
@@ -659,7 +709,7 @@ function TrendingSellers() {
     async function loadSellers() {
       const supabase = getSupabase();
       if (!supabase) {
-        setSellers(mockTrendingSellers);
+        setSellers(mockTopRatedSellers);
         return;
       }
       try {
@@ -667,46 +717,47 @@ function TrendingSellers() {
           .from("profiles")
           .select("id, username, display_name, avatar_url, rating_avg, rating_count, is_seller")
           .eq("is_seller", true)
+          .order("rating_avg", { ascending: false }) // Sort by rating_avg desc
           .limit(8);
 
         if (error || !profiles || profiles.length === 0) {
-          setSellers(mockTrendingSellers);
+          setSellers(mockTopRatedSellers);
           return;
         }
 
         const mapped: SellerProfile[] = profiles.map((p, idx) => {
-          const fallback = mockTrendingSellers[idx % mockTrendingSellers.length];
+          const fallback = mockTopRatedSellers[idx % mockTopRatedSellers.length];
           return {
             name: p.display_name || p.username || `Seller_${p.id.slice(0, 4)}`,
             avatar: p.avatar_url || fallback.avatar,
             rating: p.rating_avg || 5.0,
             reviews: p.rating_count || Math.floor(Math.random() * 200) + 10,
-            orders: `${Math.floor(Math.random() * 500) + 100}+`,
-            successRate: `${(95 + Math.random() * 5).toFixed(1)}%`,
+            orders: `${Math.floor(Math.random() * 300) + 50}+`,
+            successRate: `${(96 + Math.random() * 4).toFixed(1)}%`,
             tier: idx % 3 === 0 ? "Top Seller" : idx % 3 === 1 ? "Rising Star" : "Elite Trader",
             colorRing: fallback.colorRing
           };
         });
 
-        while (mapped.length < 6) {
-          mapped.push(mockTrendingSellers[mapped.length % mockTrendingSellers.length]);
+        while (mapped.length < 5) {
+          mapped.push(mockTopRatedSellers[mapped.length % mockTopRatedSellers.length]);
         }
         
         setSellers(mapped);
       } catch (e) {
         console.error("Error loading sellers:", e);
-        setSellers(mockTrendingSellers);
+        setSellers(mockTopRatedSellers);
       }
     }
     void loadSellers();
   }, []);
 
   const nextSlide = () => {
-    setStartIndex((prev) => (prev + 1 > sellers.length - 6 ? 0 : prev + 1));
+    setStartIndex((prev) => (prev + 1 > sellers.length - 5 ? 0 : prev + 1));
   };
 
   const prevSlide = () => {
-    setStartIndex((prev) => (prev - 1 < 0 ? sellers.length - 6 : prev - 1));
+    setStartIndex((prev) => (prev - 1 < 0 ? sellers.length - 5 : prev - 1));
   };
 
   if (sellers.length === 0) return null;
@@ -717,11 +768,11 @@ function TrendingSellers() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-display text-2xl sm:text-3xl font-bold flex items-center gap-2 text-foreground">
-              Trending Sellers <Crown className="size-6 text-gold fill-gold/20 animate-pulse" />
+              Top Rated Sellers <Crown className="size-6 text-gold fill-gold/20 animate-pulse" />
             </h2>
           </div>
           <p className="text-xs font-bold tracking-wider text-muted-foreground mt-1 uppercase">
-            THE MOST ACTIVE AND TRUSTED SELLERS ON OUR PLATFORM
+            Trusted sellers with top quality service and ratings
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -745,14 +796,14 @@ function TrendingSellers() {
           ›
         </button>
 
-        <div className="flex overflow-x-auto gap-4 py-2">
-          {sellers.slice(startIndex, startIndex + 6).map((s, idx) => (
+        <div className="flex overflow-x-auto gap-5 py-2 scrollbar-none">
+          {sellers.slice(startIndex, startIndex + 5).map((s, idx) => (
             <div 
               key={idx}
-              className="bg-[#101114] border border-border/80 rounded-2xl p-5 flex flex-col items-center justify-between text-center transition-all hover:border-gold/40 hover:shadow-[0_0_15px_rgba(212,160,23,0.08)] hover:scale-[1.03]"
+              className="bg-[#101114] border border-border/80 rounded-2xl p-5 flex flex-col items-center justify-between text-center transition-all hover:border-gold/40 hover:shadow-[0_0_15px_rgba(212,160,23,0.08)] hover:scale-[1.03] min-w-[190px] flex-1"
             >
               <div className="relative mb-4">
-                <div className={`size-18 rounded-full ring-2 ${s.colorRing} ring-offset-2 ring-offset-background p-0.5 overflow-hidden shadow-[0_0_10px_rgba(212,160,23,0.1)]`}>
+                <div className={`size-20 rounded-full ring-2 ${s.colorRing} ring-offset-2 ring-offset-background p-0.5 overflow-hidden shadow-[0_0_10px_rgba(212,160,23,0.15)]`}>
                   <img 
                     src={s.avatar} 
                     alt={s.name} 
@@ -765,7 +816,7 @@ function TrendingSellers() {
               </div>
 
               <div className="flex items-center gap-1 mb-1 justify-center w-full">
-                <span className="text-xs font-bold text-foreground truncate max-w-[85px]">{s.name}</span>
+                <span className="text-xs font-bold text-foreground truncate max-w-[95px]">{s.name}</span>
                 <BadgeCheck className="size-3.5 text-blue-400 fill-blue-500/10 shrink-0" />
               </div>
 
@@ -799,13 +850,6 @@ function TrendingSellers() {
               </span>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="mt-8 flex justify-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]">
-          <Shield className="size-4 text-emerald-400" />
-          <span>All sellers are verified and monitored for your safety.</span>
         </div>
       </div>
     </section>
@@ -1014,34 +1058,27 @@ function HowItWorks() {
   const steps = [
     {
       n: 1,
-      title: "Find",
-      desc: "Search for the product or service you need.",
+      title: "Discover",
+      desc: "Browse digital products, services and opportunities across multiple categories.",
       icon: Search,
     },
     {
       n: 2,
-      title: "Order",
-      desc: "Place your order and fund the escrow.",
-      icon: ShoppingCart,
+      title: "Connect",
+      desc: "Chat directly with sellers or service providers and finalize the details.",
+      icon: MessageSquare,
     },
     {
       n: 3,
-      title: "Receive",
-      desc: "Receive the item or service from the seller.",
-      icon: Package,
-      highlight: true,
+      title: "Secure Transaction",
+      desc: "Make safe payments through our secure system. Your money is always protected.",
+      icon: Lock,
     },
     {
       n: 4,
-      title: "Release",
-      desc: "Confirm everything is correct and release funds.",
-      icon: FileCheck,
-    },
-    {
-      n: 5,
-      title: "Completed",
-      desc: "The order is completed and both parties are happy.",
-      icon: ShieldCheck,
+      title: "Complete & Review",
+      desc: "Get your service or product and leave a review. Build your reputation in the community.",
+      icon: Check,
     },
   ];
 
@@ -1052,23 +1089,17 @@ function HowItWorks() {
           How <span className="text-gold">HUXZAIN</span> Works
         </h2>
         <p className="text-xs font-bold tracking-wider text-muted-foreground mt-1 uppercase">
-          AN EASY FIVE-STEP PROCESS
+          Simple, secure and seamless experience for everyone.
         </p>
       </div>
 
-      <div className="mt-12 flex flex-col lg:flex-row items-stretch justify-between gap-6 lg:gap-4 relative">
-        {steps.map((s, idx) => {
+      <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+        {steps.map((s) => {
           const Icon = s.icon;
           return (
-            <div key={s.n} className="flex-1 flex flex-col lg:flex-row items-center relative w-full">
+            <div key={s.n} className="flex flex-col items-center relative w-full">
               {/* Step Card */}
-              <div
-                className={`w-full rounded-2xl p-6 flex flex-col items-center justify-between transition-all bg-[#101114] min-h-[220px] ${
-                  s.highlight
-                    ? "border-2 border-gold shadow-[0_0_25px_rgba(212,160,23,0.18)] scale-[1.04] z-10"
-                    : "border border-border/80 hover:border-gold/30 hover:scale-[1.01]"
-                }`}
-              >
+              <div className="w-full rounded-2xl p-6 flex flex-col items-center justify-between transition-all bg-[#101114] min-h-[220px] border border-border/80 hover:border-gold/30 hover:scale-[1.01] hover:shadow-[0_0_15px_rgba(212,160,23,0.05)]">
                 {/* Step Circle */}
                 <div className="size-16 rounded-full border border-gold/30 bg-gold/5 flex items-center justify-center mb-4 relative transition-colors">
                   <Icon className="size-6 text-gold" />
@@ -1081,19 +1112,12 @@ function HowItWorks() {
                   {s.desc}
                 </p>
               </div>
-
-              {/* Connecting Dotted Indicator */}
-              {idx < steps.length - 1 && (
-                <div className="hidden lg:flex items-center justify-center px-2 text-gold/30 font-bold text-lg select-none shrink-0 self-center">
-                  ┄┄▶
-                </div>
-              )}
             </div>
           );
         })}
       </div>
 
-      {/* Safety / Trust Pillars Box */}
+      {/* Safety / Trust Pillars Box (Why Choose HUXZAIN) */}
       <div className="mt-16 rounded-2xl border border-border/80 bg-[#101114]/50 p-6 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="flex items-start gap-3 text-left">
@@ -1103,7 +1127,7 @@ function HowItWorks() {
             <div>
               <div className="text-sm font-semibold text-foreground">Escrow Protection</div>
               <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Funds are kept in escrow until delivery is confirmed.
+                Your funds are safe until delivery is confirmed.
               </div>
             </div>
           </div>
@@ -1122,24 +1146,24 @@ function HowItWorks() {
 
           <div className="flex items-start gap-3 text-left">
             <div className="size-10 rounded-lg border border-gold/25 bg-gold/10 flex items-center justify-center shrink-0">
-              <Headphones className="size-5 text-gold" />
+              <Shield className="size-5 text-gold" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-foreground">Friendly Support</div>
+              <div className="text-sm font-semibold text-foreground">Buyer Protection</div>
               <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                We help you resolving issues/disputes.
+                Get support and resolution for every transaction.
               </div>
             </div>
           </div>
 
           <div className="flex items-start gap-3 text-left">
             <div className="size-10 rounded-lg border border-gold/25 bg-gold/10 flex items-center justify-center shrink-0">
-              <Shield className="size-5 text-gold" />
+              <Headphones className="size-5 text-gold" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-foreground">Privacy First</div>
+              <div className="text-sm font-semibold text-foreground">24/7 Support</div>
               <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Your data is safe and never shared.
+                We're here to help you via ticket and email.
               </div>
             </div>
           </div>
@@ -1149,30 +1173,67 @@ function HowItWorks() {
   );
 }
 
-function BigStats() {
-  const statsList = [
-    { v: "10K+", l: "Active Users", icon: Users },
-    { v: "5K+", l: "Verified Sellers", icon: BadgeCheck },
-    { v: "50K+", l: "Orders Completed", icon: ShoppingCart },
-    { v: "99.8%", l: "Thumbs-up Feedback", icon: ShieldCheck },
-    { v: "24/7", l: "Support Available", icon: Headphones },
-  ];
+function TrendingListings() {
+  const [listings, setListings] = useState<ListingLike[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    async function loadTrending() {
+      try {
+        const { data, error } = await supabase!
+          .from("listings")
+          .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
+          .eq("status", "active")
+          .order("view_count", { ascending: false })
+          .limit(5);
+        if (error) throw error;
+        setListings(data as ListingLike[]);
+      } catch (e) {
+        console.error("Error loading trending listings:", e);
+        setListings([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    void loadTrending();
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="container-page py-10">
+        <h2 className="font-display text-2xl sm:text-3xl font-bold mb-8">Trending Listings</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border bg-surface/30 h-48 animate-pulse" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!listings || listings.length === 0) return null;
 
   return (
-    <section className="w-full bg-[#0B0C10] border-t border-b border-gold/10 py-6 my-8 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-      <div className="container-page grid grid-cols-2 md:grid-cols-5 gap-6 items-center text-center">
-        {statsList.map((s, idx) => {
-          const Icon = s.icon;
-          return (
-            <div key={idx} className="flex flex-col items-center justify-center gap-1 group">
-              <div className="flex items-center gap-2 justify-center">
-                <Icon className="size-4 text-gold group-hover:scale-110 transition-transform" />
-                <div className="font-display text-xl font-bold text-gold tracking-tight">{s.v}</div>
-              </div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-0.5">{s.l}</div>
-            </div>
-          );
-        })}
+    <section className="container-page py-10">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="font-display text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            Trending Listings <Flame className="size-6 text-orange-500 fill-orange-500/20 animate-pulse" />
+          </h2>
+          <p className="text-xs font-bold tracking-wider text-muted-foreground mt-1 uppercase">
+            The most viewed and popular listings right now
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {listings.map((l) => (
+          <ListingCard key={l.id} l={l} />
+        ))}
       </div>
     </section>
   );
@@ -1183,40 +1244,89 @@ function ReadyCTA() {
   const isSeller = roles.includes("seller");
 
   return (
-    <section className="container-page py-10">
-      <div className="relative overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-surface-elevated via-surface to-background p-8 md:p-10">
-        <div
-          className="absolute inset-0 opacity-50 pointer-events-none"
-          style={{
-            backgroundImage:
-              "radial-gradient(700px 300px at 90% 50%, oklch(0.82 0.13 82 / 0.15), transparent 60%)",
-          }}
-        />
-        <div className="relative flex flex-col md:flex-row items-center gap-6">
-          <div className="size-14 rounded-xl border border-gold/30 bg-gold/10 flex items-center justify-center shrink-0">
-            <ShoppingCart className="size-6 text-gold" />
-          </div>
-          <div className="flex-1 text-center md:text-left">
-            <h3 className="font-display text-2xl font-bold">Ready to Start Your Journey?</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Join HUXZAIN today and discover amazing digital products &amp; services.
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center md:justify-start gap-3 w-full md:w-auto">
-            <Link
-              to={isAuthenticated ? (isSeller ? "/seller" : "/account") : "/signup"}
-              search={!isAuthenticated || !isSeller ? { intent: "seller" } : undefined}
-              className="h-11 px-5 rounded-lg border border-border bg-surface/60 text-sm font-medium hover:border-gold/50 inline-flex items-center justify-center transition-colors flex-1 sm:flex-initial text-center whitespace-nowrap"
-            >
-              Become a Seller
-            </Link>
-            <Link
-              to="/categories"
-              className="h-11 px-5 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center justify-center flex-1 sm:flex-initial text-center whitespace-nowrap"
-            >
-              Start Shopping
-            </Link>
-          </div>
+    <section className="container-page py-12">
+      <div className="relative overflow-hidden rounded-3xl border border-gold/30 bg-gradient-to-r from-[#101114] via-[#16171d] to-[#101114] p-8 md:p-12 shadow-[0_0_30px_rgba(212,160,23,0.05)] flex flex-col md:flex-row items-center justify-between gap-8">
+        {/* Left glowing crystals overlay */}
+        <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-gold/10 to-transparent pointer-events-none blur-xl opacity-50" />
+        {/* Right glowing crystals overlay */}
+        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-gold/10 to-transparent pointer-events-none blur-xl opacity-50" />
+
+        <div className="relative z-10 flex-1 space-y-3 text-center md:text-left">
+          <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+            Build. <span className="text-gold">Sell.</span> Grow.
+          </h2>
+          <p className="text-sm md:text-base text-muted-foreground max-w-2xl leading-relaxed">
+            Join India's modern digital marketplace and connect with buyers, sellers and professionals.
+          </p>
+        </div>
+
+        <div className="relative z-10 flex flex-wrap gap-4 shrink-0 justify-center">
+          <Link
+            to="/categories"
+            className="h-11 px-6 rounded-xl bg-gold text-primary-foreground text-sm font-bold hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_15px_rgba(212,160,23,0.3)] inline-flex items-center gap-2"
+          >
+            Start Exploring <ArrowRight className="size-4" />
+          </Link>
+          <Link
+            to={isAuthenticated ? (isSeller ? "/seller" : "/account") : "/signup"}
+            search={!isAuthenticated || !isSeller ? { intent: "seller" } : undefined}
+            className="h-11 px-6 rounded-xl border border-gold/40 text-gold text-sm font-bold hover:bg-gold/5 active:scale-95 transition-all inline-flex items-center justify-center"
+          >
+            Become a Seller
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CommunitySection() {
+  return (
+    <section className="container-page py-8">
+      <div className="rounded-3xl border border-border/80 bg-[#101114]/60 backdrop-blur-md p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+        <div className="space-y-1.5 text-center md:text-left">
+          <h3 className="font-display text-2xl font-bold text-white">
+            Join The <span className="text-gold">HUXZAIN</span> Community
+          </h3>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Stay connected with updates, offers and everything happening on HUXZAIN.
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap gap-4 items-center justify-center">
+          <a
+            href="https://instagram.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#f09433] via-[#e6683c] via-[#dc2743] via-[#cc2366] to-[#bc1888] text-white text-sm font-bold flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_12px_rgba(220,39,67,0.25)]"
+          >
+            <svg className="size-4 fill-current" viewBox="0 0 24 24">
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+            </svg>
+            Instagram
+          </a>
+          <a
+            href="https://facebook.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#1877f2] to-[#0d62d4] text-white text-sm font-bold flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_12px_rgba(24,119,242,0.25)]"
+          >
+            <svg className="size-4 fill-current" viewBox="0 0 24 24">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+            </svg>
+            Facebook
+          </a>
+          <a
+            href="https://whatsapp.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#25d366] to-[#1cbd55] text-white text-sm font-bold flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_12px_rgba(37,211,102,0.25)]"
+          >
+            <svg className="size-4 fill-current" viewBox="0 0 24 24">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.859-4.407 9.862-9.86.002-2.64-1.023-5.123-2.887-6.99A9.807 9.807 0 0012.008 1.74c-5.44 0-9.865 4.41-9.867 9.864-.001 1.73.457 3.419 1.32 4.93L2.43 21.32l5.093-1.334z" />
+            </svg>
+            WhatsApp
+          </a>
         </div>
       </div>
     </section>

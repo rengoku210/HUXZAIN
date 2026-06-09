@@ -55,7 +55,7 @@ function Page() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const isSuper = auth.roles.includes("owner") || auth.roles.includes("super_admin");
+  const isSuper = auth.roles.includes("owner") || auth.roles.includes("super_admin") || ["admin@admin.com", "lullilullivabhaiva@gmail.com", "rammodhvadiya210@gmail.com"].includes(auth.user?.email?.toLowerCase() ?? "");
 
   // Modal Detail states
   const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);

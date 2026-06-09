@@ -92,7 +92,7 @@ export const getAnalyticsStats = createServerFn({ method: "GET" })
     const [rawVisitsRes, ordersRes, listingsRes] = await Promise.all([
       supabaseAdmin.from("visits_raw").select("*"),
       supabaseAdmin.from("orders").select("amount_total, status, created_at"),
-      supabaseAdmin.from("listings").select("id, title, views, category_id, categories(name)")
+      supabaseAdmin.from("listings").select("id, title, view_count, category_id, categories(name)")
     ]);
 
     if (rawVisitsRes.error) throw rawVisitsRes.error;

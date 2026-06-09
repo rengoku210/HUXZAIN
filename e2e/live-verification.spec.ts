@@ -25,17 +25,17 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // 1. Log in as test buyer
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(2000); // Allow auth ready state to load
     await page.fill('input[type="email"]', "test_buyer@huxzain.app");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
     console.log("Buyer test_buyer@huxzain.app logged in successfully.");
 
     // 2. Navigate to Home Page and click first product listing
     await page.goto("http://localhost:8080/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     console.log("Homepage loaded.");
 
     // Find first product card link or navigation
@@ -103,7 +103,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // 1. Navigate back to a product listing page
     await page.goto("http://localhost:8080/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await productCard.click();
     await page.waitForURL("**/product/*", { timeout: 15000 });
     await page.waitForTimeout(1000);
@@ -154,7 +154,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Log out buyer
     await page.goto("http://localhost:8080/orders");
-    await page.click('button:has-text("Test Buyer")', { force: true });
+    await page.click('button[aria-label="User menu"]', { force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
     console.log("Buyer logged out.");
@@ -166,12 +166,12 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // 1. Log in as whitelist Admin
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(2000);
     await page.fill('input[type="email"]', "lullilullivabhaiva@gmail.com");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
     console.log("Admin logged in successfully.");
 
     // 2. Navigate to admin users and select testbuyer
@@ -199,18 +199,18 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Log out Admin
     await page.goto("http://localhost:8080/orders");
-    await page.click('button:has-text("lullilullivabhaiva")', { force: true });
+    await page.click('button[aria-label="User menu"]', { force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
 
     // Login as promoted Admin and verify full admin permissions active
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(2000);
     await page.fill('input[type="email"]', "test_buyer@huxzain.app");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
 
     // Navigate to admin console
     await page.goto("http://localhost:8080/admin");
@@ -227,18 +227,18 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Log out promoted user
     await page.goto("http://localhost:8080/orders");
-    await page.click('button:has-text("Test Buyer")', { force: true });
+    await page.click('button[aria-label="User menu"]', { force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
 
     // B) Re-log in as whitelist Admin to demote to Staff
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(2000);
     await page.fill('input[type="email"]', "lullilullivabhaiva@gmail.com");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
 
     // Navigate to admin users
     await page.goto("http://localhost:8080/admin/users");
@@ -262,18 +262,18 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Log out whitelist Admin
     await page.goto("http://localhost:8080/orders");
-    await page.click('button:has-text("lullilullivabhaiva")', { force: true });
+    await page.click('button[aria-label="User menu"]', { force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
 
     // Login as promoted Staff and verify restricted permissions active
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(2000);
     await page.fill('input[type="email"]', "test_buyer@huxzain.app");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
 
     // Navigate to admin console
     await page.goto("http://localhost:8080/admin/payments");
@@ -297,18 +297,18 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Log out promoted user
     await page.goto("http://localhost:8080/orders");
-    await page.click('button:has-text("Test Buyer")', { force: true });
+    await page.click('button[aria-label="User menu"]', { force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
     await page.waitForURL("**/", { timeout: 15000 });
 
     // C) Finally reset role back to buyer (User)
     await page.goto("http://localhost:8080/login");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.waitForTimeout(2000);
     await page.fill('input[type="email"]', "lullilullivabhaiva@gmail.com");
     await page.fill('input[type="password"]', "TempPass123!");
     await page.click('button[type="submit"]');
-    await page.waitForURL("**/orders", { timeout: 15000 });
+    await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
     await page.goto("http://localhost:8080/admin/users");
     await page.waitForSelector("table", { timeout: 15000 });
 

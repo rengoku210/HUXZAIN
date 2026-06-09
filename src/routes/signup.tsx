@@ -51,6 +51,20 @@ function SignupPage() {
         JSON.stringify({ name: name.trim(), password, intent })
       );
 
+      // Log terms acceptance anonymously
+      try {
+        const { logTermsAcceptance } = await import("@/lib/terms-analytics.functions");
+        await logTermsAcceptance({
+          data: {
+            termsVersion: "v1.0",
+            page: "/signup",
+            accepted: true,
+          },
+        });
+      } catch (err) {
+        console.warn("Failed to log terms acceptance during signup submit:", err);
+      }
+
       await requestOtp({ data: { email } });
       console.log(`[Signup] OTP sent successfully.`);
       
@@ -89,6 +103,24 @@ function SignupPage() {
               onChange={setPassword}
               required
             />
+            <div className="flex items-start gap-2.5 my-2">
+              <input
+                id="terms"
+                type="checkbox"
+                required
+                className="mt-1 accent-gold border-border bg-surface text-gold rounded focus:ring-gold focus:ring-offset-background cursor-pointer"
+              />
+              <label htmlFor="terms" className="text-xs text-muted-foreground leading-normal cursor-pointer">
+                I agree to the{" "}
+                <Link to="/terms" className="text-gold hover:underline">
+                  Terms & Conditions
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="text-gold hover:underline">
+                  Privacy Policy
+                </Link>.
+              </label>
+            </div>
             {err && <div className="text-xs text-red-400">{err}</div>}
             {done && (
               <div className="text-xs text-gold">Check your inbox to verify your email.</div>

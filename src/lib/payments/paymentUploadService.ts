@@ -1,4 +1,4 @@
-﻿// src/lib/payments/paymentUploadService.ts
+// src/lib/payments/paymentUploadService.ts
 //
 // IMPORTANT: This module runs in the browser (client-side).
 // All processing uses Web APIs only — no Node.js modules.
@@ -89,7 +89,7 @@ export async function uploadPaymentProof(params: {
       }
       const { error } = await supabase.storage
         .from("payment-proofs")
-        .upload(path, file, { upsert: false, contentType: file.type });
+        .upload(path, file, { upsert: false, contentType: file.type, signal } as any);
       if (error) throw error;
       uploadError = null;
       break;

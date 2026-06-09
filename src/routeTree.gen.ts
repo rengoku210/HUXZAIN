@@ -43,6 +43,7 @@ import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthVerifiedRouteImport } from './routes/auth.verified'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AccountVerifyPhoneRouteImport } from './routes/account.verify-phone'
+import { Route as ServerTrackDurationRouteImport } from './routes/_server.trackDuration'
 import { Route as AuthenticatedSellerRouteImport } from './routes/_authenticated/seller'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -74,17 +75,22 @@ import { Route as AuthenticatedAdminWithdrawalsRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminVerificationsRouteImport } from './routes/_authenticated/admin.verifications'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminTicketsRouteImport } from './routes/_authenticated/admin.tickets'
+import { Route as AuthenticatedAdminTasksRouteImport } from './routes/_authenticated/admin.tasks'
 import { Route as AuthenticatedAdminSubscriptionsRouteImport } from './routes/_authenticated/admin.subscriptions'
 import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated/admin.staff'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminSeoRouteImport } from './routes/_authenticated/admin.seo'
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
 import { Route as AuthenticatedAdminPaymentsRouteImport } from './routes/_authenticated/admin.payments'
+import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenticated/admin.orders'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin.newsletter'
 import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin.listings'
 import { Route as AuthenticatedAdminInvoicesRouteImport } from './routes/_authenticated/admin.invoices'
+import { Route as AuthenticatedAdminFinancesRouteImport } from './routes/_authenticated/admin.finances'
 import { Route as AuthenticatedAdminEarningsRouteImport } from './routes/_authenticated/admin.earnings'
 import { Route as AuthenticatedAdminDisputesRouteImport } from './routes/_authenticated/admin.disputes'
+import { Route as AuthenticatedAdminCommunicationRouteImport } from './routes/_authenticated/admin.communication'
+import { Route as AuthenticatedAdminChatsRouteImport } from './routes/_authenticated/admin.chats'
 import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin.categories'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
 import { Route as AuthenticatedSellerSubscriptionIndexRouteImport } from './routes/_authenticated/seller.subscription.index'
@@ -257,6 +263,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 const AccountVerifyPhoneRoute = AccountVerifyPhoneRouteImport.update({
   id: '/account/verify-phone',
   path: '/account/verify-phone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServerTrackDurationRoute = ServerTrackDurationRouteImport.update({
+  id: '/_server/trackDuration',
+  path: '/trackDuration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSellerRoute = AuthenticatedSellerRouteImport.update({
@@ -439,6 +450,11 @@ const AuthenticatedAdminTicketsRoute =
     path: '/tickets',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminTasksRoute = AuthenticatedAdminTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminSubscriptionsRoute =
   AuthenticatedAdminSubscriptionsRouteImport.update({
     id: '/subscriptions',
@@ -473,6 +489,12 @@ const AuthenticatedAdminPaymentsRoute =
     path: '/payments',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminOrdersRoute =
+  AuthenticatedAdminOrdersRouteImport.update({
+    id: '/orders',
+    path: '/orders',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminNewsletterRoute =
   AuthenticatedAdminNewsletterRouteImport.update({
     id: '/newsletter',
@@ -491,6 +513,12 @@ const AuthenticatedAdminInvoicesRoute =
     path: '/invoices',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminFinancesRoute =
+  AuthenticatedAdminFinancesRouteImport.update({
+    id: '/finances',
+    path: '/finances',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEarningsRoute =
   AuthenticatedAdminEarningsRouteImport.update({
     id: '/earnings',
@@ -503,6 +531,17 @@ const AuthenticatedAdminDisputesRoute =
     path: '/disputes',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCommunicationRoute =
+  AuthenticatedAdminCommunicationRouteImport.update({
+    id: '/communication',
+    path: '/communication',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminChatsRoute = AuthenticatedAdminChatsRouteImport.update({
+  id: '/chats',
+  path: '/chats',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminCategoriesRoute =
   AuthenticatedAdminCategoriesRouteImport.update({
     id: '/categories',
@@ -557,6 +596,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/messages': typeof AuthenticatedMessagesRoute
   '/seller': typeof AuthenticatedSellerRouteWithChildren
+  '/trackDuration': typeof ServerTrackDurationRoute
   '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
@@ -567,17 +607,22 @@ export interface FileRoutesByFullPath {
   '/account/': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
+  '/admin/chats': typeof AuthenticatedAdminChatsRoute
+  '/admin/communication': typeof AuthenticatedAdminCommunicationRoute
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
   '/admin/earnings': typeof AuthenticatedAdminEarningsRoute
+  '/admin/finances': typeof AuthenticatedAdminFinancesRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
+  '/admin/orders': typeof AuthenticatedAdminOrdersRoute
   '/admin/payments': typeof AuthenticatedAdminPaymentsRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/seo': typeof AuthenticatedAdminSeoRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
+  '/admin/tasks': typeof AuthenticatedAdminTasksRoute
   '/admin/tickets': typeof AuthenticatedAdminTicketsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/verifications': typeof AuthenticatedAdminVerificationsRoute
@@ -636,6 +681,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/messages': typeof AuthenticatedMessagesRoute
+  '/trackDuration': typeof ServerTrackDurationRoute
   '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
@@ -646,17 +692,22 @@ export interface FileRoutesByTo {
   '/account': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
+  '/admin/chats': typeof AuthenticatedAdminChatsRoute
+  '/admin/communication': typeof AuthenticatedAdminCommunicationRoute
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
   '/admin/earnings': typeof AuthenticatedAdminEarningsRoute
+  '/admin/finances': typeof AuthenticatedAdminFinancesRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
+  '/admin/orders': typeof AuthenticatedAdminOrdersRoute
   '/admin/payments': typeof AuthenticatedAdminPaymentsRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/seo': typeof AuthenticatedAdminSeoRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
+  '/admin/tasks': typeof AuthenticatedAdminTasksRoute
   '/admin/tickets': typeof AuthenticatedAdminTicketsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/verifications': typeof AuthenticatedAdminVerificationsRoute
@@ -719,6 +770,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/seller': typeof AuthenticatedSellerRouteWithChildren
+  '/_server/trackDuration': typeof ServerTrackDurationRoute
   '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/verified': typeof AuthVerifiedRoute
@@ -729,17 +781,22 @@ export interface FileRoutesById {
   '/account/': typeof AccountIndexRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
+  '/_authenticated/admin/chats': typeof AuthenticatedAdminChatsRoute
+  '/_authenticated/admin/communication': typeof AuthenticatedAdminCommunicationRoute
   '/_authenticated/admin/disputes': typeof AuthenticatedAdminDisputesRoute
   '/_authenticated/admin/earnings': typeof AuthenticatedAdminEarningsRoute
+  '/_authenticated/admin/finances': typeof AuthenticatedAdminFinancesRoute
   '/_authenticated/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
   '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
+  '/_authenticated/admin/orders': typeof AuthenticatedAdminOrdersRoute
   '/_authenticated/admin/payments': typeof AuthenticatedAdminPaymentsRoute
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/admin/seo': typeof AuthenticatedAdminSeoRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/_authenticated/admin/subscriptions': typeof AuthenticatedAdminSubscriptionsRoute
+  '/_authenticated/admin/tasks': typeof AuthenticatedAdminTasksRoute
   '/_authenticated/admin/tickets': typeof AuthenticatedAdminTicketsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/verifications': typeof AuthenticatedAdminVerificationsRoute
@@ -802,6 +859,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/messages'
     | '/seller'
+    | '/trackDuration'
     | '/account/verify-phone'
     | '/auth/callback'
     | '/auth/verified'
@@ -812,17 +870,22 @@ export interface FileRouteTypes {
     | '/account/'
     | '/admin/analytics'
     | '/admin/categories'
+    | '/admin/chats'
+    | '/admin/communication'
     | '/admin/disputes'
     | '/admin/earnings'
+    | '/admin/finances'
     | '/admin/invoices'
     | '/admin/listings'
     | '/admin/newsletter'
+    | '/admin/orders'
     | '/admin/payments'
     | '/admin/reports'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/staff'
     | '/admin/subscriptions'
+    | '/admin/tasks'
     | '/admin/tickets'
     | '/admin/users'
     | '/admin/verifications'
@@ -881,6 +944,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/messages'
+    | '/trackDuration'
     | '/account/verify-phone'
     | '/auth/callback'
     | '/auth/verified'
@@ -891,17 +955,22 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin/analytics'
     | '/admin/categories'
+    | '/admin/chats'
+    | '/admin/communication'
     | '/admin/disputes'
     | '/admin/earnings'
+    | '/admin/finances'
     | '/admin/invoices'
     | '/admin/listings'
     | '/admin/newsletter'
+    | '/admin/orders'
     | '/admin/payments'
     | '/admin/reports'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/staff'
     | '/admin/subscriptions'
+    | '/admin/tasks'
     | '/admin/tickets'
     | '/admin/users'
     | '/admin/verifications'
@@ -963,6 +1032,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/messages'
     | '/_authenticated/seller'
+    | '/_server/trackDuration'
     | '/account/verify-phone'
     | '/auth/callback'
     | '/auth/verified'
@@ -973,17 +1043,22 @@ export interface FileRouteTypes {
     | '/account/'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/categories'
+    | '/_authenticated/admin/chats'
+    | '/_authenticated/admin/communication'
     | '/_authenticated/admin/disputes'
     | '/_authenticated/admin/earnings'
+    | '/_authenticated/admin/finances'
     | '/_authenticated/admin/invoices'
     | '/_authenticated/admin/listings'
     | '/_authenticated/admin/newsletter'
+    | '/_authenticated/admin/orders'
     | '/_authenticated/admin/payments'
     | '/_authenticated/admin/reports'
     | '/_authenticated/admin/seo'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/staff'
     | '/_authenticated/admin/subscriptions'
+    | '/_authenticated/admin/tasks'
     | '/_authenticated/admin/tickets'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/verifications'
@@ -1043,6 +1118,7 @@ export interface RootRouteChildren {
   TeamLoginRoute: typeof TeamLoginRoute
   TermsRoute: typeof TermsRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  ServerTrackDurationRoute: typeof ServerTrackDurationRoute
   AccountVerifyPhoneRoute: typeof AccountVerifyPhoneRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthVerifiedRoute: typeof AuthVerifiedRoute
@@ -1291,6 +1367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountVerifyPhoneRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_server/trackDuration': {
+      id: '/_server/trackDuration'
+      path: '/trackDuration'
+      fullPath: '/trackDuration'
+      preLoaderRoute: typeof ServerTrackDurationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/seller': {
       id: '/_authenticated/seller'
       path: '/seller'
@@ -1508,6 +1591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTicketsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/tasks': {
+      id: '/_authenticated/admin/tasks'
+      path: '/tasks'
+      fullPath: '/admin/tasks'
+      preLoaderRoute: typeof AuthenticatedAdminTasksRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/subscriptions': {
       id: '/_authenticated/admin/subscriptions'
       path: '/subscriptions'
@@ -1550,6 +1640,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPaymentsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/orders': {
+      id: '/_authenticated/admin/orders'
+      path: '/orders'
+      fullPath: '/admin/orders'
+      preLoaderRoute: typeof AuthenticatedAdminOrdersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/newsletter': {
       id: '/_authenticated/admin/newsletter'
       path: '/newsletter'
@@ -1571,6 +1668,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminInvoicesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/finances': {
+      id: '/_authenticated/admin/finances'
+      path: '/finances'
+      fullPath: '/admin/finances'
+      preLoaderRoute: typeof AuthenticatedAdminFinancesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/earnings': {
       id: '/_authenticated/admin/earnings'
       path: '/earnings'
@@ -1583,6 +1687,20 @@ declare module '@tanstack/react-router' {
       path: '/disputes'
       fullPath: '/admin/disputes'
       preLoaderRoute: typeof AuthenticatedAdminDisputesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/communication': {
+      id: '/_authenticated/admin/communication'
+      path: '/communication'
+      fullPath: '/admin/communication'
+      preLoaderRoute: typeof AuthenticatedAdminCommunicationRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/chats': {
+      id: '/_authenticated/admin/chats'
+      path: '/chats'
+      fullPath: '/admin/chats'
+      preLoaderRoute: typeof AuthenticatedAdminChatsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/categories': {
@@ -1619,17 +1737,22 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminCategoriesRoute: typeof AuthenticatedAdminCategoriesRoute
+  AuthenticatedAdminChatsRoute: typeof AuthenticatedAdminChatsRoute
+  AuthenticatedAdminCommunicationRoute: typeof AuthenticatedAdminCommunicationRoute
   AuthenticatedAdminDisputesRoute: typeof AuthenticatedAdminDisputesRoute
   AuthenticatedAdminEarningsRoute: typeof AuthenticatedAdminEarningsRoute
+  AuthenticatedAdminFinancesRoute: typeof AuthenticatedAdminFinancesRoute
   AuthenticatedAdminInvoicesRoute: typeof AuthenticatedAdminInvoicesRoute
   AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
+  AuthenticatedAdminOrdersRoute: typeof AuthenticatedAdminOrdersRoute
   AuthenticatedAdminPaymentsRoute: typeof AuthenticatedAdminPaymentsRoute
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminSeoRoute: typeof AuthenticatedAdminSeoRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
   AuthenticatedAdminSubscriptionsRoute: typeof AuthenticatedAdminSubscriptionsRoute
+  AuthenticatedAdminTasksRoute: typeof AuthenticatedAdminTasksRoute
   AuthenticatedAdminTicketsRoute: typeof AuthenticatedAdminTicketsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVerificationsRoute: typeof AuthenticatedAdminVerificationsRoute
@@ -1640,17 +1763,22 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminCategoriesRoute: AuthenticatedAdminCategoriesRoute,
+  AuthenticatedAdminChatsRoute: AuthenticatedAdminChatsRoute,
+  AuthenticatedAdminCommunicationRoute: AuthenticatedAdminCommunicationRoute,
   AuthenticatedAdminDisputesRoute: AuthenticatedAdminDisputesRoute,
   AuthenticatedAdminEarningsRoute: AuthenticatedAdminEarningsRoute,
+  AuthenticatedAdminFinancesRoute: AuthenticatedAdminFinancesRoute,
   AuthenticatedAdminInvoicesRoute: AuthenticatedAdminInvoicesRoute,
   AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
+  AuthenticatedAdminOrdersRoute: AuthenticatedAdminOrdersRoute,
   AuthenticatedAdminPaymentsRoute: AuthenticatedAdminPaymentsRoute,
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminSeoRoute: AuthenticatedAdminSeoRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
   AuthenticatedAdminSubscriptionsRoute: AuthenticatedAdminSubscriptionsRoute,
+  AuthenticatedAdminTasksRoute: AuthenticatedAdminTasksRoute,
   AuthenticatedAdminTicketsRoute: AuthenticatedAdminTicketsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVerificationsRoute: AuthenticatedAdminVerificationsRoute,
@@ -1790,6 +1918,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamLoginRoute: TeamLoginRoute,
   TermsRoute: TermsRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ServerTrackDurationRoute: ServerTrackDurationRoute,
   AccountVerifyPhoneRoute: AccountVerifyPhoneRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthVerifiedRoute: AuthVerifiedRoute,

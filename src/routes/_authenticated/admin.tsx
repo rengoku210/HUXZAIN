@@ -11,6 +11,13 @@ import {
   CreditCard,
   DollarSign,
   FileText,
+  Megaphone,
+  ClipboardList,
+  Landmark,
+  ShoppingBag,
+  MessageSquareWarning,
+  HeartPulse,
+  Search,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -25,23 +32,27 @@ const navGroups: NavGroup[] = [
   {
     title: "Overview",
     items: [
-      { to: "/admin", label: "Overview", icon: Shield, end: true },
+      { to: "/admin", label: "Dashboard", icon: Shield, end: true },
       { to: "/admin/staff", label: "Staff Management", icon: Users },
+      { to: "/admin/tasks", label: "Task Management", icon: ClipboardList },
     ],
   },
   {
     title: "Marketplace",
     items: [
       { to: "/admin/users", label: "Users", icon: Users },
+      { to: "/admin/orders", label: "Orders", icon: ShoppingBag },
       { to: "/admin/listings", label: "Listings", icon: List },
       { to: "/admin/categories", label: "Categories", icon: List },
       { to: "/admin/disputes", label: "Disputes", icon: AlertCircle },
+      { to: "/admin/chats", label: "Chat Monitoring", icon: MessageSquareWarning },
       { to: "/admin/reports", label: "Reports", icon: Flag },
     ],
   },
   {
     title: "Finance",
     items: [
+      { to: "/admin/finances", label: "Financial Control", icon: Landmark },
       { to: "/admin/payments", label: "Payments", icon: CreditCard },
       { to: "/admin/invoices", label: "Invoices", icon: FileText },
       { to: "/admin/withdrawals", label: "Withdrawals", icon: CreditCard },
@@ -52,9 +63,9 @@ const navGroups: NavGroup[] = [
   {
     title: "Operations",
     items: [
+      { to: "/admin/communication", label: "Communication", icon: Megaphone },
       { to: "/admin/verifications", label: "Verifications", icon: Shield },
       { to: "/admin/tickets", label: "Support Tickets", icon: AlertCircle },
-      { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { to: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -88,15 +99,15 @@ function AdminLayout() {
   
   // Dynamic staff allowed paths based on specific role
   const staffAllowedPaths = useMemo(() => {
-    let paths: string[] = [];
+    let paths: string[] = ["/admin/tasks"]; // All staff can see their tasks
     if (isPaymentReviewer) {
-      paths.push("/admin/withdrawals", "/admin/earnings");
+      paths.push("/admin/withdrawals", "/admin/earnings", "/admin/finances");
     }
     if (isVerificationOfficer) {
       paths.push("/admin/verifications");
     }
     if (isContentModerator) {
-      paths.push("/admin/disputes", "/admin/tickets", "/admin/listings");
+      paths.push("/admin/disputes", "/admin/tickets", "/admin/listings", "/admin/chats", "/admin/orders");
     }
     if (isSupportStaff) {
       paths.push("/admin/tickets", "/admin/disputes");

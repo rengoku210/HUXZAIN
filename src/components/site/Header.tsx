@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Volume2,
   MessageSquare,
+  LayoutGrid,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import logo from "@/assets/huxzain-logo.png";
@@ -439,9 +440,9 @@ export function Header() {
         <div className="container-page flex h-16 items-center gap-4">
           <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
             <img 
-              src={mark} 
+              src={logo} 
               alt="HUXZAIN" 
-              className="h-11 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
+              className="h-10 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
             />
           </Link>
 
@@ -678,6 +679,7 @@ export function Header() {
                   }}
                   className="flex items-center gap-2 h-9 pl-1 pr-3 rounded-full border border-border hover:border-gold/50 bg-surface/40 hover:bg-surface transition-all border-none"
                   aria-expanded={accountOpen}
+                  aria-label="User menu"
                 >
                   <div className="size-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center overflow-hidden shrink-0">
                     {avatarUrl ? (
@@ -817,41 +819,59 @@ export function Header() {
 
         {/* ── Sub nav ────────────────────────────────────────────── */}
         {/* ── Category Quick Access Ribbon ────────────────────────────── */}
-        <div className="border-t border-border/60 bg-surface/30 w-full overflow-hidden relative shadow-inner" onMouseLeave={() => setHoveredCatId(null)}>
+        <div className="border-t border-border/60 bg-[#101114]/85 backdrop-blur-md w-full overflow-hidden relative shadow-inner" onMouseLeave={() => { setHoveredCatId(null); setCatOpen(false); }}>
           <div className="container-page flex items-center justify-between h-12 gap-4">
-            <div className="flex-1 min-w-0 flex items-center gap-2.5 overflow-x-auto scrollbar-none w-full py-1">
-              <Link to="/" className="px-3 py-1.5 text-[13px] font-medium text-foreground hover:text-gold rounded-full bg-surface/50 border border-border whitespace-nowrap transition-colors flex items-center gap-1.5 shadow-sm">
-                <Flame className="size-3.5 text-orange-500" /> Trending
-              </Link>
-              {navItems.slice(1).map((item) => (
-                <div 
-                  key={item.label}
-                  className="h-full flex items-center"
-                  onMouseEnter={() => {
-                    if ((item as any).category) {
-                      setHoveredCatId((item as any).category.id);
-                    } else {
-                      setHoveredCatId(null);
-                    }
-                  }}
-                >
-                  <Link
-                    to={item.to as any}
-                    params={"params" in item ? (item.params as any) : undefined}
-                    className="px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface/50 rounded-full border border-transparent hover:border-border whitespace-nowrap transition-colors data-[status=active]:text-gold data-[status=active]:font-medium data-[status=active]:bg-gold/10 data-[status=active]:border-gold/20 shrink-0"
-                  >
-                    {item.label}
-                  </Link>
-                </div>
-              ))}
-            </div>
-            <div className="hidden md:flex items-center gap-3 pr-2 shrink-0 border-l border-border/60 pl-4">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:text-gold transition-colors"
+            <div className="flex-1 min-w-0 flex items-center gap-6 overflow-x-auto scrollbar-none py-1">
+              
+              {/* Categories Dropdown Trigger */}
+              <button 
+                onClick={() => setCatOpen((v) => !v)}
+                onMouseEnter={() => setCatOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-[13px] font-semibold text-gold bg-gold/5 hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-lg whitespace-nowrap transition-all shadow-sm cursor-pointer"
               >
-                <HelpCircle className="size-4" /> Support
-              </Link>
+                <LayoutGrid className="size-3.5" /> Categories <ChevronDown className={`size-3 transition-transform duration-200 ${catOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {/* Navigation Links */}
+              <div className="flex items-center gap-4 sm:gap-6 md:gap-8">
+                <Link
+                  to="/how-it-works"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  How It Works
+                </Link>
+                <Link
+                  to="/how-it-works"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Buyer Protection
+                </Link>
+                <Link
+                  to="/seller-panel"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Sell on Huxzain
+                </Link>
+                <Link
+                  to="/contact"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Support Center
+                </Link>
+                <Link
+                  to="/orders"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Track Order
+                </Link>
+                <Link
+                  to="/contact"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Contact Us
+                </Link>
+              </div>
+
             </div>
           </div>
           

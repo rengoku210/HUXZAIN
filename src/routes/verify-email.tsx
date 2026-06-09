@@ -145,10 +145,26 @@ function VerifyPage() {
           const { getSupabase } = await import("@/lib/supabase-client");
           const sb = getSupabase();
           if (sb) {
-            await sb.auth.setSession({
+            const sessionRes = await sb.auth.setSession({
               access_token: (result as any).accessToken,
               refresh_token: (result as any).refreshToken,
             });
+            const userId = sessionRes.data?.user?.id;
+            if (userId) {
+              try {
+                const { logTermsAcceptance } = await import("@/lib/terms-analytics.functions");
+                await logTermsAcceptance({
+                  data: {
+                    userId,
+                    termsVersion: "v1.0",
+                    page: "/verify-email",
+                    accepted: true,
+                  },
+                });
+              } catch (logErr) {
+                console.warn("Failed to log terms acceptance with userId:", logErr);
+              }
+            }
             setTimeout(() => {
               window.location.href = (result as any).redirectTo || targetUrl;
             }, 1200);

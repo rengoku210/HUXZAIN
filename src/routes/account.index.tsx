@@ -242,6 +242,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordUpdating, setPasswordUpdating] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   // Notifications state
   const [notifPreferences, setNotifPreferences] = useState({
@@ -249,6 +250,9 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
     orderUpdates: true,
     disputeAlerts: true,
     payoutAlerts: true,
+    marketingEmailsConsent: true,
+    pushNotificationsConsent: true,
+    inAppNotificationsConsent: true,
   });
 
   // 1. Initial State Hydration
@@ -261,6 +265,16 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       setBio(profile.bio ?? "");
       setCountry(profile.country ?? "");
       setEmailVisibility(profile.email_visibility ?? "private");
+      setTwoFactorEnabled((profile as any).two_factor_enabled ?? false);
+      setNotifPreferences({
+        emailAlerts: true,
+        orderUpdates: true,
+        disputeAlerts: true,
+        payoutAlerts: true,
+        marketingEmailsConsent: (profile as any).marketing_emails_consent ?? true,
+        pushNotificationsConsent: (profile as any).push_notifications_consent ?? true,
+        inAppNotificationsConsent: (profile as any).in_app_notifications_consent ?? true,
+      });
       isInitialized.current = true;
     }
   }, [profile]);
@@ -278,7 +292,8 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       const stored = localStorage.getItem("huxzain_notifications");
       if (stored) {
         try {
-          setNotifPreferences(JSON.parse(stored));
+          const parsed = JSON.parse(stored);
+          setNotifPreferences(prev => ({ ...prev, ...parsed }));
         } catch (_) {}
       }
     }
@@ -480,9 +495,27 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
     }
   }
 
-  function handleNotificationSave() {
+  async function handleNotificationSave() {
     localStorage.setItem("huxzain_notifications", JSON.stringify(notifPreferences));
-    toast.success("Preferences saved.");
+    const supabase = getSupabase();
+    if (supabase && user) {
+      try {
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            marketing_emails_consent: notifPreferences.marketingEmailsConsent,
+            push_notifications_consent: notifPreferences.pushNotificationsConsent,
+            in_app_notifications_consent: notifPreferences.inAppNotificationsConsent,
+          })
+          .eq("id", user.id);
+        if (error) throw error;
+        toast.success("Notification preferences saved successfully!");
+      } catch (err: any) {
+        toast.error(`Database sync failed: ${err.message}`);
+      }
+    } else {
+      toast.success("Preferences saved.");
+    }
   }
 
   const isSellerActive = roles.includes("seller" as Role);
@@ -704,7 +737,42 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                 {tab === "security" && (
                   <div className="rounded-2xl border border-border bg-surface/40 p-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <h2 className="text-base font-semibold flex items-center gap-2"><Lock className="size-4 text-gold" /> Security Settings</h2>
-                    <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+                    
+                    {/* 2FA Settings Row */}
+                    <div className="border-b border-border/40 pb-6">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-[#101114]/40 hover:border-gold/20 transition-all">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold text-foreground">Two-Factor Authentication (2FA) via Email</h3>
+                          <p className="text-xs text-muted-foreground max-w-lg leading-relaxed">
+                            Double security for your account. When enabled, a verification OTP will be required during sign-in using your email address.
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const val = !twoFactorEnabled;
+                            setTwoFactorEnabled(val);
+                            const supabase = getSupabase();
+                            if (supabase && user) {
+                              try {
+                                const { error } = await supabase.from("profiles").update({ two_factor_enabled: val }).eq("id", user.id);
+                                if (error) throw error;
+                                toast.success(val ? "2FA via Email enabled successfully!" : "2FA via Email disabled.");
+                              } catch (e: any) {
+                                toast.error(`Failed to update 2FA: ${e.message}`);
+                                setTwoFactorEnabled(!val); // revert
+                              }
+                            } else {
+                              toast.warning("Auth is currently not connected to Supabase.");
+                            }
+                          }}
+                          className={`w-11 h-6 rounded-full relative transition-colors ${twoFactorEnabled ? "bg-gold" : "bg-muted-foreground/30"}`}
+                        >
+                          <div className={`absolute top-1 size-4 rounded-full bg-white transition-all ${twoFactorEnabled ? "left-6" : "left-1"}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md pt-2">
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold uppercase text-muted-foreground">New Password</label>
                         <div className="relative">
@@ -730,9 +798,14 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                   <div className="rounded-2xl border border-border bg-surface/40 p-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <h2 className="text-base font-semibold flex items-center gap-2"><Bell className="size-4 text-gold" /> Notification Center</h2>
                     <div className="space-y-3">
-                      {["emailAlerts", "orderUpdates", "disputeAlerts", "payoutAlerts"].map((id) => (
+                      {["emailAlerts", "orderUpdates", "disputeAlerts", "payoutAlerts", "marketingEmailsConsent", "pushNotificationsConsent", "inAppNotificationsConsent"].map((id) => (
                         <div key={id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-surface/20">
-                          <span className="text-sm font-medium capitalize">{id.replace(/([A-Z])/g, ' $1')}</span>
+                          <span className="text-sm font-medium capitalize">
+                            {id === "marketingEmailsConsent" ? "Marketing & Campaign Emails" :
+                             id === "pushNotificationsConsent" ? "Push Notifications" :
+                             id === "inAppNotificationsConsent" ? "In-App Notifications & Alerts" :
+                             id.replace(/([A-Z])/g, ' $1')}
+                          </span>
                           <button
                             onClick={() => setNotifPreferences(p => ({ ...p, [id]: !p[id as keyof typeof p] }))}
                             className={`w-10 h-5 rounded-full relative transition-colors ${notifPreferences[id as keyof typeof notifPreferences] ? "bg-gold" : "bg-muted"}`}

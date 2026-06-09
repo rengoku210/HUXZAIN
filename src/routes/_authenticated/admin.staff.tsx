@@ -12,7 +12,8 @@ import {
   Eye, 
   EyeOff,
   UserCheck,
-  Ban
+  Ban,
+  X
 } from "lucide-react";
 import { 
   listStaffMembers, 
@@ -76,6 +77,11 @@ function StaffManagementPage() {
   const [loginLogs, setLoginLogs] = useState<LoginLog[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Drill-down and filter states
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedStaffFilter, setSelectedStaffFilter] = useState<string>("all");
+  const [drawerTab, setDrawerTab] = useState<"drawer_audit" | "drawer_history">("drawer_audit");
   
   // Creation form states
   const [fullName, setFullName] = useState("");
@@ -310,8 +316,22 @@ function StaffManagementPage() {
                   <tbody>
                     {employees.map((emp) => (
                       <tr key={emp.id} className="border-b border-border/50 hover:bg-surface/20 transition-all">
-                        <td className="py-3 px-4 font-mono font-bold text-gold text-xs">{emp.employee_id}</td>
-                        <td className="py-3 px-4 font-semibold">{emp.full_name}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-gold text-xs">
+                          <button
+                            onClick={() => setSelectedEmployee(emp)}
+                            className="hover:underline text-left text-gold font-bold font-mono text-xs cursor-pointer inline-flex items-center gap-1"
+                          >
+                            {emp.employee_id}
+                          </button>
+                        </td>
+                        <td className="py-3 px-4 font-semibold">
+                          <button
+                            onClick={() => setSelectedEmployee(emp)}
+                            className="hover:underline hover:text-gold text-left text-foreground font-semibold cursor-pointer"
+                          >
+                            {emp.full_name}
+                          </button>
+                        </td>
                         <td className="py-3 px-4 text-muted-foreground">{emp.email}</td>
                         <td className="py-3 px-4">
                           <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -334,6 +354,13 @@ function StaffManagementPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right space-x-2">
+                          <button
+                            onClick={() => setSelectedEmployee(emp)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Eye className="size-3.5" /> View Logs
+                          </button>
+
                           <button
                             onClick={() => handleToggleStatus(emp)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
@@ -446,8 +473,6 @@ function StaffManagementPage() {
                         <option value="verification_officer">Verification Officer</option>
                         <option value="payment_reviewer">Payment Reviewer</option>
                         <option value="dispute_manager">Dispute Manager</option>
-                        <option value="moderator">Moderator</option>
-                        <option value="admin">Admin</option>
                       </select>
                     </div>
                     
@@ -475,95 +500,366 @@ function StaffManagementPage() {
           )}
 
           {/* TAB 3: LOGIN HISTORY */}
-          {activeTab === "history" && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                Team Access History <History className="size-5 text-gold" />
-              </h2>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-border/80 text-muted-foreground font-semibold text-xs uppercase tracking-wider">
-                      <th className="py-3 px-4">Time</th>
-                      <th className="py-3 px-4">Employee ID</th>
-                      <th className="py-3 px-4">Email Attempt</th>
-                      <th className="py-3 px-4">Success</th>
-                      <th className="py-3 px-4">Device</th>
-                      <th className="py-3 px-4">IP Address</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loginLogs.map((log) => (
-                      <tr key={log.id} className="border-b border-border/50 hover:bg-surface/20 transition-all text-xs">
-                        <td className="py-3 px-4 text-muted-foreground font-semibold">{new Date(log.created_at).toLocaleString()}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-gold select-all">{log.employee_id || "N/A"}</td>
-                        <td className="py-3 px-4 text-foreground font-semibold">{log.email}</td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
-                            log.success 
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                          }`}>
-                            {log.success ? "Success" : "Failed"}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground">{log.device || "Desktop"}</td>
-                        <td className="py-3 px-4 font-mono select-all">{log.ip_address || "127.0.0.1"}</td>
+          {activeTab === "history" && (() => {
+            const filteredLoginLogs = loginLogs.filter((log) => {
+              if (selectedStaffFilter === "all") return true;
+              const emp = employees.find(e => e.id === selectedStaffFilter);
+              if (!emp) return false;
+              return log.employee_id === emp.employee_id || log.email.toLowerCase() === emp.email.toLowerCase();
+            });
+
+            return (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    Team Access History <History className="size-5 text-gold" />
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Filter by Employee:</span>
+                    <select
+                      value={selectedStaffFilter}
+                      onChange={(e) => setSelectedStaffFilter(e.target.value)}
+                      className="h-9 rounded-lg border border-border bg-[#101114] px-3 text-xs outline-none focus:border-gold/50 cursor-pointer text-foreground"
+                    >
+                      <option value="all">All Staff</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id} className="bg-[#101114]">
+                          {emp.full_name} ({emp.employee_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/80 text-muted-foreground font-semibold text-xs uppercase tracking-wider">
+                        <th className="py-3 px-4">Time</th>
+                        <th className="py-3 px-4">Employee ID</th>
+                        <th className="py-3 px-4">Email Attempt</th>
+                        <th className="py-3 px-4">Success</th>
+                        <th className="py-3 px-4">Device</th>
+                        <th className="py-3 px-4">IP Address</th>
                       </tr>
-                    ))}
-                    {loginLogs.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-muted-foreground font-semibold">
-                          No login history available.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredLoginLogs.map((log) => {
+                        const matchedEmp = employees.find(
+                          (e) => e.employee_id === log.employee_id || e.email.toLowerCase() === log.email.toLowerCase()
+                        );
+                        return (
+                          <tr key={log.id} className="border-b border-border/50 hover:bg-surface/20 transition-all text-xs">
+                            <td className="py-3 px-4 text-muted-foreground font-semibold">{new Date(log.created_at).toLocaleString()}</td>
+                            <td className="py-3 px-4 font-mono font-bold text-gold select-all">
+                              {matchedEmp ? (
+                                <button
+                                  onClick={() => setSelectedEmployee(matchedEmp)}
+                                  className="hover:underline text-left text-gold font-bold font-mono text-xs cursor-pointer inline-flex items-center gap-1"
+                                >
+                                  {log.employee_id}
+                                </button>
+                              ) : (
+                                log.employee_id || "N/A"
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-foreground font-semibold">
+                              {matchedEmp ? (
+                                <button
+                                  onClick={() => setSelectedEmployee(matchedEmp)}
+                                  className="hover:underline hover:text-gold text-left text-foreground cursor-pointer font-semibold inline-flex items-center gap-1 animate-none"
+                                >
+                                  {log.email}
+                                  <Eye className="size-3 text-muted-foreground/60" />
+                                </button>
+                              ) : (
+                                log.email
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                                log.success 
+                                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                              }`}>
+                                {log.success ? "Success" : "Failed"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-muted-foreground">{log.device || "Desktop"}</td>
+                            <td className="py-3 px-4 font-mono select-all">{log.ip_address || "127.0.0.1"}</td>
+                          </tr>
+                        );
+                      })}
+                      {filteredLoginLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-muted-foreground font-semibold">
+                            No login history available for the selected filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 4: AUDIT LOGS */}
-          {activeTab === "audit" && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                Team Action Audit Logs <Activity className="size-5 text-gold" />
-              </h2>
+          {activeTab === "audit" && (() => {
+            const filteredAuditLogs = auditLogs.filter((log) => {
+              if (selectedStaffFilter === "all") return true;
+              return log.staff_id === selectedStaffFilter;
+            });
+
+            return (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    Team Action Audit Logs <Activity className="size-5 text-gold" />
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Filter by Staff:</span>
+                    <select
+                      value={selectedStaffFilter}
+                      onChange={(e) => setSelectedStaffFilter(e.target.value)}
+                      className="h-9 rounded-lg border border-border bg-[#101114] px-3 text-xs outline-none focus:border-gold/50 cursor-pointer text-foreground"
+                    >
+                      <option value="all">All Staff</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id} className="bg-[#101114]">
+                          {emp.full_name} ({emp.employee_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/80 text-muted-foreground font-semibold text-xs uppercase tracking-wider">
+                        <th className="py-3 px-4">Timestamp</th>
+                        <th className="py-3 px-4">Staff Name</th>
+                        <th className="py-3 px-4">Action</th>
+                        <th className="py-3 px-4">Change Log details</th>
+                        <th className="py-3 px-4">IP Address</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAuditLogs.map((log) => {
+                        const matchedEmp = employees.find(e => e.id === log.staff_id);
+                        return (
+                          <tr key={log.id} className="border-b border-border/50 hover:bg-surface/20 transition-all text-xs">
+                            <td className="py-3 px-4 text-muted-foreground font-semibold">{new Date(log.created_at).toLocaleString()}</td>
+                            <td className="py-3 px-4 font-bold text-foreground">
+                              {matchedEmp ? (
+                                <button
+                                  onClick={() => setSelectedEmployee(matchedEmp)}
+                                  className="hover:underline hover:text-gold text-left text-foreground cursor-pointer font-bold inline-flex items-center gap-1"
+                                >
+                                  {log.profiles?.display_name || "System"}
+                                  <Eye className="size-3 text-muted-foreground/60" />
+                                </button>
+                              ) : (
+                                log.profiles?.display_name || "System"
+                              )}
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-gold">{log.action}</td>
+                            <td className="py-3 px-4 max-w-xs break-words text-muted-foreground font-mono text-[10px]">
+                              {log.new_value || (log.previous_value ? `Changed from ${log.previous_value}` : "N/A")}
+                            </td>
+                            <td className="py-3 px-4 font-mono select-all">{log.ip_address || "127.0.0.1"}</td>
+                          </tr>
+                        );
+                      })}
+                      {filteredAuditLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-muted-foreground font-semibold">
+                            No action audit logs registered for the selected filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* EMPLOYEE DETAIL DRAWER */}
+          {selectedEmployee && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm">
+              <div 
+                className="absolute inset-0 cursor-pointer"
+                onClick={() => setSelectedEmployee(null)} 
+              />
               
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-border/80 text-muted-foreground font-semibold text-xs uppercase tracking-wider">
-                      <th className="py-3 px-4">Timestamp</th>
-                      <th className="py-3 px-4">Staff Name</th>
-                      <th className="py-3 px-4">Action</th>
-                      <th className="py-3 px-4">Change Log details</th>
-                      <th className="py-3 px-4">IP Address</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditLogs.map((log) => (
-                      <tr key={log.id} className="border-b border-border/50 hover:bg-surface/20 transition-all text-xs">
-                        <td className="py-3 px-4 text-muted-foreground font-semibold">{new Date(log.created_at).toLocaleString()}</td>
-                        <td className="py-3 px-4 font-bold text-foreground">{log.profiles?.display_name || "System"}</td>
-                        <td className="py-3 px-4 font-semibold text-gold">{log.action}</td>
-                        <td className="py-3 px-4 max-w-xs break-words text-muted-foreground font-mono text-[10px]">
-                          {log.new_value || (log.previous_value ? `Changed from ${log.previous_value}` : "N/A")}
-                        </td>
-                        <td className="py-3 px-4 font-mono select-all">{log.ip_address || "127.0.0.1"}</td>
-                      </tr>
-                    ))}
-                    {auditLogs.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-muted-foreground font-semibold">
-                          No action audit logs registered.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="relative w-full max-w-2xl h-full bg-[#0f1013] border-l border-border p-6 shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300 text-left">
+                {/* Header */}
+                <div className="flex items-start justify-between pb-4 border-b border-border/80">
+                  <div>
+                    <h3 className="text-xl font-bold font-display text-foreground">
+                      {selectedEmployee.full_name}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="font-mono font-bold text-gold text-xs px-2 py-0.5 rounded bg-gold/10 border border-gold/20">
+                        {selectedEmployee.employee_id}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        {getRoleLabel(selectedEmployee.role)}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded font-semibold bg-surface text-muted-foreground border border-border">
+                        {selectedEmployee.department}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-xs font-bold ${
+                        selectedEmployee.status === "active" ? "text-emerald-400" : "text-rose-400"
+                      }`}>
+                        ● {selectedEmployee.status === "active" ? "Active" : "Disabled"}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedEmployee(null)}
+                    className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-all cursor-pointer border-none bg-transparent"
+                  >
+                    <X className="size-5" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto py-6 space-y-6">
+                  {/* Info Card */}
+                  <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-surface/30 border border-border/60">
+                    <div>
+                      <div className="text-[10px] text-muted-foreground uppercase font-semibold">Email Address</div>
+                      <a 
+                        href={`mailto:${selectedEmployee.email}`}
+                        className="text-sm font-semibold text-gold hover:underline mt-0.5 block truncate"
+                      >
+                        {selectedEmployee.email}
+                      </a>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-muted-foreground uppercase font-semibold">Registered At</div>
+                      <div className="text-sm font-semibold text-foreground mt-0.5">
+                        {new Date(selectedEmployee.created_at).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="space-y-4">
+                    <div className="border-b border-border/80 flex gap-4">
+                      <button
+                        onClick={() => setDrawerTab("drawer_audit")}
+                        className={`pb-2 text-sm font-semibold border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                          drawerTab === "drawer_audit" 
+                            ? "border-gold text-gold" 
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Activity Logs
+                      </button>
+                      <button
+                        onClick={() => setDrawerTab("drawer_history")}
+                        className={`pb-2 text-sm font-semibold border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                          drawerTab === "drawer_history" 
+                            ? "border-gold text-gold" 
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Login Sessions
+                      </button>
+                    </div>
+
+                    {/* Action Logs Tab */}
+                    {drawerTab === "drawer_audit" && (() => {
+                      const userAudit = auditLogs.filter(log => log.staff_id === selectedEmployee.id);
+                      return (
+                        <div className="space-y-3">
+                          {userAudit.length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-8">No action logs found for this staff member.</p>
+                          ) : (
+                            <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                              {userAudit.map(log => (
+                                <div key={log.id} className="p-3 rounded-lg border border-border/50 bg-surface/10 text-xs space-y-1">
+                                  <div className="flex justify-between items-center gap-2">
+                                    <span className="font-semibold text-gold">{log.action}</span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {new Date(log.created_at).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  {log.new_value && (
+                                    <pre className="mt-1 p-2 rounded bg-background/50 font-mono text-[9px] text-muted-foreground max-w-full overflow-x-auto whitespace-pre-wrap break-all">
+                                      {log.new_value}
+                                    </pre>
+                                  )}
+                                  {log.ip_address && (
+                                    <div className="text-[10px] text-muted-foreground/60 font-mono pt-1">
+                                      IP: {log.ip_address}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Login Logs Tab */}
+                    {drawerTab === "drawer_history" && (() => {
+                      const userLogins = loginLogs.filter(
+                        log => log.employee_id === selectedEmployee.employee_id || log.email.toLowerCase() === selectedEmployee.email.toLowerCase()
+                      );
+                      return (
+                        <div className="space-y-3">
+                          {userLogins.length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-8">No login sessions found for this staff member.</p>
+                          ) : (
+                            <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                              {userLogins.map(log => (
+                                <div key={log.id} className="p-3 rounded-lg border border-border/50 bg-surface/10 text-xs flex justify-between items-center gap-4">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                                        log.success 
+                                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                          : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                      }`}>
+                                        {log.success ? "Success" : "Failed"}
+                                      </span>
+                                      <span className="text-muted-foreground">{log.device || "Desktop"}</span>
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground/60 font-mono">
+                                      IP: {log.ip_address || "127.0.0.1"}
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                                    {new Date(log.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t border-border/80 flex justify-end">
+                  <button
+                    onClick={() => setSelectedEmployee(null)}
+                    className="px-4 py-2 rounded-lg bg-surface hover:bg-surface/80 text-xs font-semibold cursor-pointer transition-all border-none text-foreground"
+                  >
+                    Close Panel
+                  </button>
+                </div>
               </div>
             </div>
           )}

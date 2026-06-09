@@ -29,7 +29,7 @@ import {
 export const primaryCategories = [
   {
     slug: "gaming-accounts",
-    title: "Gaming Accounts",
+    title: "Gaming Marketplace",
     desc: "Accounts & Profiles - Valorant, BGMI, CS2, Fortnite etc.",
     icon: Gamepad2,
     // kept for existing pages that show a secondary line
@@ -115,7 +115,7 @@ export const primaryCategories = [
 ];
 
 export const gamingCategories = [
-  { slug: "accounts", title: "Gaming Accounts", icon: Gamepad2 },
+  { slug: "accounts", title: "Gaming Marketplace", icon: Gamepad2 },
   { slug: "currency", title: "In-Game Currency", icon: Coins },
   { slug: "gift-cards", title: "Gift Cards", icon: Gift },
   { slug: "boosting", title: "Boosting", icon: Rocket },

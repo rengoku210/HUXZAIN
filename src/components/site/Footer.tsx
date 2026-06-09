@@ -9,7 +9,7 @@ import {
   Lock,
   CreditCard,
 } from "lucide-react";
-import mark from "@/assets/huxzain-mark.png";
+import logo from "@/assets/huxzain-logo.png";
 
 const groups = [
   {
@@ -17,7 +17,7 @@ const groups = [
     links: [
       { l: "Browse Listings", to: "/categories" },
       { l: "Digital Products", to: "/category/$slug", p: { slug: "digital-marketplace" } },
-      { l: "Gaming Accounts", to: "/category/$slug", p: { slug: "gaming-accounts" } },
+      { l: "Gaming Marketplace", to: "/category/$slug", p: { slug: "gaming-accounts" } },
       { l: "Gift Cards", to: "/category/$slug", p: { slug: "gift-cards" } },
       { l: "Software & Tools", to: "/category/$slug", p: { slug: "software-tools" } },
     ],
@@ -89,24 +89,13 @@ export function Footer() {
       <div className="container-page py-14 grid gap-10 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
         <div>
           <img 
-            src={mark} 
+            src={logo} 
             alt="HUXZAIN" 
-            className="h-11 w-auto mb-5 bg-transparent select-none pointer-events-none object-contain" 
+            className="h-10 w-auto mb-5 bg-transparent select-none pointer-events-none object-contain" 
           />
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
             India's Modern Digital Marketplace
           </p>
-          <div className="flex gap-2 mt-5">
-            {[Facebook, Twitter, Instagram, Youtube, MessageCircle].map((Icon, i) => (
-              <a
-                key={i}
-                href="#"
-                className="size-9 rounded-full border border-border hover:border-gold/50 hover:text-gold flex items-center justify-center text-muted-foreground transition-colors"
-              >
-                <Icon className="size-4" />
-              </a>
-            ))}
-          </div>
         </div>
         {groups.map((g) => (
           <div key={g.title}>

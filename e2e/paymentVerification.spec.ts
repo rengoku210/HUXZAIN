@@ -3,6 +3,26 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Payment Verification Flow", () => {
   test.beforeEach(async ({ page }) => {
+    // Inject mock session into localStorage before any page initialization
+    await page.addInitScript(() => {
+      const mockSession = {
+        access_token: "mock-token",
+        token_type: "bearer",
+        expires_in: 3600,
+        refresh_token: "mock-refresh-token",
+        user: {
+          id: "12345678-1234-1234-1234-1234567890ab",
+          aud: "authenticated",
+          role: "authenticated",
+          email: "buyer@example.com",
+          user_metadata: { role: "buyer" },
+          app_metadata: { provider: "email" }
+        },
+        expires_at: 9999999999
+      };
+      window.localStorage.setItem("huxzain.auth", JSON.stringify(mockSession));
+    });
+
     // Intercept Supabase auth user request to simulate signed-in user
     await page.route("**/auth/v1/user", async (route) => {
       await route.fulfill({
