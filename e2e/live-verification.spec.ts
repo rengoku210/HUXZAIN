@@ -61,7 +61,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Capture screenshot of Checkout redirect
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/buy_now_checkout_redirect.png",
+      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buy_now_checkout_redirect.png",
       fullPage: false
     });
     console.log("Captured Buy Now -> Checkout redirect screenshot!");
@@ -92,7 +92,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     // Verify redirect or success modal
     await page.waitForSelector("text=Success", { timeout: 15000 });
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/payment_proof_submitted.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/payment_proof_submitted.png"
     });
     console.log("Checkout payment proof upload verified successfully!");
 
@@ -194,7 +194,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Take screenshot of role admin save
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/role_admin_saved_refresh.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_admin_saved_refresh.png"
     });
 
     // Log out Admin
@@ -222,7 +222,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     console.log("Full Admin permissions verified active successfully!");
 
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/login_admin_permissions.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/login_admin_permissions.png"
     });
 
     // Log out promoted user
@@ -257,7 +257,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Capture screenshot
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/role_staff_saved_refresh.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_staff_saved_refresh.png"
     });
 
     // Log out whitelist Admin
@@ -292,7 +292,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     console.log("Staff permissions (restricted access) verified active successfully!");
 
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/login_staff_permissions.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/login_staff_permissions.png"
     });
 
     // Log out promoted user

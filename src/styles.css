@@ -194,3 +194,168 @@ body {
   overflow-x: hidden;
   position: relative;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile hero responsiveness
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Hero section: stack columns vertically on mobile */
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Hero image: limit size and center on mobile */
+  .hero-image-wrap {
+    max-width: 320px !important;
+    margin: 0 auto;
+    min-height: 240px !important;
+  }
+
+  /* Hero headline clamp for mobile */
+  .hero-headline {
+    font-size: clamp(1.8rem, 7vw, 2.4rem) !important;
+  }
+
+  /* Compact trust badges on small screens */
+  .hero-trust-badges {
+    gap: 8px 12px;
+  }
+
+  /* Search bar: stack vertically on very small screens */
+  .hero-search-form {
+    flex-direction: column !important;
+    border-radius: 10px !important;
+  }
+
+  .hero-search-form select,
+  .hero-search-form button {
+    border-radius: 0 !important;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-search-form button {
+    border-radius: 0 0 9px 9px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Benefits bar dividers (CSS, not Tailwind divide utilities)
+   ───────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  .benefits-bar-item:not(:last-child) {
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .benefits-bar-item:nth-child(odd):not(:last-child) {
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .benefits-bar-item:nth-child(1),
+  .benefits-bar-item:nth-child(2) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+@media (max-width: 639px) {
+  .benefits-bar-item:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Table horizontal scroll on mobile
+   ───────────────────────────────────────────────────────────── */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure tables inside admin don't overflow */
+table {
+  min-width: 600px;
+}
+
+/* But not all tables — reset for small utility tables */
+.table-fixed-width table {
+  min-width: unset;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Scrollbar styling for webkit browsers
+   ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.014 250 / 60%);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0.014 250 / 80%);
+}
+
+/* Thin scrollbar utility */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Card hover lift effect — reusable utility
+   ───────────────────────────────────────────────────────────── */
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Category grid mobile adjustments
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 375px) {
+  /* 2 columns on very small screens */
+  .category-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Text truncation utility
+   ───────────────────────────────────────────────────────────── */
+.line-clamp-1 { -webkit-line-clamp: 1; }
+.line-clamp-2 { -webkit-line-clamp: 2; }
+.line-clamp-3 { -webkit-line-clamp: 3; }
+
+/* ─────────────────────────────────────────────────────────────
+   Gold shimmer animation for premium elements
+   ───────────────────────────────────────────────────────────── */
+@keyframes gold-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.82 0.13 82) 0%,
+    oklch(0.92 0.15 90) 25%,
+    oklch(0.72 0.12 78) 50%,
+    oklch(0.92 0.15 90) 75%,
+    oklch(0.82 0.13 82) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gold-shimmer 3s linear infinite;
+}
+

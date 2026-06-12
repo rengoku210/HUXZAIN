@@ -45,6 +45,45 @@ test.describe("Payment Verification Flow", () => {
       });
     });
 
+    // Intercept profiles check
+    await page.route("**/rest/v1/profiles*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{
+          id: "12345678-1234-1234-1234-1234567890ab",
+          email: "buyer@example.com",
+          user_metadata: { role: "buyer" },
+          is_seller: false,
+        }]),
+      });
+    });
+
+    // Intercept user roles check
+    await page.route("**/rest/v1/user_roles*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{ role: "buyer" }]),
+      });
+    });
+
+    // Intercept orders check
+    await page.route("**/rest/v1/orders*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "order-999",
+          amount_inr: 999,
+          currency: "INR",
+          listing_id: "list-123",
+          seller_id: "seller-123",
+          listings: { title: "Test Item" },
+        }),
+      });
+    });
+
     // Intercept upload to supabase storage
     await page.route("**/storage/v1/object/payment-proofs/**", async (route) => {
       await route.fulfill({
@@ -88,6 +127,9 @@ test.describe("Payment Verification Flow", () => {
     // Verify Title
     await expect(page.locator("h1")).toContainText("Upload Payment Proof");
 
+    // Fill UTR input to enable button
+    await page.fill('input[placeholder*="UTR"]', "UTR123456789");
+
     // Create a mock buffer for file upload
     const fileBuffer = Buffer.from("mock-png-content");
 
@@ -109,6 +151,9 @@ test.describe("Payment Verification Flow", () => {
 
   test("should handle upload cancellation using AbortController", async ({ page }) => {
     await page.goto("/checkout/verify-payment?orderId=order-999");
+
+    // Fill UTR input to enable button
+    await page.fill('input[placeholder*="UTR"]', "UTR123456789");
 
     // Upload file
     await page.setInputFiles('input[type="file"]', {

@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 import * as path from "path";
+import { execSync } from "child_process";
 
 test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
+  test.beforeAll(() => {
+    console.log("Seeding database before starting HUXZAIN Real-Browser Manual Verification Flow...");
+    execSync("node scratch/run_seed.cjs");
+  });
   test("1. Admin role dropdown persistence & updates", async ({ page }) => {
     // Enable browser console logging
     page.on("console", (msg) => console.log(`[Browser Console] ${msg.type()}: ${msg.text()}`));
@@ -29,7 +34,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await expect(buyerRow).toBeVisible();
 
     // Take screenshot of initial state
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/role_initial.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_initial.png" });
     console.log("Captured initial role state screenshot");
 
     // Change role from User (buyer) -> Admin (admin)
@@ -47,7 +52,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Verify it persists as Admin
     await expect(buyerRow.locator("select")).toHaveValue("admin");
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/role_admin.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_admin.png" });
     console.log("Role update to Admin verified successfully after refresh!");
 
     // Change role Admin -> Staff
@@ -61,7 +66,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Verify it persists as Staff
     await expect(buyerRow.locator("select")).toHaveValue("staff");
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/role_staff.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_staff.png" });
     console.log("Role update to Staff verified successfully after refresh!");
 
     // Now change it back to buyer (User) so the test is clean
@@ -90,15 +95,18 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     console.log("Opened pending payment proof details card!");
 
     // Click Approve & Confirm, then Confirm Approval in modal
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/payment_inspect.png" });
-    await page.click('button:has-text("Approve & Confirm")', { force: true });
-    await page.waitForTimeout(1000);
-    await page.click('button:has-text("Confirm Approval")', { force: true });
+    const approveBtn = page.locator('button:has-text("Approve")').filter({ hasNotText: "Approved" });
+    await expect(approveBtn).toBeVisible({ timeout: 10000 });
+    await approveBtn.click();
+    
+    const confirmBtn = page.locator('button:has-text("Confirm Approval")');
+    await expect(confirmBtn).toBeVisible({ timeout: 10000 });
+    await confirmBtn.click();
     console.log("Clicked Approve and Confirm. Awaiting transaction completion...");
 
     // Wait for the success toast and database transaction to finish
     await page.waitForTimeout(5000);
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/payment_approved.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/payment_approved.png" });
     console.log("Payment approved and saved successfully in DB!");
 
     // Log out as admin
@@ -119,6 +127,10 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
     console.log("Logged in successfully as buyer test_buyer@huxzain.app!");
 
+    // Navigate to orders page to verify the order status
+    await page.goto("http://localhost:8080/orders");
+    await page.waitForLoadState("load");
+
     // 1. Verify payment status is Paid, CTA disappears, Contact Seller appears
     const orderStatusBadge = page.locator('span:has-text("Payment Completed")').first();
     await expect(orderStatusBadge).toBeVisible();
@@ -129,19 +141,24 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     const completePaymentBtn = page.locator('a:has-text("Complete payment")').first();
     await expect(completePaymentBtn).toBeHidden();
 
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/buyer_orders.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buyer_orders.png" });
     console.log("Buyer orders page status and badges verified successfully!");
 
-    // 2. Verify notifications badge count is visible and can be opened in dropdown
+    // 2. Verify notifications badge count is visible and can be opened in dropdown (only on desktop/sm+ screens)
     const bellBtn = page.locator('button[aria-label="Notifications"]');
-    await expect(bellBtn).toBeVisible();
-    await bellBtn.click();
-    console.log("Opened Notifications panel");
+    const isMobile = page.viewportSize()?.width && page.viewportSize()!.width < 640;
+    if (!isMobile) {
+      await expect(bellBtn).toBeVisible();
+      await bellBtn.click();
+      console.log("Opened Notifications panel");
 
-    const notificationItem = page.locator('button:has-text("Payment Confirmed")').first();
-    await expect(notificationItem).toBeVisible();
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/buyer_notifications.png" });
-    console.log("Real-time notifications received and verified!");
+      const notificationItem = page.locator('button:has-text("Payment Confirmed")').first();
+      await expect(notificationItem).toBeVisible();
+      await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buyer_notifications.png" });
+      console.log("Real-time notifications received and verified!");
+    } else {
+      console.log("Skipping notifications panel verification on mobile viewport.");
+    }
 
     // 3. Verify chat opens, send message, seller replies
     await page.goto("http://localhost:8080/orders");
@@ -153,7 +170,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.fill('input[placeholder*="Write a secure message"]', "Hi, payment is approved. Please deliver logo.");
     await page.click('button[type="submit"]');
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/buyer_chat.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buyer_chat.png" });
     console.log("Buyer successfully sent a message!");
 
     // Log out as buyer
@@ -180,18 +197,26 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.waitForSelector('text=Escrow Chat Panel', { timeout: 15000 });
     console.log("Seller/Admin opened universal messages panel!");
 
-    const activeChat = page.locator('button:has-text("Test Buyer")').first();
-    await activeChat.click({ force: true });
-    await page.waitForTimeout(2000);
+    // Wait for the loading inbox spinner to disappear so activeConv auto-selection stabilizes
+    await page.waitForSelector('text=Loading inbox...', { state: 'detached', timeout: 15000 });
 
-    // Verify buyer message persists
-    await expect(page.locator('text=Hi, payment is approved. Please deliver logo.').first()).toBeVisible();
+    const activeChat = page.locator('button:has-text("Test Buyer")').first();
+    if (await activeChat.isVisible()) {
+      console.log("Chat list button for Test Buyer is visible. Clicking it to open chat...");
+      await activeChat.click({ force: true });
+      await page.waitForTimeout(2000);
+    } else {
+      console.log("Chat list button for Test Buyer is not visible (likely already open in mobile details view).");
+    }
+
+    // Verify buyer message persists inside the active chat window section
+    await expect(page.locator('section').locator('text=Hi, payment is approved. Please deliver logo.').first()).toBeVisible();
 
     // Reply to buyer
     await page.fill('input[placeholder*="Write a secure message"]', "Thank you! I will deliver it within 1 hour.");
     await page.click('button[type="submit"]');
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/8a789f8e-149c-475d-8ac0-2eee8f781235/seller_chat.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/seller_chat.png" });
     console.log("Seller/Admin replied successfully! Chat E2E flow verified!");
   });
 });

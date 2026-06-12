@@ -1,0 +1,3126 @@
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 1 - UNIVERSAL LISTING SYSTEM, ORDER FLOW, CHAT SYSTEM & DELIVERY ARCHITECTURE
+Before implementing individual categories, the entire platform should be built around a universal order and delivery architecture so that every category follows a consistent workflow while still allowing category-specific delivery methods.
+Every listing on HUXZAIN should be created through a dynamic listing creation system.
+When a seller clicks "Create Listing", the seller should first select the category and subcategory.
+Examples:
+Accounts
+Gift Cards
+Software
+Game Currency
+Digital Assets
+Game Buddy
+Coaching
+Graphic Design
+Programming
+Website Development
+Marketing
+Hosting
+Subscriptions
+Business Services
+Once the category is selected, the system should automatically display the relevant fields for that category.
+Each listing should contain:
+Listing Title
+Cover Image
+Gallery Images
+Category
+Subcategory
+Description
+Delivery Method
+Delivery Time
+Pricing
+Revision Policy (where applicable)
+Requirements From Buyer
+Frequently Asked Questions
+Additional Notes
+The seller should also be able to choose whether the listing is:
+Instant Delivery
+Manual Delivery
+Service-Based Delivery
+Booking-Based Delivery
+The delivery method selected by the seller will determine how the order proceeds after payment.
+
+UNIVERSAL ORDER FLOW
+All categories should follow the same order lifecycle.
+Buyer places order.
+Payment is completed.
+Funds are held by HUXZAIN.
+Seller receives notification.
+Order room is created.
+Buyer and seller are redirected into the order room.
+Order room contains:
+Order Information
+Order Status
+Internal Chat
+File Uploads
+Delivery Section
+Dispute Button
+Order Timeline
+Review Section
+Order Notes
+The order room becomes the central location for the entire transaction.
+No delivery should happen outside the order room.
+No external communication should be required.
+Everything should remain inside HUXZAIN.
+
+ORDER STATUS SYSTEM
+Every order should move through stages.
+Payment Received
+Seller Processing
+Awaiting Buyer Requirements
+Work In Progress
+Delivery Submitted
+Buyer Reviewing
+Completed
+Funds Released
+Additional statuses:
+Cancelled
+Refund Requested
+Dispute Opened
+Dispute Under Review
+Refund Approved
+Refund Rejected
+Completed With Warning
+The timeline should clearly display every action taken throughout the order.
+
+INTERNAL CHAT SYSTEM
+The chat system is one of the most important features of the marketplace.
+Every order should automatically create a dedicated order chat room.
+Only the buyer and seller involved in the order should have access.
+Moderators and administrators should only gain access when a dispute is opened or manual review is required. Only superadmin/owner should have access to enter and interrupt chat . superadmin/owner should also have function to allot the chat to moderator or any employee .
+The platform should not require staff to actively monitor chats.
+Chats should simply be stored and made available if disputes occur.
+Above every order chat display:
+"For your protection, keep all communication, payments and deliveries inside HUXZAIN."
+The chat system should support:
+Text Messages
+Images
+Documents
+Delivery Files
+Screenshots
+System Notifications
+Order Updates
+Messages should be timestamped.
+Files uploaded through chat should be linked to the order.
+
+CONTACT INFORMATION PROTECTION
+The platform should actively discourage users from moving transactions outside HUXZAIN.
+Implement automated detection for:
+Phone Numbers
+WhatsApp Numbers
+Telegram Usernames
+Discord Invites
+Discord Usernames
+External Payment Requests
+Social Media Contact Requests
+The system should detect and flag messages containing:
+WhatsApp
+Telegram
+Discord
+t.me
+discord.gg
+Call Me
+Contact Me
+Message Me On
+Instagram
+Snapchat
+Direct Transfer
+UPI Outside Platform
+When detected:
+Display a warning to the sender.
+Log the event.
+Store the warning in the account record.
+Repeated violations should contribute toward moderation actions.
+The system should not require manual staff review unless a dispute is opened.
+
+CHAT STORAGE POLICY
+All order chats should be stored.
+Recommended retention:
+12 months minimum.
+Chat messages are lightweight text data and generally consume very little storage compared to images and videos.
+The major storage usage comes from file uploads.
+Text conversations should remain accessible for at least one year.
+File attachments may later receive separate retention policies depending on infrastructure costs.
+All chats should remain searchable by administrators when disputes occur.
+
+DISPUTE SYSTEM
+Every order should contain a visible "Open Dispute" button.
+When pressed:
+The user selects:
+Seller Not Responding
+Incorrect Delivery
+Account Recovered
+Invalid Product
+Service Not Delivered
+Incomplete Work
+Fraudulent Activity
+Other
+The user then submits evidence.
+Evidence can include:
+Screenshots
+Files
+Chat References
+Additional Notes
+Once a dispute is opened:
+Order status changes to:
+Dispute Under Review
+Funds remain locked.
+Neither party can withdraw funds.
+Moderators gain access to the order room.
+Moderators can review:
+Entire Chat History
+Files
+Delivery Logs
+Timeline Events
+Uploaded Evidence
+Administrative Notes
+Moderators then decide:
+Refund Buyer
+Release Seller Funds
+Partial Refund
+Additional Review Required
+All actions should be recorded in the dispute history.
+
+UNIVERSAL DELIVERY CENTER
+Every order should contain a dedicated delivery panel.
+Seller should never be forced to use chat for delivery.
+Instead the platform should provide structured delivery submission.
+Seller clicks:
+Submit Delivery
+The system then displays delivery options based on listing category.
+Examples:
+Credentials Delivery
+File Delivery
+Text Delivery
+Link Delivery
+Booking Confirmation
+Session Completion
+Digital Key Delivery
+The delivery center should become the official proof of delivery for dispute resolution.
+Any delivery submitted through this section should automatically generate a timeline entry.
+The delivery timestamp should become official evidence during disputes.
+This delivery architecture should serve as the foundation for every category implemented throughout the HUXZAIN marketplace.
+
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 2 - ACCOUNTS, SUBSCRIPTIONS, DIGITAL ASSETS & INSTANT DELIVERY CATEGORIES
+This section covers all categories where the buyer is purchasing an already-existing digital asset rather than requesting custom work.
+Examples include:
+Game Accounts
+Social Media Accounts
+Streaming Accounts
+Software Accounts
+Premium Membership Accounts
+Digital Assets
+Digital Profiles
+Website Assets
+Online Business Assets
+Subscription Access
+Premium Access Products
+These categories should support both Instant Delivery and Manual Delivery depending on seller preference.
+
+ACCOUNT LISTING CREATION SYSTEM
+When seller chooses:
+Accounts
+The system should display specialized fields.
+Required Fields:
+Account Title
+Account Category
+Account Platform
+Account Level
+Account Region
+Account Rank
+Account Special Features
+Account Description
+Delivery Method
+Inspection Period
+Listing Images
+Price
+Stock Quantity
+Additional Information
+
+ACCOUNT CATEGORY EXAMPLES
+Gaming Accounts
+Valorant
+Steam
+Fortnite
+Minecraft
+Clash of Clans
+Clash Royale
+Free Fire
+BGMI
+Call of Duty
+Social Accounts
+Instagram
+YouTube
+TikTok
+Facebook
+Discord
+X
+Reddit
+Business Accounts
+Canva
+ChatGPT
+Adobe
+Notion
+LinkedIn
+Digital Assets
+Websites
+Domains
+Communities
+Digital Businesses
+Pages
+Channels
+Groups
+The category system must remain dynamic so future categories can be added without rebuilding the platform.
+
+DELIVERY METHOD SELECTION
+Seller must choose:
+Instant Delivery
+or
+Manual Delivery
+
+INSTANT DELIVERY SYSTEM
+Instant Delivery should be available for categories where information can be automatically handed over.
+Examples:
+Game Accounts
+Software Accounts
+Streaming Accounts
+Gift Cards
+License Keys
+Premium Memberships
+When creating listing seller enters:
+Username
+Password
+Email
+Recovery Information
+Additional Instructions
+These details should be encrypted and stored securely.
+After successful payment:
+System automatically reveals credentials inside order page.
+Buyer immediately receives access.
+Seller does not need to be online.
+Order timeline should automatically record:
+Credentials Released
+Timestamp
+Buyer Viewed Credentials
+Timestamp
+This becomes important during disputes.
+
+MANUAL DELIVERY SYSTEM
+For sellers who do not want automatic delivery.
+Seller selects:
+Manual Delivery
+Seller enters estimated delivery time.
+Examples:
+1 Hour
+3 Hours
+6 Hours
+12 Hours
+24 Hours
+48 Hours
+Custom
+After payment:
+Order created.
+Seller receives notification.
+Seller manually delivers credentials through delivery center.
+Order status becomes:
+Delivery Submitted
+Buyer reviews.
+Order proceeds normally.
+
+
+ACCOUNT INFORMATION SECTION
+Every account listing should contain:
+Platform
+Region
+Current Rank
+Highest Rank
+Level
+Skins
+Inventory
+Achievements
+Linked Accounts
+Special Features
+Original Owner Status
+Email Included
+Email Change Available
+Recovery Status
+Warranty Period
+All displayed through structured fields.
+Avoid forcing sellers to place everything inside description.
+
+ACCOUNT IMAGE SYSTEM
+Seller should upload:
+Cover Image
+Gallery Images
+Proof Images
+Inventory Screenshots
+Rank Screenshots
+Achievement Screenshots
+System should allow multiple uploads.
+Buyers should be able to zoom and inspect images.
+
+SUBSCRIPTION LISTINGS
+Examples:
+Netflix
+Spotify
+Crunchyroll
+YouTube Premium
+Canva Pro
+ChatGPT Plus
+Adobe Creative Cloud
+Microsoft 365
+Seller creation fields:
+Subscription Name
+Plan Type
+Duration
+Region
+Shared Access
+Private Access
+Delivery Method
+Stock Quantity
+Description
+Price
+Delivery Time
+
+SUBSCRIPTION DELIVERY TYPES
+Private Account Access
+Shared Account Access
+Upgrade Service
+Invitation Link
+Membership Transfer
+System should ask seller which model they are selling.
+This determines delivery process.
+
+DIGITAL ASSET LISTINGS
+Examples:
+Website
+Domain
+Discord Server
+Community
+Digital Business
+Template Pack
+Preset Pack
+Course
+Ebook
+Source Code
+Graphics Pack
+Seller fields:
+Asset Type
+Category
+Description
+Asset Age
+Monthly Traffic
+Revenue Information
+Transfer Method
+Delivery Time
+Included Files
+Screenshots
+Proof Documents
+Price
+
+DIGITAL FILE DELIVERY
+For downloadable assets:
+Seller uploads:
+ZIP
+RAR
+PDF
+PSD
+AI
+FIG
+DOCX
+XLSX
+Other Supported Formats
+Files stored securely.
+After purchase:
+Buyer downloads through order page.
+Download history should be recorded.
+Timeline should log:
+File Uploaded
+File Downloaded
+Timestamp
+
+LICENSE KEY SYSTEM
+Examples:
+Windows Keys
+Office Keys
+Software Licenses
+Gaming Keys
+Gift Card Codes
+Seller uploads:
+Key Inventory
+Serial Codes
+Activation Codes
+PIN Codes
+System stores inventory.
+Upon purchase:
+Automatically assigns unused key.
+Marks key as sold.
+Prevents duplicate delivery.
+Timeline records delivery.
+
+ACCOUNT DISPUTES
+For account categories moderators should be able to review:
+Listing Information
+Screenshots
+Credentials Delivered
+Inspection Period
+Buyer Claims
+Seller Claims
+Chat History
+Delivery History
+Evidence Uploads
+If account matches description and buyer received credentials:
+Funds released.
+If account is incorrect or inaccessible:
+Refund possible.
+All evidence should remain linked to order permanently.
+
+SELLER PROTECTION
+Some buyers may attempt fraud by claiming account does not work.
+Therefore system should log:
+Credential Reveal Timestamp
+IP Address Access
+Credential View History
+Order Timeline
+Delivery Confirmation
+These logs help moderators resolve disputes fairly.
+The objective is to protect both buyer and seller while reducing manual intervention from HUXZAIN staff.
+
+ACCOUNT INSPECTION PERIOD SYSTEM
+Inspection periods should not be selected by sellers.
+Inspection periods should be automatically assigned by HUXZAIN based on category risk level and seller trust level.
+The purpose is to protect buyers from:
+* Account recoveries
+* Fake deliveries
+* Incorrect credentials
+* Misleading descriptions
+* Post-sale account issues
+while still protecting legitimate sellers.
+
+RISK LEVEL SYSTEM
+Every category should be assigned a default inspection period.
+LOW RISK PRODUCTS
+Examples:
+* Gift Cards
+* Software Keys
+* License Keys
+* Redeem Codes
+* Digital Downloads
+Inspection Period:
+24 Hours
+
+MEDIUM RISK PRODUCTS
+Examples:
+* Shared Subscriptions
+* Premium Memberships
+* Digital Assets
+* Templates
+* Website Files
+* Course Files
+Inspection Period:
+48 Hours
+
+HIGH RISK PRODUCTS
+Examples:
+* Gaming Accounts
+* Social Media Accounts
+* Streaming Accounts
+* Business Accounts
+* Community Ownership Transfers
+Inspection Period:
+72 Hours
+
+VERY HIGH RISK PRODUCTS
+Examples:
+* High Value Gaming Accounts
+* Rare Accounts
+* Monetized Social Accounts
+* Websites With Revenue
+* Digital Businesses
+* Community Ownership Sales
+Inspection Period:
+7 Days
+
+SELLER PLAN BENEFITS
+Inspection periods may be reduced for trusted sellers.
+This becomes one of the benefits of upgrading seller plans.
+
+STANDARD SELLERS
+Default inspection period applies.
+No reduction.
+
+PRO SELLERS
+Inspection period reduced by approximately 25%.
+Examples:
+72 Hours ? 54 Hours
+48 Hours ? 36 Hours
+
+ELITE SELLERS
+Inspection period reduced by approximately 40%.
+Examples:
+72 Hours ? 43 Hours
+48 Hours ? 29 Hours
+
+ENTERPRISE SELLERS
+Inspection period reduced by approximately 50%.
+Examples:
+72 Hours ? 36 Hours
+48 Hours ? 24 Hours
+
+ADDITIONAL TRUST FACTORS
+HUXZAIN administrators should have the ability to further reduce inspection periods for sellers who demonstrate:
+* Long account history
+* Large completed order count
+* High ratings
+* Low dispute rates
+* Verified status
+* Strong platform reputation
+
+FUNDS RELEASE LOGIC
+After delivery:
+Order enters inspection stage.
+Buyer receives notification.
+Inspection countdown begins.
+If buyer confirms completion:
+Funds release immediately.
+If buyer opens dispute:
+Funds remain locked until resolution.
+If inspection timer expires without dispute:
+Order automatically completes.
+Funds automatically release to seller.
+
+ADMIN OVERRIDE
+Super Admin and authorized moderators should have the ability to:
+* Extend inspection periods
+* Reduce inspection periods
+* Hold funds
+* Release funds
+* Freeze suspicious transactions
+This allows manual intervention for unusual cases.
+The inspection system should be designed as a trust and risk management mechanism rather than a seller-selected setting.
+
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 3 - GAME CURRENCY, TOP-UPS, REDEEM CODES, SOFTWARE KEYS, VPS/HOSTING & AUTOMATED INVENTORY PRODUCTS
+This section covers all categories where inventory is usually pre-stocked and can be delivered automatically or semi-automatically.
+Examples:
+Game Currency
+Valorant Points
+PUBG UC
+Free Fire Diamonds
+Clash of Clans Gems
+Brawl Stars Gems
+Redeem Codes
+Gift Cards
+Software Keys
+License Keys
+Hosting Plans
+VPS Services
+Shared Hosting
+Game Server Hosting
+Domain Services
+Premium Membership Activations
+These categories should prioritize speed, automation and low support requirements.
+
+GAME CURRENCY LISTINGS
+Examples:
+Valorant Points
+PUBG UC
+Free Fire Diamonds
+Mobile Legends Diamonds
+Steam Wallet
+Game Top-Ups
+When seller creates listing:
+System should ask:
+Game Name
+Currency Type
+Amount
+Region
+Delivery Method
+Delivery Time
+Stock Quantity
+Price
+Requirements From Buyer
+Instructions
+Listing Images
+
+DELIVERY METHOD OPTIONS
+For game currency listings:
+Seller should choose:
+Account Login Required
+Player ID Required
+Gift Delivery
+Manual Top-Up
+Automated Top-Up
+
+BUYER REQUIREMENT FORM
+After order placement:
+System automatically asks buyer:
+Player ID
+Username
+Region
+Server
+Additional Notes
+Only show fields relevant to selected game.
+Example:
+Valorant:
+Riot ID
+Tagline
+Region
+Example:
+PUBG:
+Player ID
+Region
+Example:
+Free Fire:
+UID
+Region
+
+ORDER FLOW
+Buyer purchases.
+Payment enters escrow.
+Seller receives order.
+Buyer requirements become visible.
+Seller completes top-up.
+Seller uploads proof.
+Proof examples:
+Top-Up Screenshot
+Transaction Screenshot
+Order Receipt
+Delivery Screenshot
+Order status changes:
+Delivery Submitted
+Buyer reviews.
+Inspection period begins.
+Funds remain locked until inspection ends or buyer confirms.
+
+SOFTWARE KEY SYSTEM
+Examples:
+Windows Keys
+Office Keys
+Antivirus Keys
+VPN Keys
+Adobe Licenses
+Premium Software Activations
+
+SELLER LISTING FORM
+Product Name
+Version
+License Type
+Duration
+Activation Region
+Description
+Price
+Stock Quantity
+Images
+FAQ
+Requirements
+
+KEY INVENTORY MANAGEMENT
+Seller uploads:
+License Keys
+Activation Codes
+Serial Numbers
+PIN Codes
+Gift Codes
+The platform should maintain:
+Available Inventory
+Sold Inventory
+Reserved Inventory
+Failed Inventory
+Inventory History
+
+AUTOMATIC DELIVERY
+After successful payment:
+System automatically selects:
+Unused Key
+Marks it sold
+Delivers to buyer
+Logs delivery
+Stores proof
+This prevents duplicate sales.
+
+GIFT CARD SYSTEM
+Examples:
+Amazon Gift Cards
+Steam Gift Cards
+Google Play Cards
+Apple Gift Cards
+Xbox Gift Cards
+PlayStation Gift Cards
+
+SELLER UPLOADS
+Gift Card Code
+PIN
+Serial
+Region
+Card Value
+Expiration Date
+Description
+System should automatically:
+Reserve inventory
+Deliver inventory
+Track delivery
+Prevent duplicate sales
+
+REDEEM CODE SYSTEM
+Examples:
+Promo Codes
+Event Codes
+Gaming Codes
+Special Access Codes
+Beta Access Codes
+Membership Codes
+Seller uploads:
+Code Inventory
+Description
+Activation Guide
+Expiration Date
+Region
+System automatically delivers unused code after payment.
+
+HOSTING & VPS LISTINGS
+This category is different.
+Seller usually cannot preload credentials because hosting environments are created after purchase.
+
+SELLER FORM
+Hosting Type
+RAM
+Storage
+CPU
+Bandwidth
+Location
+Control Panel
+Operating System
+Price
+Delivery Time
+Support Availability
+Description
+
+BUYER FORM
+Domain Name
+Server Name
+Custom Requirements
+Additional Notes
+
+ORDER FLOW
+Buyer purchases.
+Order created.
+Seller receives requirements.
+Seller provisions service.
+Seller uploads:
+Login URL
+Username
+Password
+Control Panel Access
+Nameservers
+Instructions
+Delivery submitted.
+Inspection begins.
+
+DOMAIN SERVICES
+Examples:
+Domain Registration
+Domain Transfer
+Domain Management
+Seller form:
+Supported Extensions
+Registration Period
+Transfer Support
+Additional Services
+Price
+Delivery Time
+
+PREMIUM MEMBERSHIP ACTIVATIONS
+Examples:
+Canva Pro
+ChatGPT Team Seats
+Microsoft 365
+Adobe Teams
+Premium Tools
+Seller chooses:
+Invitation Delivery
+Shared Access
+Upgrade Service
+Manual Setup
+
+DELIVERY TYPES
+Invitation Link
+Membership Activation
+Manual Upgrade
+Shared Credentials
+Each type should have dedicated delivery fields.
+
+AUTOMATED INVENTORY DASHBOARD
+Sellers managing:
+Codes
+Gift Cards
+Keys
+Instant Products
+should receive inventory dashboard.
+Dashboard displays:
+Total Inventory
+Available Inventory
+Reserved Inventory
+Sold Inventory
+Low Stock Alerts
+Out Of Stock Alerts
+Revenue Generated
+Order History
+
+LOW STOCK ALERTS
+System should automatically notify sellers when inventory falls below thresholds.
+Examples:
+10 Remaining
+5 Remaining
+1 Remaining
+Out Of Stock
+Listings may automatically pause when inventory reaches zero.
+
+BUYER PROTECTION
+For all automated products:
+System should log:
+Delivery Timestamp
+Inventory Delivered
+Code Viewed
+Credential Viewed
+Download Events
+Buyer Confirmation
+This information becomes evidence during disputes.
+
+SELLER PROTECTION
+The platform should record:
+Who viewed inventory
+When inventory was viewed
+When inventory was delivered
+Buyer account information
+Order timeline
+These records help protect sellers against fraudulent claims.
+
+CATEGORY GOAL
+These categories should require the least manual intervention possible.
+The objective is:
+Fast Delivery
+Automated Fulfillment
+Low Support Requirements
+Low Dispute Frequency
+High Order Volume
+Maximum Scalability
+These categories should eventually become some of the highest-volume sections of the HUXZAIN marketplace.
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 4 - GAME BUDDY, COACHING, FREELANCERS, DIGITAL SERVICES, CUSTOM ORDERS & SESSION BOOKING SYSTEM
+This section covers categories where the seller is not delivering an existing digital product but instead providing time, skill, expertise, companionship, consulting or custom work.
+Examples:
+Game Buddy
+Coaching
+Graphic Design
+Video Editing
+Programming
+Website Development
+Social Media Services
+Marketing
+Business Consulting
+Discord Setup
+Server Setup
+Content Writing
+Translation
+Custom Orders
+These categories require completely different delivery systems compared to account or inventory-based products.
+
+SERVICE CATEGORY PHILOSOPHY
+Unlike accounts and digital assets:
+Nothing exists yet.
+The seller is selling:
+Time
+Skill
+Knowledge
+Experience
+Custom Work
+Therefore the platform must manage:
+Requirements
+Communication
+Milestones
+Deliverables
+Revisions
+Approvals
+Disputes
+
+GAME BUDDY SYSTEM
+Game Buddy is not a product.
+It is a session booking system.
+Buyer is purchasing:
+Time.
+
+GAME BUDDY LISTING FORM
+Display Name
+Profile Picture
+Games Played
+Languages
+Country
+Play Style
+Voice Chat Available
+Availability Schedule
+Hourly Rate
+Session Duration Options
+Introduction
+Why Players Should Choose You
+Experience
+Achievements
+Verification Status
+
+PLAY STYLE OPTIONS
+Casual Gaming
+Competitive
+Ranked Push
+Duo Queue
+Squad Play
+Achievement Hunting
+New Player Friendly
+Voice Chat Friendly
+Flexible
+Multiple selections allowed.
+
+AVAILABILITY SYSTEM
+Seller selects:
+Days Available
+Time Slots
+Timezone
+Maximum Daily Sessions
+Maximum Weekly Sessions
+Vacation Mode
+Availability should appear directly on listing.
+
+SESSION OPTIONS
+Seller may create:
+30 Minutes
+60 Minutes
+90 Minutes
+120 Minutes
+Custom Session
+Each with separate pricing.
+
+GAME BUDDY ORDER FLOW
+Buyer selects session.
+Buyer pays.
+Funds enter escrow.
+Order created.
+Internal chat opens.
+Buyer and Game Buddy communicate inside order room.
+Session completed.
+Game Buddy clicks:
+Session Completed
+Buyer receives confirmation request.
+Inspection period begins.
+Funds remain locked until:
+Buyer confirms
+or
+Inspection expires
+or
+Dispute opened
+
+SESSION COMPLETION PROOF
+Game Buddy may upload:
+Screenshot
+Session Notes
+Completion Confirmation
+Order Summary
+Optional proof only.
+
+GAME BUDDY REVIEWS
+After completion:
+Buyer may review:
+Friendliness
+Communication
+Gaming Experience
+Value
+Overall Rating
+These ratings build trust score.
+
+COACHING SYSTEM
+Coaching is more professional than Game Buddy.
+Coach is selling expertise.
+
+COACH LISTING FORM
+Display Name
+Profile Picture
+Game
+Languages
+Current Rank
+Highest Rank
+Years Experience
+Coaching Categories
+Pricing
+Availability
+Introduction
+Coaching Method
+Achievements
+Evidence Uploads
+
+ACHIEVEMENT SYSTEM
+Coach uploads:
+Rank Screenshots
+Achievement Screenshots
+Tournament Results
+Leaderboard Placements
+Awards
+Recognition
+Certificates
+All evidence should appear publicly.
+Students should be able to inspect proof before purchase.
+
+VERIFIED COACH PROMOTION
+Throughout coach application page display:
+Become Verified Coach
+Earn More
+Rank Higher
+Gain Trust Faster
+Get Featured Placement
+Receive More Students
+This should encourage verification adoption.
+
+COACH ORDER FLOW
+Buyer purchases session.
+Escrow activated.
+Order room created.
+Internal chat opens.
+Coach schedules session.
+Session completed.
+Coach submits completion.
+Buyer confirms.
+Funds released.
+
+COACH REVIEWS
+Students may review:
+Knowledge
+Communication
+Helpfulness
+Results
+Professionalism
+Value For Money
+Overall Experience
+
+FREELANCER SERVICE CATEGORIES
+Examples:
+Graphic Design
+Video Editing
+Programming
+Website Development
+Discord Setup
+Marketing
+Business Services
+
+SERVICE LISTING FORM
+Service Title
+Category
+Description
+Package Type
+Delivery Time
+Revisions
+Requirements
+Portfolio Images
+Portfolio Files
+Pricing
+FAQ
+Additional Information
+
+PACKAGE STRUCTURE
+Basic
+Standard
+Premium
+Seller chooses whether to use packages.
+Each package may contain:
+Price
+Delivery Time
+Features
+Revisions
+Deliverables
+
+BUYER REQUIREMENTS SYSTEM
+After purchase:
+System automatically requests information from buyer.
+Examples:
+Logo Design
+Business Name
+Color Preference
+Style Preference
+Reference Images
+Website Development
+Business Information
+Features Required
+Design References
+Additional Notes
+Programming
+Project Requirements
+Technical Information
+Scope
+Files
+The service should not begin until buyer submits requirements.
+
+ORDER STATUS FLOW
+Payment Received
+Waiting For Buyer Requirements
+Requirements Submitted
+Work In Progress
+Revision Requested
+Revision In Progress
+Delivery Submitted
+Buyer Reviewing
+Completed
+Funds Released
+
+DELIVERY CENTER
+Seller delivers through structured delivery section.
+Options:
+Files
+Images
+Videos
+Documents
+Source Code
+Links
+Notes
+Multiple uploads supported.
+Delivery should create timeline entry automatically.
+
+REVISION SYSTEM
+Seller chooses:
+Number Of Revisions
+Examples:
+0
+1
+2
+3
+Unlimited
+Buyer can request revision directly inside order room.
+System tracks revision count automatically.
+
+CUSTOM ORDER SYSTEM
+Very important.
+Buyer may contact seller before purchase.
+Buyer clicks:
+Request Custom Offer
+Seller receives inquiry.
+Internal chat opens.
+Buyer explains project.
+Seller creates custom quotation.
+Custom quotation includes:
+Title
+Description
+Price
+Delivery Time
+Revision Count
+Requirements
+Buyer may accept and pay.
+This creates a normal order.
+
+MILESTONE PROJECTS
+For large projects:
+Website Development
+App Development
+Business Services
+Marketing Campaigns
+Implement milestone system.
+Example:
+Milestone 1
+Milestone 2
+Milestone 3
+Final Delivery
+Each milestone may be approved separately.
+This reduces disputes.
+
+SERVICE DISPUTES
+Moderators should review:
+Requirements
+Chat History
+Files
+Delivery
+Revision Requests
+Timeline
+Evidence
+Dispute decisions should be based on documented activity.
+
+PLATFORM OBJECTIVE
+For service categories:
+Every conversation
+Every file
+Every revision
+Every delivery
+Every approval
+must remain inside HUXZAIN.
+The platform should become the complete workspace where services are purchased, discussed, delivered, reviewed and disputed without requiring users to leave the marketplace.
+HUXZAIN EARNINGS, RELEASE & WITHDRAWAL SYSTEM
+The platform should not operate as a digital bank, savings account or long-term wallet.
+The objective is to process marketplace transactions and release seller earnings, not store money indefinitely.
+
+ORDER BASED EARNINGS SYSTEM
+Every completed order should create its own earnings record.
+Example:
+Order #1001
+Order Value: ?1000
+Platform Fee: ?100
+Seller Earnings: ?900
+Status: Pending Release
+Each order should be individually tracked.
+
+EARNINGS STATUS FLOW
+Order Paid
+?
+Funds Enter Escrow
+?
+Seller Delivers
+?
+Inspection Period
+?
+No Dispute
+?
+Order Completed
+?
+Seller Earnings Generated
+?
+Cooling Period
+?
+Eligible For Withdrawal
+?
+Withdrawn
+Each order should maintain its own earnings lifecycle.
+
+COOLING PERIOD
+After an order completes and inspection period ends, earnings should not become immediately withdrawable.
+A cooling period should apply.
+Purpose:
+* Reduce fraud
+* Handle delayed disputes
+* Handle payment issues
+* Reduce chargeback risk
+Examples:
+Standard Seller:
+7 Days
+Pro Seller:
+5 Days
+Elite Seller:
+3 Days
+Enterprise Seller:
+1 Day
+Super Admin should be able to modify these values.
+
+WITHDRAWAL ELIGIBILITY
+Only earnings that have completed:
+Inspection Period
+AND
+Cooling Period
+should become eligible for withdrawal.
+
+WITHDRAWAL EXPIRY SYSTEM
+HUXZAIN should not hold seller money indefinitely.
+Once earnings become eligible for withdrawal:
+Seller receives notification.
+Examples:
+Email
+Dashboard Notification
+Internal Notification
+The seller is given a withdrawal claim window.
+Recommended:
+30 Days
+If seller does not claim withdrawal within that period:
+Withdrawal eligibility expires.
+
+EXPIRED EARNINGS STATUS
+When claim window expires:
+Status becomes:
+Withdrawal Expired
+The earnings are not lost.
+However they require manual reactivation.
+Seller must submit request:
+"Reactivate Withdrawal"
+This prevents sellers from treating HUXZAIN as a long-term money storage service.
+
+WITHDRAWAL REQUEST FLOW
+Seller views eligible earnings.
+Seller selects:
+Withdraw Eligible Earnings
+System displays:
+Order Number
+Order Amount
+Platform Fee
+Net Earnings
+Available Date
+Expiry Date
+Seller confirms withdrawal.
+Withdrawal request created.
+
+ORDER-LEVEL WITHDRAWALS
+Do not allow arbitrary withdrawal amounts.
+Example:
+Bad:
+Withdraw ?5,432
+Withdraw ?1,000
+Withdraw Custom Amount
+Instead:
+Seller withdraws completed order earnings.
+Example:
+Order #1001
+Eligible
+Order #1005
+Eligible
+Order #1008
+Eligible
+Seller selects orders.
+System calculates total.
+Withdrawal generated.
+This creates cleaner accounting and simpler audits.
+
+WITHDRAWAL PROCESSING
+Statuses:
+Eligible
+Withdrawal Requested
+Under Review
+Approved
+Processing
+Paid
+Completed
+Rejected
+Each selected order should show status.
+
+WITHDRAWAL HISTORY
+Seller should always see:
+Order Number
+Order Value
+Platform Fee
+Net Earnings
+Release Date
+Withdrawal Date
+Status
+Transaction Reference
+This creates full transparency.
+
+DORMANT ACCOUNT CONTROL
+If seller becomes inactive:
+Do not allow earnings to remain indefinitely in withdrawable state.
+Automatic reminders:
+7 Days Remaining
+3 Days Remaining
+1 Day Remaining
+Withdrawal Expired
+This encourages timely withdrawals.
+
+ADMIN CONTROLS
+Super Admin should be able to:
+Hold Specific Orders
+Release Specific Orders
+Extend Cooling Period
+Shorten Cooling Period
+Reactivate Expired Withdrawals
+Approve Withdrawals
+Reject Withdrawals
+Freeze Suspicious Earnings
+Manually Review Orders
+Everything should be manageable at order level rather than wallet level.
+
+PLATFORM OBJECTIVE
+HUXZAIN should function as a marketplace.
+Not a bank.
+Not a savings platform.
+Not a wallet storage service.
+Funds should move through:
+Order
+? Escrow
+? Inspection
+? Cooling Period
+? Withdrawal
+? Completed
+with minimal long-term balance storage.
+
+DORMANT EARNINGS & REACTIVATION POLICY
+The platform should encourage timely withdrawal of eligible earnings and should not function as a long-term storage system for seller funds.
+
+WITHDRAWAL CLAIM WINDOW
+Once earnings become eligible for withdrawal, sellers will receive notifications.
+The seller will have:
+30 Days
+to initiate withdrawal.
+The system should display:
+Eligible Date
+Expiry Date
+Days Remaining
+Countdown Timer
+
+REMINDER SYSTEM
+Automatic reminders should be sent.
+Examples:
+15 Days Remaining
+7 Days Remaining
+3 Days Remaining
+1 Day Remaining
+Withdrawal Expiring Soon
+Withdrawal Expired
+Notifications should appear via:
+Dashboard
+Email
+Internal Notification Center
+
+DORMANT EARNINGS STATUS
+If seller does not initiate withdrawal within the allowed 30-day period:
+Status changes to:
+Dormant Earnings
+The earnings remain associated with the seller account but become temporarily unavailable until reactivation is requested.
+
+REACTIVATION REQUEST
+Seller may request:
+Reactivate Earnings
+through dashboard.
+The request should generate an administrative review ticket.
+
+REACTIVATION PROCESSING FEE
+Dormant earnings requiring reactivation may incur a processing fee.
+Recommended:
+12% of the dormant earnings amount
+or
+Minimum Fee Configurable By Admin
+This fee should be configurable through the Super Admin panel.
+
+REACTIVATION EXAMPLE
+Eligible Earnings:
+?1,000
+Seller ignores withdrawal window.
+30 Days pass.
+Status becomes:
+Dormant Earnings
+Seller later requests reactivation.
+12% Reactivation Fee:
+?120
+Seller Receives:
+?880
+The fee breakdown should be displayed transparently before confirmation.
+
+ADMIN OVERRIDE
+Super Admin should be able to:
+Waive Reactivation Fee
+Reduce Fee
+Increase Fee
+Approve Reactivation
+Reject Reactivation
+Restore Earnings
+Create Special Exceptions
+
+PLATFORM OBJECTIVE
+The purpose of this system is to:
+Encourage timely withdrawals
+Reduce dormant balances
+Reduce accounting complexity
+Prevent long-term storage of funds
+Maintain operational efficiency
+HUXZAIN is intended to operate as a marketplace and transaction platform rather than a long-term fund holding service.
+
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 6 - ADMIN PANEL, MANAGEMENT ROLES, FINANCIAL CONTROLS, MODERATION SYSTEM, FRAUD DETECTION & PLATFORM OPERATIONS
+This section defines the internal management structure of HUXZAIN and how different staff members interact with the platform.
+The objective is to ensure that no employee, moderator, manager or developer has unnecessary power while still allowing efficient operation of the marketplace.
+
+SUPER ADMIN (OWNER)
+This is the highest authority level on the platform.
+The Super Admin should have unrestricted access to every feature, section and setting.
+There should always be at least one Super Admin account.
+Only Super Admin should have the ability to create or appoint another Super Admin.
+
+SUPER ADMIN CAPABILITIES
+Full Platform Access
+Full Financial Access
+Full User Access
+Full Seller Access
+Full Employee Access
+Full Analytics Access
+Full Settings Access
+Full Security Access
+Full Infrastructure Controls
+Full Invoice Controls
+Full Revenue Controls
+Full Fee Controls
+Full Verification Controls
+Full Moderation Controls
+
+SUPER ADMIN ACTIONS
+Create Roles
+Edit Roles
+Delete Roles
+Suspend Accounts
+Ban Accounts
+Freeze Accounts
+Freeze Funds
+Release Funds
+Approve Withdrawals
+Reject Withdrawals
+Modify Platform Fees
+Modify Seller Plans
+Modify Inspection Periods
+Modify Cooling Periods
+Modify Verification Requirements
+Create Announcements
+Control Homepage Content
+Manage Categories
+Manage Subcategories
+Manage Seller Plans
+Manage Badges
+Manage Staff
+Manage Moderators
+Manage Managers
+Manage Employees
+View Every Chat
+View Every Order
+View Every Dispute
+View Every Invoice
+View Every Financial Transaction
+
+ADMIN ROLE
+Admin should operate as executive management.
+Admin should have broad operational control but should not be able to threaten platform ownership.
+
+ADMIN CAPABILITIES
+Manage Sellers
+Manage Listings
+Manage Categories
+Manage Reviews
+Manage Reports
+Manage Disputes
+Manage Withdrawals
+Manage Verifications
+Manage Staff
+Manage Announcements
+Manage Featured Content
+Manage Homepage Sections
+View Financial Reports
+View Revenue Reports
+View Seller Performance
+
+ADMIN RESTRICTIONS
+Cannot Create Super Admin
+Cannot Remove Super Admin
+Cannot Transfer Ownership
+Cannot Access Infrastructure Ownership Settings
+Cannot Remove Platform Ownership Controls
+Cannot Delete Critical Financial Records
+
+MANAGER ROLE
+Managers oversee day-to-day operations.
+Managers should supervise moderators and employees.
+
+MANAGER CAPABILITIES
+Review Disputes
+Review Verifications
+Review Listings
+Review Seller Applications
+Review Coach Applications
+Review Game Buddy Applications
+Approve Content
+Reject Content
+Issue Warnings
+Escalate Cases
+Generate Reports
+Monitor Staff Activity
+
+MODERATOR ROLE
+Moderators should focus on trust and safety.
+
+MODERATOR CAPABILITIES
+Review Disputes
+Review Reports
+Review Suspicious Activity
+Review Listings
+Review Reviews
+Review User Reports
+Issue Warnings
+Temporarily Restrict Accounts
+Escalate Serious Cases
+View Order Evidence
+View Order Chats
+View Uploaded Files
+
+MODERATOR RESTRICTIONS
+Cannot Access Financial Settings
+Cannot Approve Withdrawals
+Cannot Edit Fees
+Cannot Access Revenue Controls
+Cannot Access Infrastructure Controls
+Cannot Create Staff Roles
+
+EMPLOYEE ROLE
+Employees should perform operational tasks.
+Examples:
+Customer Support
+Listing Review
+Content Management
+Data Entry
+Verification Processing
+Customer Assistance
+
+EMPLOYEE CAPABILITIES
+Respond To Tickets
+Review Basic Listings
+Process Verification Documents
+Assist Customers
+Manage Support Requests
+Create Reports
+
+EMPLOYEE RESTRICTIONS
+Cannot Access Financial Controls
+Cannot Access Withdrawals
+Cannot Access Revenue Data
+Cannot Access Platform Configuration
+Cannot Access Staff Controls
+
+WEBSITE DEVELOPER ROLE
+Create a separate role.
+Developer should not automatically receive administrative power.
+
+DEVELOPER CAPABILITIES
+View Technical Logs
+Manage Technical Features
+Access Development Environment
+Access Testing Environment
+Deploy Approved Updates
+Monitor Errors
+Manage Technical Maintenance
+
+DEVELOPER RESTRICTIONS
+Cannot Access Seller Earnings
+Cannot Withdraw Funds
+Cannot Modify Financial Records
+Cannot Modify Revenue Reports
+Cannot Access Payment Records
+Cannot Create Super Admin
+Cannot Approve Withdrawals
+Cannot Modify Platform Fees
+Cannot Modify Financial Settings
+
+ROLE CHANGE LOGGING
+Every role change should be permanently logged.
+Examples:
+Role Created
+Role Edited
+Role Removed
+Permissions Changed
+User Promoted
+User Demoted
+Staff Suspended
+Every action should contain:
+Who Performed Action
+When Action Occurred
+Previous Role
+New Role
+Reason
+
+FRAUD DETECTION CENTER
+Create a dedicated fraud monitoring section.
+The system should track:
+Unusual Login Activity
+Mass Account Creation
+Repeated Refund Requests
+Multiple Failed Payments
+Excessive Disputes
+Account Recovery Complaints
+Suspicious Seller Activity
+Suspicious Buyer Activity
+Repeated Policy Violations
+
+RISK SCORE SYSTEM
+Every account should receive internal risk score.
+Factors:
+Dispute Rate
+Chargeback Rate
+Warning Count
+Account Age
+Verification Status
+Order History
+Suspicious Activity
+High-risk accounts should be flagged automatically.
+
+ADMIN DASHBOARD
+Admin dashboard should display:
+Revenue Today
+Revenue This Month
+Orders Today
+Active Sellers
+Active Buyers
+Disputes Open
+Withdrawals Pending
+Verification Requests
+Support Tickets
+Platform Health Metrics
+
+PLATFORM ANALYTICS
+Provide platform-wide analytics.
+Examples:
+Revenue By Category
+Revenue By Seller
+Revenue By Month
+Top Categories
+Top Sellers
+Top Buyers
+Dispute Statistics
+Conversion Statistics
+Traffic Statistics
+Growth Trends
+
+FINANCIAL CONTROL CENTER
+Super Admin should have complete visibility into:
+Gross Revenue
+Platform Revenue
+Seller Revenue
+Pending Withdrawals
+Released Withdrawals
+Refunds
+Disputes
+Outstanding Liabilities
+Dormant Earnings
+Reactivation Fees
+Category Revenue
+Seller Revenue
+
+AUDIT LOG SYSTEM
+Every critical action should be permanently recorded.
+Examples:
+Fund Release
+Fund Freeze
+Withdrawal Approval
+Withdrawal Rejection
+Role Changes
+Fee Changes
+Verification Decisions
+Dispute Decisions
+Platform Setting Changes
+This log should never be editable by staff.
+
+PLATFORM OBJECTIVE
+The management structure should ensure:
+Clear Separation Of Duties
+Limited Employee Power
+Full Owner Control
+Strong Accountability
+Full Audit Trails
+Reduced Fraud Risk
+Scalable Operations
+Protection Against Internal Abuse
+No single staff member should have enough authority to damage the platform without actions being visible through logs and audit records.
+
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 7 - TRANSFER CATEGORIES, BUYER REQUIREMENT TEMPLATES, LISTING APPROVALS, CANCELLATIONS, REFUNDS & MARKETPLACE PROTECTION SYSTEMS
+This section defines categories where ownership is being transferred, buyer requirement collection systems, listing moderation, cancellation rules, refund logic and marketplace protection mechanisms.
+These systems are critical because they directly affect disputes, fraud prevention and platform trust.
+
+OWNERSHIP TRANSFER CATEGORIES
+Certain categories should not use normal delivery systems because ownership itself is being transferred.
+Examples:
+Website Sales
+Domain Sales
+YouTube Channel Sales
+Facebook Page Sales
+Discord Server Sales
+Telegram Community Sales
+Digital Business Sales
+Community Ownership Sales
+Social Media Pages
+Groups
+Forums
+Monetized Assets
+These categories require transfer verification.
+
+TRANSFER LISTING CREATION
+Seller should be required to provide:
+Asset Name
+Asset Category
+Creation Date
+Ownership Duration
+Monthly Traffic
+Monthly Revenue (Optional)
+Reason For Sale
+Transfer Method
+Transfer Timeline
+Screenshots
+Proof Of Ownership
+Additional Information
+
+TRANSFER PROOF REQUIREMENTS
+Seller should upload proof showing ownership.
+Examples:
+Dashboard Screenshots
+Revenue Screenshots
+Analytics Screenshots
+Admin Panel Screenshots
+Control Panel Screenshots
+Ownership Verification Images
+Transfer Documentation
+These should appear publicly.
+
+TRANSFER ORDER FLOW
+Buyer purchases.
+Funds enter escrow.
+Order room created.
+Internal chat opens.
+Seller begins transfer process.
+Seller submits transfer evidence.
+Buyer confirms ownership received.
+Inspection period begins.
+Funds remain locked.
+If ownership remains intact until inspection expires:
+Funds released.
+
+TRANSFER STATUS FLOW
+Payment Received
+Transfer Initiated
+Transfer In Progress
+Transfer Completed
+Buyer Verification
+Inspection Period
+Completed
+Funds Released
+Additional statuses:
+Transfer Failed
+Transfer Rejected
+Transfer Dispute
+Transfer Reversal Investigation
+
+TRANSFER CONFIRMATION
+Buyer should have dedicated confirmation button.
+Examples:
+Ownership Received
+Transfer Successful
+Access Confirmed
+Control Confirmed
+Without buyer confirmation, order should remain under inspection until timer expires.
+
+BUYER REQUIREMENT SYSTEM
+Different categories require different information.
+The platform should dynamically generate buyer forms depending on category.
+Buyer should never be forced to provide irrelevant information.
+
+LOGO DESIGN REQUIREMENTS
+Business Name
+Tagline
+Industry
+Preferred Colors
+Preferred Style
+Reference Examples
+Additional Notes
+Files Upload
+
+GRAPHIC DESIGN REQUIREMENTS
+Project Type
+Dimensions
+Color Preferences
+Brand Guidelines
+Reference Files
+Deadline
+Additional Instructions
+
+WEBSITE DEVELOPMENT REQUIREMENTS
+Business Name
+Business Description
+Required Pages
+Reference Websites
+Logo Available
+Hosting Available
+Domain Available
+Special Features Required
+Design References
+Additional Notes
+Files Upload
+
+PROGRAMMING REQUIREMENTS
+Project Description
+Programming Language
+Platform
+Technical Requirements
+Deadline
+Existing Files
+Documentation
+Additional Notes
+
+SOCIAL MEDIA SERVICES REQUIREMENTS
+Platform
+Profile Link
+Username
+Objective
+Target Audience
+Additional Notes
+
+MARKETING SERVICES REQUIREMENTS
+Campaign Objective
+Target Market
+Budget
+Target Region
+Existing Assets
+Additional Notes
+
+COACHING REQUIREMENTS
+Current Rank
+Goals
+Weak Areas
+Preferred Language
+Session Notes
+Additional Information
+
+GAME BUDDY REQUIREMENTS
+Game
+Preferred Mode
+Preferred Language
+Session Notes
+Additional Requests
+
+LISTING APPROVAL SYSTEM
+Every listing should not automatically become public.
+Different categories should follow different approval methods.
+
+LOW RISK LISTINGS
+Examples:
+Design Services
+Coaching
+Game Buddy
+Content Writing
+Basic Freelance Services
+May be automatically approved.
+
+MEDIUM RISK LISTINGS
+Examples:
+Digital Assets
+Subscriptions
+Communities
+Membership Sales
+Should receive automated review and optional moderation review.
+
+HIGH RISK LISTINGS
+Examples:
+Accounts
+Monetized Assets
+Social Media Pages
+Websites
+Revenue Producing Assets
+Should require manual approval.
+
+LISTING REVIEW ACTIONS
+Approve
+Reject
+Request Changes
+Require Additional Evidence
+Require Verification
+Suspend Listing
+Every decision should be logged.
+
+LISTING REPORT SYSTEM
+Every listing should have:
+Report Listing
+button.
+Reasons:
+Fraud
+Misleading Information
+Wrong Category
+Stolen Content
+Duplicate Listing
+Impersonation
+Prohibited Content
+Suspicious Activity
+Other
+Reports should enter moderation queue.
+
+ORDER CANCELLATION SYSTEM
+Cancellation rules should depend on order stage.
+
+BEFORE SELLER STARTS WORK
+Buyer may request cancellation.
+Seller may approve cancellation.
+Full refund issued.
+
+AFTER WORK HAS STARTED
+Cancellation should require seller agreement or moderator review.
+
+AFTER DELIVERY SUBMITTED
+Normal cancellation should no longer be available.
+Buyer must use dispute process.
+
+INSTANT DELIVERY PRODUCTS
+Once credentials, codes, keys or inventory have been revealed:
+Normal cancellation should no longer be available.
+Dispute process required.
+
+REFUND MATRIX
+Different categories require different refund logic.
+
+ACCOUNT SALES
+Credentials Not Viewed:
+Refund generally possible.
+Credentials Viewed:
+Refund only through dispute review.
+
+GIFT CARDS
+Code Not Revealed:
+Refund possible.
+Code Revealed:
+Dispute review required.
+
+SOFTWARE KEYS
+Key Not Delivered:
+Refund possible.
+Key Delivered:
+Dispute review required.
+
+DIGITAL DOWNLOADS
+File Not Downloaded:
+Refund possible.
+File Downloaded:
+Dispute review required.
+
+GAME CURRENCY
+Top-Up Not Completed:
+Refund possible.
+Top-Up Completed:
+Refund generally not available unless evidence shows issue.
+
+GAME BUDDY
+Session Not Conducted:
+Refund possible.
+Session Conducted:
+Dispute review required.
+
+COACHING
+Session Not Conducted:
+Refund possible.
+Session Conducted:
+Dispute review required.
+
+FREELANCE SERVICES
+Work Not Started:
+Refund possible.
+Work Started:
+Moderator review may be required.
+Work Delivered:
+Dispute process required.
+
+ANTI-RECOVERY PROTECTION SYSTEM
+Very important for account categories.
+Seller should disclose:
+Original Owner Status
+Recovery Information Included
+Email Included
+Email Change Available
+Warranty Period
+Recovery History
+These fields should be structured.
+
+ACCOUNT RECOVERY COMPLAINT FLOW
+Buyer opens dispute.
+Select:
+Account Recovered
+Moderator reviews:
+Chat
+Delivery
+Evidence
+Account Information
+Seller History
+Decision logged.
+
+REVIEW SYSTEM PROTECTION
+Buyers should only be allowed to review after order completion.
+Reviews should not be possible for:
+Cancelled Orders
+Refunded Orders
+Incomplete Orders
+Rejected Orders
+Reviews should be linked to actual completed transactions.
+
+REVIEW CONTENT MODERATION
+Reviews should support:
+Rating
+Comment
+Optional Images
+Report Review
+Moderators should be able to:
+Hide Review
+Remove Review
+Investigate Review
+Flag Abuse
+
+MARKETPLACE OBJECTIVE
+The purpose of these systems is to:
+Reduce Fraud
+Protect Buyers
+Protect Sellers
+Standardize Deliveries
+Improve Dispute Resolution
+Create Consistent Order Flows
+Reduce Manual Intervention
+Increase Marketplace Trust
+Every category should have predictable rules so that both buyers and sellers clearly understand how transactions, cancellations, refunds and ownership transfers are handled throughout HUXZAIN.
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 8 - SEARCH RANKING SYSTEM, HOMEPAGE PLACEMENT, FEATURED LISTINGS, SELLER REPUTATION, DISCOVERY ENGINE & MARKETPLACE VISIBILITY
+The marketplace should not display listings randomly.
+The objective is to reward trustworthy sellers, verified sellers, active sellers and high-performing listings while still allowing new sellers to gain visibility.
+The ranking system should be dynamic and based on multiple factors.
+
+MARKETPLACE DISCOVERY PHILOSOPHY
+A buyer should be able to quickly find:
+Trusted Sellers
+Relevant Listings
+Best Performing Listings
+Verified Providers
+High Quality Services
+Trending Products
+Popular Categories
+Without needing to search through hundreds of poor-quality listings.
+The marketplace should intelligently prioritize quality.
+
+SEARCH RANKING SYSTEM
+Search results should be generated using weighted ranking.
+Ranking factors should include:
+Relevance Score
+Seller Reputation
+Verification Status
+Review Rating
+Completed Orders
+Conversion Rate
+Response Time
+Dispute Rate
+Seller Plan
+Listing Quality
+Recent Activity
+Trust Score
+These factors should work together.
+No single factor should completely dominate rankings.
+
+SELLER REPUTATION SCORE
+Every seller should have an internal reputation score.
+This score should not necessarily be visible publicly.
+Factors include:
+Account Age
+Completed Orders
+Positive Reviews
+Dispute Rate
+Refund Rate
+Verification Status
+Seller Activity
+Delivery Performance
+Response Speed
+Order Completion Rate
+Profile Completeness
+The reputation score should affect visibility throughout the platform.
+
+SELLER TRUST LEVELS
+Example structure:
+New Seller
+Trusted Seller
+Verified Seller
+Top Seller
+Elite Seller
+Enterprise Seller
+Trust levels should be earned.
+Not automatically granted.
+
+LISTING QUALITY SCORE
+Every listing should receive a quality score.
+Factors:
+Title Quality
+Description Quality
+Images Uploaded
+Proof Uploaded
+Profile Completion
+Category Accuracy
+Buyer Engagement
+Review Performance
+Listings with better information should rank higher.
+
+VERIFICATION WEIGHTING
+Verified sellers should receive ranking advantages.
+Benefits:
+Higher Search Position
+Better Visibility
+Trust Badges
+Featured Opportunities
+Homepage Eligibility
+This encourages platform verification.
+
+SELLER PLAN WEIGHTING
+Seller plans should influence visibility.
+However, paid plans should not completely override quality.
+Example:
+Enterprise Seller with poor reviews should not outrank highly trusted sellers.
+Seller plans should provide assistance, not guaranteed dominance.
+
+RECOMMENDED SEARCH PRIORITY
+Suggested ranking formula:
+Trust Score
+* 
+Relevance Score
+* 
+Seller Performance
+* 
+Verification Weight
+* 
+Seller Plan Weight
+* 
+Recent Activity
+This should determine final ranking.
+
+FEATURED LISTINGS SYSTEM
+Certain listings may receive featured placement.
+Sources:
+Manual Admin Selection
+Seller Promotions
+Performance Based Selection
+Featured listings should appear:
+Homepage
+Category Pages
+Search Results
+Promotional Sections
+
+FEATURED SELLER SYSTEM
+Create dedicated:
+Featured Seller
+status.
+Selection factors:
+Verification
+Reputation
+Activity
+Review Quality
+Order Completion
+Trust Score
+Featured sellers should receive premium exposure.
+
+TRENDING LISTINGS SECTION
+Homepage should contain:
+Trending This Week
+This section should update automatically.
+Factors:
+Orders Received
+Views
+Favorites
+Conversions
+Buyer Interest
+Recent Growth
+The purpose is to showcase marketplace activity.
+
+TRENDING SELLERS SECTION
+Separate section:
+Trending Sellers
+Selection factors:
+Recent Revenue
+Recent Orders
+Growth Rate
+Review Activity
+Trust Score
+This helps buyers discover reliable sellers.
+
+NEW ARRIVALS SECTION
+Display:
+Recently Created Listings
+New Services
+New Products
+New Categories
+This gives new sellers visibility opportunities.
+
+TOP RATED SECTION
+Display:
+Highest Rated Listings
+Highest Rated Sellers
+Minimum review threshold required.
+This prevents manipulation.
+
+VERIFIED ONLY FILTER
+Buyers should be able to filter:
+Verified Sellers Only
+Verified Coaches Only
+Verified Game Buddies Only
+Verified Businesses Only
+This improves buyer confidence.
+
+ADVANCED SEARCH FILTERS
+Examples:
+Price Range
+Rating
+Verification Status
+Seller Level
+Region
+Delivery Time
+Availability
+Category
+Subcategory
+Language
+Game
+Platform
+Condition
+Plan Type
+These filters should vary based on category.
+
+SAVED SEARCHES
+Allow buyers to save searches.
+Examples:
+Valorant Accounts
+Game Buddies
+Website Developers
+Graphic Designers
+Software Keys
+Saved searches improve retention.
+
+FAVORITES SYSTEM
+Users should be able to:
+Favorite Listings
+Favorite Sellers
+Favorite Coaches
+Favorite Game Buddies
+These should appear inside account dashboard.
+
+ADVERTISEMENT SYSTEM
+The platform should support internal advertising.
+Examples:
+Homepage Banner Ads
+Category Banner Ads
+Featured Placement Ads
+Promoted Listings
+Sponsored Sections
+Seller Spotlight Campaigns
+Advertisements should be clearly labeled.
+
+PROMOTED LISTINGS
+Sellers may purchase visibility.
+Benefits:
+Homepage Placement
+Category Placement
+Search Boost
+Promotional Exposure
+Promoted listings should be identified separately from organic rankings.
+
+HOMEPAGE STRUCTURE
+Recommended order:
+Hero Banner
+Popular Categories
+Game Buddy Section
+Coaching Section
+Trending This Week
+Featured Listings
+Featured Sellers
+Verified Sellers
+Top Rated Listings
+How HUXZAIN Works
+Trust & Safety Section
+Community Testimonials
+Call To Action
+This structure balances trust, engagement and discovery.
+
+RECOMMENDATION ENGINE
+The platform should recommend:
+Similar Listings
+Related Listings
+Same Seller Listings
+Recommended Coaches
+Recommended Game Buddies
+Recommended Services
+Based on user behavior.
+
+BUYER HISTORY RECOMMENDATIONS
+If a buyer frequently browses:
+Valorant
+The platform should recommend:
+Valorant Accounts
+Valorant Coaching
+Valorant Game Buddies
+Valorant Currency
+This increases conversions.
+
+SEARCH ABUSE PROTECTION
+Prevent manipulation.
+Examples:
+Keyword Stuffing
+Fake Titles
+Misleading Categories
+Spam Listings
+Duplicate Listings
+Moderators should be able to intervene.
+
+MARKETPLACE OBJECTIVE
+The discovery system should reward:
+Trust
+Quality
+Verification
+Performance
+Consistency
+while still allowing new sellers opportunities to grow.
+The marketplace should feel active, intelligent and fair rather than operating as a simple chronological listing board.
+HUXZAIN MARKETPLACE DEVELOPMENT
+PART 9 - EMAIL SYSTEM, NOTIFICATION SYSTEM & EMAIL EVENT ARCHITECTURE
+The email system should not simply send generic notifications.
+Emails should act as an extension of the platform and keep users informed about important actions without requiring them to constantly check HUXZAIN.
+Every email should contain:
+HUXZAIN Logo
+Professional Header
+Relevant Information
+Action Button
+Order Reference
+Support Link
+Footer
+Legal Information
+Security Notice
+
+EMAIL DESIGN STRUCTURE
+Every email should follow consistent branding.
+Header:
+HUXZAIN Logo
+Tagline
+Email Category Label
+Examples:
+Order Update
+Account Security
+Withdrawal Update
+Verification Update
+Dispute Update
+Middle Section:
+Important Information
+Action Required
+Order Information
+Buttons
+Footer:
+Support Center
+Terms
+Privacy
+Security Notice
+Copyright Information
+
+USER REGISTRATION EMAIL
+Trigger:
+User creates account.
+Subject:
+Welcome to HUXZAIN
+Email Content:
+Welcome Message
+Platform Introduction
+Account Information
+Getting Started Guide
+Verify Email Button
+Security Tips
+
+EMAIL VERIFICATION EMAIL
+Trigger:
+User registration
+Email change
+Verification request
+Subject:
+Verify Your Email Address
+Content:
+Verification Code
+Verification Button
+Expiry Information
+Security Warning
+
+PHONE VERIFICATION SUCCESS EMAIL
+Trigger:
+Phone successfully verified
+Subject:
+Phone Number Verified Successfully
+Content:
+Confirmation
+Date
+Time
+Security Notice
+
+PASSWORD RESET EMAIL
+Trigger:
+Forgot password
+Subject:
+Password Reset Request
+Content:
+Reset Button
+Expiration Time
+Security Warning
+Device Information
+IP Information (if available)
+
+LOGIN ALERT EMAIL
+Trigger:
+New device login
+New location login
+Subject:
+New Login Detected
+Content:
+Time
+Location
+Device
+Browser
+IP Address
+Secure Account Button
+
+ORDER PLACED EMAIL - BUYER
+Trigger:
+Buyer completes payment
+Subject:
+Your Order Has Been Successfully Placed
+Content:
+Order Number
+Product/Service Name
+Amount Paid
+Seller Name
+Order Status
+View Order Button
+Expected Delivery Information
+
+NEW ORDER EMAIL - SELLER
+Trigger:
+Buyer places order
+Subject:
+You Have Received A New Order
+Content:
+Order Number
+Buyer Information
+Product Purchased
+Requirements Pending
+View Order Button
+Response Reminder
+
+BUYER REQUIREMENTS EMAIL
+Trigger:
+Seller requires buyer information
+Subject:
+Action Required - Submit Order Requirements
+Content:
+Order Number
+Requirement Notice
+Submit Requirements Button
+Deadline Information
+
+REQUIREMENTS RECEIVED EMAIL - SELLER
+Trigger:
+Buyer submits requirements
+Subject:
+Buyer Requirements Received
+Content:
+Order Number
+Requirements Submitted
+View Order Button
+Begin Work Reminder
+
+ORDER CHAT MESSAGE EMAIL
+Trigger:
+New message received
+Subject:
+You Have Received A New Message
+Content:
+Sender Name
+Order Number
+Message Preview
+Reply Button
+Notification Settings
+
+DELIVERY SUBMITTED EMAIL - BUYER
+Trigger:
+Seller submits delivery
+Subject:
+Your Order Is Ready For Review
+Content:
+Order Number
+Seller Name
+Delivery Submitted Notice
+Review Delivery Button
+Inspection Period Information
+Dispute Information
+This email should encourage buyer to return immediately.
+
+ORDER COMPLETED EMAIL - SELLER
+Trigger:
+Buyer confirms delivery
+Subject:
+Order Completed Successfully
+Content:
+Order Number
+Amount Earned
+Inspection Status
+Cooling Period Information
+Withdrawal Eligibility Date
+
+ORDER COMPLETED EMAIL - BUYER
+Trigger:
+Order completed
+Subject:
+Thank You For Your Purchase
+Content:
+Order Information
+Review Seller Button
+Support Information
+Related Recommendations
+
+REVIEW REQUEST EMAIL
+Trigger:
+Order completion
+Subject:
+Share Your Experience
+Content:
+Rating Request
+Review Button
+Seller Name
+Order Information
+
+DISPUTE OPENED EMAIL - BUYER
+Trigger:
+Buyer opens dispute
+Subject:
+Dispute Case Created
+Content:
+Case Number
+Order Number
+Status
+Evidence Information
+View Case Button
+
+DISPUTE OPENED EMAIL - SELLER
+Trigger:
+Buyer opens dispute
+Subject:
+Dispute Opened Against Order
+Content:
+Case Number
+Order Number
+Buyer Claim
+Submit Evidence Button
+Response Deadline
+
+DISPUTE ASSIGNED EMAIL - MODERATOR
+Trigger:
+Case assigned
+Subject:
+New Dispute Requires Review
+Content:
+Case Number
+Priority Level
+Assigned User
+Review Case Button
+
+DISPUTE DECISION EMAIL
+Trigger:
+Dispute resolved
+Subject:
+Dispute Decision Issued
+Content:
+Decision
+Reason
+Refund Information
+Appeal Information
+View Decision Button
+
+WITHDRAWAL ELIGIBLE EMAIL
+Trigger:
+Cooling period completed
+Subject:
+Your Earnings Are Ready For Withdrawal
+Content:
+Order Number
+Eligible Earnings
+Expiry Date
+Withdraw Funds Button
+Countdown Reminder
+
+WITHDRAWAL REQUEST EMAIL
+Trigger:
+Seller requests withdrawal
+Subject:
+Withdrawal Request Received
+Content:
+Amount
+Reference Number
+Status
+Processing Time
+
+WITHDRAWAL APPROVED EMAIL
+Trigger:
+Admin approval
+Subject:
+Withdrawal Approved
+Content:
+Amount
+Reference
+Expected Arrival Time
+Status
+
+WITHDRAWAL COMPLETED EMAIL
+Trigger:
+Funds sent
+Subject:
+Withdrawal Completed Successfully
+Content:
+Amount
+Reference Number
+Transaction Details
+Support Information
+
+WITHDRAWAL EXPIRING EMAIL
+Trigger:
+15 Days Remaining
+7 Days Remaining
+3 Days Remaining
+1 Day Remaining
+Subject:
+Your Earnings Will Expire Soon
+Content:
+Amount
+Days Remaining
+Expiry Date
+Withdraw Now Button
+
+DORMANT EARNINGS EMAIL
+Trigger:
+Withdrawal window expired
+Subject:
+Earnings Moved To Dormant Status
+Content:
+Amount
+Dormant Status Explanation
+Reactivate Button
+Applicable Fees
+
+VERIFICATION SUBMISSION EMAIL
+Trigger:
+KYC submitted
+Subject:
+Verification Documents Received
+Content:
+Status
+Review Timeline
+Reference Number
+
+VERIFICATION APPROVED EMAIL
+Trigger:
+KYC approved
+Subject:
+Verification Approved
+Content:
+Verification Badge
+Benefits
+Account Status
+
+VERIFICATION REJECTED EMAIL
+Trigger:
+KYC rejected
+Subject:
+Verification Requires Attention
+Content:
+Reason
+Resubmission Instructions
+Upload Documents Button
+
+LISTING APPROVED EMAIL
+Trigger:
+Listing approved
+Subject:
+Your Listing Is Now Live
+Content:
+Listing Title
+Category
+View Listing Button
+
+LISTING REJECTED EMAIL
+Trigger:
+Listing rejected
+Subject:
+Listing Requires Changes
+Content:
+Reason
+Required Corrections
+Edit Listing Button
+
+ACCOUNT WARNING EMAIL
+Trigger:
+Policy violation
+Subject:
+Account Warning Issued
+Content:
+Warning Reason
+Violation Information
+Consequences
+Appeal Information
+
+ACCOUNT SUSPENSION EMAIL
+Trigger:
+Account suspended
+Subject:
+Account Temporarily Suspended
+Content:
+Reason
+Duration
+Appeal Button
+Support Information
+
+SUPER ADMIN EMAILS
+Owner should receive separate operational emails.
+Examples:
+Large Dispute Opened
+Large Refund Issued
+Withdrawal Above Threshold
+Fraud Detection Triggered
+Mass Report Activity
+System Failure
+Payment Gateway Failure
+Verification Backlog
+High Risk Seller Activity
+These should be configurable.
+
+ADMIN EMAILS
+Admins should receive:
+Dispute Assignments
+Verification Requests
+Listing Reviews
+Seller Reports
+Moderation Events
+Withdrawal Reviews
+
+MODERATOR EMAILS
+Moderators should receive:
+Dispute Assignments
+Reported Listings
+Reported Reviews
+User Reports
+Fraud Alerts
+
+EMPLOYEE EMAILS
+Employees should receive:
+Assigned Tickets
+Support Requests
+Verification Tasks
+Content Review Tasks
+
+PLATFORM OBJECTIVE
+Every important action on HUXZAIN should generate the correct email to the correct person at the correct time.
+The email system should reduce confusion, increase trust, improve response times and ensure that buyers, sellers, staff and management remain informed throughout the entire lifecycle of every transaction.
+HUXZAIN CORE EMAIL SYSTEM (PHASE 1)
+Only important operational emails should be implemented initially.
+The objective is to avoid overwhelming users while ensuring every important transaction, security event and dispute generates an email notification.
+
+ACCOUNT EMAILS
+1. Welcome Email
+Trigger:
+User registration.
+Purpose:
+Welcome user to HUXZAIN.
+Contains:
+Welcome Message
+Verify Email Button
+Support Information
+
+2. Email Verification Email
+Trigger:
+Account creation
+Email change
+Contains:
+Verification Code
+Verification Button
+Expiry Information
+
+3. Password Reset Email
+Trigger:
+Forgot password request.
+Contains:
+Reset Password Button
+Expiry Time
+Security Warning
+
+4. New Login Alert
+Trigger:
+New device login
+New location login
+Contains:
+Device Information
+Location
+Time
+Secure Account Button
+
+ORDER EMAILS
+5. Order Successfully Placed (Buyer)
+Trigger:
+Buyer completes payment.
+Contains:
+Order Number
+Product / Service Name
+Amount Paid
+Seller Name
+View Order Button
+
+6. New Order Received (Seller)
+Trigger:
+Buyer places order.
+Contains:
+Order Number
+Buyer Name
+Product Purchased
+View Order Button
+
+7. Buyer Requirements Needed
+Trigger:
+Order requires buyer information.
+Contains:
+Order Number
+Submit Requirements Button
+
+8. Requirements Submitted
+Trigger:
+Buyer submits requirements.
+Contains:
+Order Number
+View Order Button
+
+9. New Order Message
+Trigger:
+Buyer or seller sends message.
+Contains:
+Sender Name
+Order Number
+View Chat Button
+Only send if user is offline or inactive.
+
+10. Delivery Submitted
+Trigger:
+Seller submits delivery.
+Contains:
+Order Number
+Seller Name
+Review Delivery Button
+Inspection Period Information
+
+11. Order Completed
+Trigger:
+Buyer confirms completion or order auto-completes.
+Contains:
+Order Number
+Transaction Summary
+Review Button
+
+DISPUTE EMAILS
+12. Dispute Opened
+Trigger:
+Buyer or seller opens dispute.
+Contains:
+Case Number
+Order Number
+View Dispute Button
+
+13. Evidence Requested
+Trigger:
+Moderator requests additional evidence.
+Contains:
+Case Number
+Submit Evidence Button
+Deadline Information
+
+14. Dispute Resolved
+Trigger:
+Final dispute decision issued.
+Contains:
+Case Number
+Decision
+Refund Information (if applicable)
+
+SELLER PAYMENT EMAILS
+15. Withdrawal Available
+Trigger:
+Order completed, inspection period ended and cooling period completed.
+Contains:
+Order Number
+Available Earnings
+Withdraw Button
+Expiry Date
+
+16. Withdrawal Requested
+Trigger:
+Seller submits withdrawal request.
+Contains:
+Amount
+Reference Number
+Status
+
+17. Withdrawal Completed
+Trigger:
+Funds successfully sent.
+Contains:
+Amount
+Reference Number
+Completion Confirmation
+
+18. Withdrawal Expiry Warning
+Trigger:
+7 Days Remaining
+3 Days Remaining
+1 Day Remaining
+Contains:
+Eligible Amount
+Expiry Date
+Withdraw Now Button
+
+VERIFICATION EMAILS
+19. Verification Submitted
+Trigger:
+Seller submits KYC.
+Contains:
+Reference Number
+Review Status
+
+20. Verification Approved
+Trigger:
+KYC approved.
+Contains:
+Verification Confirmation
+Account Benefits
+
+21. Verification Rejected
+Trigger:
+KYC rejected.
+Contains:
+Reason
+Resubmission Button
+
+LISTING EMAILS
+22. Listing Approved
+Trigger:
+Listing approved.
+Contains:
+Listing Name
+View Listing Button
+
+23. Listing Rejected
+Trigger:
+Listing rejected.
+Contains:
+Reason
+Edit Listing Button
+
+STAFF EMAILS
+24. New Dispute Notification
+Recipients:
+Moderators
+Managers
+Admins
+Contains:
+Case Number
+Priority
+Review Button
+
+25. High Value Order Notification
+Recipients:
+Owner / Super Admin
+Trigger:
+Order exceeds configurable threshold.
+Contains:
+Order Value
+Buyer
+Seller
+View Order Button
+
+26. Fraud / Security Alert
+Recipients:
+Owner
+Admins
+Trigger:
+Suspicious activity detected.
+Contains:
+Risk Information
+Review Button
+
+EMAIL DESIGN
+All emails should follow a simple structure:
+HUXZAIN Logo
+Email Title
+Important Information
+Action Button
+Order / Case Reference
+Support Information
+Footer
+No marketing emails, promotional emails, newsletters or unnecessary notifications should be implemented during Phase 1.
+

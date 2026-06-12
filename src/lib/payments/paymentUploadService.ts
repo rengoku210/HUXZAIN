@@ -93,7 +93,10 @@ export async function uploadPaymentProof(params: {
       if (error) throw error;
       uploadError = null;
       break;
-    } catch (e) {
+    } catch (e: any) {
+      if (e.name === "AbortError" || e.message?.includes("aborted") || e.message?.includes("cancelled")) {
+        throw e;
+      }
       uploadError = e;
       attempt++;
       const backoff = Math.pow(2, attempt) * 200;

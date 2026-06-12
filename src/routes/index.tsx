@@ -30,6 +30,7 @@ import {
   MessageSquare,
   LayoutGrid,
   Flame,
+  ChevronDown,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -116,8 +117,8 @@ function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0B0C10]">
-      <Header />
+    <div className="min-h-screen flex flex-col bg-[#060709]">
+      <Header transparent={true} />
       <main className="flex-1">
         <Hero counts={counts} onSearch={(q) => setActiveSearch(q)} />
         <PopularCategories counts={counts} />
@@ -135,102 +136,230 @@ function Home() {
 }
 
 function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearch(searchQuery);
+  };
+
+  const benefits = [
+    {
+      icon: ShieldCheck,
+      title: "SECURE PAYMENTS",
+      desc: "Full protection for your money",
+    },
+    {
+      icon: Truck,
+      title: "FAST DELIVERY",
+      desc: "Get your digital items instantly",
+    },
+    {
+      icon: Headphones,
+      title: "24/7 SUPPORT",
+      desc: "We are always here to help you",
+    },
+    {
+      icon: Users,
+      title: "TRUSTED COMMUNITY",
+      desc: "Join thousands of active users",
+    },
+  ];
+
   return (
-    <section className="relative overflow-hidden pt-12 md:pt-16 pb-6">
-      <div className="container-page grid lg:grid-cols-[1.1fr_0.9fr] gap-12 items-center relative z-10">
-        <div className="space-y-6">
-          <div className="inline-flex items-center gap-2">
-            <span className="h-0.5 w-6 bg-gold" />
-            <span className="font-display text-xs font-bold text-gold uppercase tracking-widest">
-              Welcome to Huxzain
-            </span>
-          </div>
-          
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-white animate-fade-in">
-            India's Modern <br />
-            <span className="text-gold">Digital Marketplace</span>
-          </h1>
-          
-          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-xl">
-            Discover digital products, services, gaming essentials, subscriptions and more — all in one secure ecosystem.
-          </p>
+    <>
+      <section
+        className="relative overflow-hidden w-full flex flex-col justify-center"
+        style={{
+          backgroundImage: "url('/src/assets/hero-artwork.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center right",
+          backgroundRepeat: "no-repeat",
+          minHeight: "780px",
+        }}
+      >
+        {/* Dark overlay behind text area for readability */}
+        <div
+          className="absolute inset-0 z-0 pointer-events-none"
+          style={{
+            background: "linear-gradient(90deg, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.75) 35%, rgba(5,5,5,0.35) 60%, rgba(5,5,5,0.10) 100%)",
+          }}
+        />
 
-          <div className="flex flex-wrap gap-4 pt-2">
-            <Link
-              to="/categories"
-              className="h-11 px-6 rounded-xl bg-gold text-primary-foreground text-sm font-bold hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_15px_rgba(212,160,23,0.3)] inline-flex items-center justify-center"
-            >
-              Start Exploring
-            </Link>
-            <Link
-              to="/how-it-works"
-              className="h-11 px-6 rounded-xl border border-border hover:border-gold/40 text-sm font-medium inline-flex items-center justify-center transition-colors"
-            >
-              How It Works
-            </Link>
-          </div>
-        </div>
+        {/* Ambient particles / stars field */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            backgroundImage:
+              `radial-gradient(1.2px 1.2px at 12% 14%, rgba(212,175,55,0.22) 0%, transparent 100%),
+               radial-gradient(1.4px 1.4px at 28% 38%, rgba(255,255,255,0.15) 0%, transparent 100%),
+               radial-gradient(1.6px 1.6px at 48% 22%, rgba(212,175,55,0.18) 0%, transparent 100%),
+               radial-gradient(1.2px 1.2px at 62% 48%, rgba(255,255,255,0.1) 0%, transparent 100%),
+               radial-gradient(2px 2px at 82% 18%, rgba(212,175,55,0.25) 0%, transparent 100%),
+               radial-gradient(1.2px 1.2px at 92% 52%, rgba(255,255,255,0.12) 0%, transparent 100%),
+               radial-gradient(1.6px 1.6px at 17% 72%, rgba(212,175,55,0.15) 0%, transparent 100%),
+               radial-gradient(1.4px 1.4px at 40% 88%, rgba(255,255,255,0.1) 0%, transparent 100%),
+               radial-gradient(1.2px 1.2px at 72% 78%, rgba(212,175,55,0.2) 0%, transparent 100%),
+               radial-gradient(1.6px 1.6px at 90% 82%, rgba(255,255,255,0.12) 0%, transparent 100%)`,
+          }}
+        />
 
-        <div className="relative flex justify-center items-center pointer-events-none">
-          {/* Subtle ambient glow behind the pedestal for depth */}
-          <div className="absolute inset-0 bg-gold/5 blur-[120px] scale-125 rounded-full pointer-events-none" aria-hidden />
-          <HeroLogo />
-        </div>
-      </div>
-
-      {/* Hero Benefits Bar */}
-      <div className="container-page pt-16">
-        <div className="rounded-2xl border border-gold/10 bg-[#101114]/40 backdrop-blur-md p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Hero Content Container */}
+        <div className="container-page relative z-10 pt-28 lg:pt-36 pb-12 flex flex-col justify-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center w-full">
             
-            {/* Item 1: Secure Transactions */}
-            <div className="flex items-start gap-3.5">
-              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
-                <ShieldCheck className="size-5" />
+            {/* Left Side: Floating Text Content */}
+            <div className="space-y-6 text-left max-w-[580px] lg:max-w-none">
+              {/* WELCOME TO HUXZAIN Label */}
+              <div className="inline-flex items-center">
+                <span className="font-display text-[10px] md:text-[11px] font-bold uppercase tracking-[0.24em] text-gold">
+                  WELCOME TO HUXZAIN
+                </span>
               </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Secure Transactions</h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">Your safety is our priority. Every transaction is protected.</p>
+
+              {/* Headline */}
+              <div className="space-y-1.5 md:space-y-2">
+                <h1
+                  className="font-display font-extrabold tracking-tight leading-[1.08] text-white"
+                  style={{ fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)" }}
+                >
+                  India's Modern
+                </h1>
+                <h1
+                  className="font-display font-extrabold tracking-tight leading-[1.08]"
+                  style={{
+                    fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)",
+                    background: "linear-gradient(135deg, #ffd700 0%, #e8c53a 50%, #b8860b 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  Digital Marketplace
+                </h1>
               </div>
+
+              {/* Description */}
+              <p className="text-[#8e93a3] text-[14.5px] md:text-[16px] leading-relaxed max-w-[520px] font-medium mt-3">
+                A secure and trusted marketplace for digital products, services and gaming essentials.
+              </p>
+
+              {/* Trust badges row */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10.5px] font-bold text-[#8e93a3] uppercase tracking-[0.08em] mt-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full border border-gold/45 bg-gold/5 text-gold shrink-0">
+                    <Check className="size-2.5" />
+                  </span>
+                  <span>Secure Escrow</span>
+                </div>
+                <span className="text-[#2b2f3a] hidden sm:inline">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full border border-gold/45 bg-gold/5 text-gold shrink-0">
+                    <Check className="size-2.5" />
+                  </span>
+                  <span>Verified Sellers</span>
+                </div>
+                <span className="text-[#2b2f3a] hidden sm:inline">•</span>
+                <div className="flex items-center gap-1.5">
+                  <Headphones className="size-4 text-gold shrink-0" />
+                  <span>24/7 Support</span>
+                </div>
+                <span className="text-[#2b2f3a] hidden sm:inline">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full border border-gold/45 bg-gold/5 text-gold shrink-0">
+                    <Check className="size-2.5" />
+                  </span>
+                  <span>Buyer Protection</span>
+                </div>
+              </div>
+
+              {/* Search bar pill */}
+              <form
+                onSubmit={handleSearchSubmit}
+                className="flex items-center overflow-hidden w-full max-w-[580px] p-1.5 bg-[#0d0e11]/95 border border-white/5 rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65)] backdrop-blur-md mt-8"
+              >
+                <div className="flex-1 flex items-center min-w-0 pl-3 pr-1 sm:px-4">
+                  <input
+                    id="hero-search-input"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="What are you looking for?"
+                    className="w-full bg-transparent border-none outline-none text-xs md:text-sm text-white placeholder:text-[#4a5060] font-semibold"
+                    style={{ height: "40px" }}
+                  />
+                </div>
+
+                <div className="w-px h-6 bg-white/10 mx-1 shrink-0 hidden sm:block" />
+
+                <div className="relative flex items-center shrink-0 hidden sm:flex">
+                  <select
+                    id="hero-search-category"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="bg-transparent border-none outline-none text-[11px] md:text-[12px] text-[#8a8f9d] cursor-pointer appearance-none font-semibold pr-7 pl-3 h-full"
+                  >
+                    <option value="all" className="bg-[#0d0e10] text-white">All Categories</option>
+                    {primaryCategories.map((c) => (
+                      <option key={c.slug} value={c.slug} className="bg-[#0d0e10] text-white">
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-1.5 size-3.5 text-[#8a8f9d] pointer-events-none" />
+                </div>
+
+                <button
+                  id="hero-search-btn"
+                  type="submit"
+                  className="flex items-center justify-center gap-1.5 font-bold text-[11px] uppercase tracking-[0.08em] border-none cursor-pointer px-4 sm:px-6 rounded-xl bg-gold text-[#0a0b0d] hover:brightness-110 active:scale-[0.98] transition-all shrink-0 font-display"
+                  style={{ height: "40px" }}
+                >
+                  <Search className="size-3.5" />
+                  Search
+                </button>
+              </form>
             </div>
 
-            {/* Item 2: Verified Sellers */}
-            <div className="flex items-start gap-3.5">
-              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
-                <BadgeCheck className="size-5" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Verified Sellers</h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">All sellers are carefully verified for quality and reliability.</p>
-              </div>
-            </div>
+            {/* Right Side: Empty spacer so background wallpaper remains visible */}
+            <div className="hidden lg:block h-[420px] pointer-events-none select-none z-0" />
+            
+          </div>
+        </div>
+      </section>
 
-            {/* Item 3: Buyer Protection */}
-            <div className="flex items-start gap-3.5">
-              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
-                <Shield className="size-5" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Buyer Protection</h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">Get support and protection for every order you place.</p>
-              </div>
-            </div>
-
-            {/* Item 4: Dedicated Support */}
-            <div className="flex items-start gap-3.5">
-              <div className="size-11 rounded-xl border border-gold/20 bg-gold/5 flex items-center justify-center text-gold shrink-0">
-                <Headphones className="size-5" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Dedicated Support</h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">Our support team is available 24/7 to assist you.</p>
-              </div>
-            </div>
-
+      {/* Benefits/Feature Strip (Placed below the hero section, completely separate) */}
+      <div className="w-full bg-[#050505] py-6 border-b border-white/[0.02] z-10 relative">
+        <div className="container-page">
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-2xl border border-white/5 bg-[#0c0d10]/50 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.45)] w-full"
+          >
+            {benefits.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div key={idx} className="flex items-center gap-4 py-2 px-3 lg:px-4">
+                  <div
+                    className="size-9 rounded-xl flex items-center justify-center bg-gold/10 border border-gold/20 shrink-0"
+                  >
+                    <Icon className="size-4.5 text-gold" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-[10.5px] uppercase tracking-wider text-gold">
+                      {item.title}
+                    </div>
+                    <div className="text-[10px] text-[#5c6170] mt-0.5 font-medium leading-snug">
+                      {item.desc}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-    </section>
+    </>
   );
 }
 
@@ -1044,10 +1173,9 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {liveListings.map((l) => {
-              console.log('🏠 Homepage listing passed to card:', l);
-              return <ListingCard key={l.id} l={l} />;
-            })}
+            {liveListings.map((l) => (
+              <ListingCard key={l.id} l={l} />
+            ))}
         </div>
       )}
     </section>

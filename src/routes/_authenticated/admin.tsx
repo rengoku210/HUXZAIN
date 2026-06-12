@@ -18,6 +18,8 @@ import {
   MessageSquareWarning,
   HeartPulse,
   Search,
+  Activity,
+  ShieldAlert,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -69,6 +71,13 @@ const navGroups: NavGroup[] = [
       { to: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
+  {
+    title: "Security & Compliance",
+    items: [
+      { to: "/admin/audit-logs", label: "Audit Logs", icon: Activity },
+      { to: "/admin/security-logs", label: "Security Logs", icon: ShieldAlert },
+    ],
+  },
 ];
 
 // Emergency admin override: set VITE_ADMIN_OVERRIDE_EMAIL in .env to allow
@@ -100,6 +109,9 @@ function AdminLayout() {
   // Dynamic staff allowed paths based on specific role
   const staffAllowedPaths = useMemo(() => {
     let paths: string[] = ["/admin/tasks"]; // All staff can see their tasks
+    if (auth.hasRole("staff")) {
+      paths.push("/admin/payments", "/admin/subscriptions", "/admin/tickets");
+    }
     if (isPaymentReviewer) {
       paths.push("/admin/withdrawals", "/admin/earnings", "/admin/finances");
     }
@@ -111,10 +123,6 @@ function AdminLayout() {
     }
     if (isSupportStaff) {
       paths.push("/admin/tickets", "/admin/disputes");
-    }
-    // Fallback for general staff
-    if (auth.hasRole("staff") && paths.length === 0) {
-      paths.push("/admin/tickets");
     }
     return paths;
   }, [isPaymentReviewer, isVerificationOfficer, isContentModerator, isSupportStaff, auth]);

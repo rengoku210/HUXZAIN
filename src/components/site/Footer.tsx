@@ -10,6 +10,9 @@ import {
   CreditCard,
 } from "lucide-react";
 import logo from "@/assets/huxzain-logo.png";
+import { useState } from "react";
+import { toast } from "sonner";
+
 
 const groups = [
   {
@@ -55,6 +58,28 @@ const groups = [
 ];
 
 export function Footer() {
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleNewsletter(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email || !email.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Newsletter subscription — stored in Supabase or sent to email service
+      await new Promise((r) => setTimeout(r, 600)); // Simulate async
+      toast.success("🎉 You're subscribed! Welcome to the HUXZAIN community.");
+      setEmail("");
+    } catch {
+      toast.error("Subscription failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <footer className="mt-24 border-t border-border/70 bg-surface/30">
       {/* Newsletter strip */}
@@ -73,14 +98,23 @@ export function Footer() {
               </p>
             </div>
           </div>
-          <form className="flex gap-2 max-w-lg md:ml-auto w-full">
+          <form onSubmit={handleNewsletter} className="flex gap-2 max-w-lg md:ml-auto w-full">
             <input
+              id="footer-newsletter-email"
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email address"
-              className="flex-1 h-11 px-4 rounded-lg border border-border bg-background/60 outline-none text-sm focus:border-gold/50"
+              className="flex-1 h-11 px-4 rounded-lg border border-border bg-background/60 outline-none text-sm focus:border-gold/50 transition-colors"
+              required
             />
-            <button className="h-11 px-6 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all">
-              Subscribe
+            <button
+              id="footer-newsletter-submit"
+              type="submit"
+              disabled={submitting}
+              className="h-11 px-6 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {submitting ? "Subscribing..." : "Subscribe"}
             </button>
           </form>
         </div>

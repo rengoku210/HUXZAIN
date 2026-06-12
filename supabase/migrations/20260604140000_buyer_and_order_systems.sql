@@ -18,7 +18,7 @@ BEGIN
         FROM pg_constraint 
         WHERE conrelid = 'public.payment_proofs'::regclass 
         AND contype = 'c' 
-        AND consrc LIKE '%status%'
+        AND pg_get_constraintdef(oid) LIKE '%status%'
     LOOP
         EXECUTE 'ALTER TABLE public.payment_proofs DROP CONSTRAINT ' || quote_ident(r.conname);
     END LOOP;
@@ -121,7 +121,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trg_log_order_status_change ON public.orders;
 CREATE TRIGGER trg_log_order_status_change

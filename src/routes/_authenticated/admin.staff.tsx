@@ -29,7 +29,7 @@ export const Route = createFileRoute("/_authenticated/admin/staff")({
   component: StaffManagementPage,
 });
 
-type TabType = "employees" | "create" | "history" | "audit";
+type TabType = "employees" | "create" | "history" | "audit" | "permissions";
 
 interface Employee {
   id: string;
@@ -96,6 +96,149 @@ function StaffManagementPage() {
     tempPassword: string;
     email: string;
   } | null>(null);
+
+  // Permissions Matrix States
+  const [rolePermissionsList, setRolePermissionsList] = useState<any[]>([]);
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [newRoleKey, setNewRoleKey] = useState("");
+  const [newRoleLabel, setNewRoleLabel] = useState("");
+  const [showRoleForm, setShowRoleForm] = useState(false);
+
+  const fetchRolePermissions = async () => {
+    const sb = getSupabase();
+    if (!sb) return;
+    try {
+      setLoadingPermissions(true);
+      const { data, error } = await sb
+        .from("role_permissions")
+        .select("*")
+        .order("role");
+      if (error) throw error;
+      setRolePermissionsList(data || []);
+    } catch (err: any) {
+      console.error("Failed to load role permissions:", err);
+      toast.error("Failed to load role permissions matrix.");
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "permissions") {
+      void fetchRolePermissions();
+    }
+  }, [activeTab]);
+
+  const handleTogglePermission = async (roleKey: string, permission: string, checked: boolean) => {
+    const sb = getSupabase();
+    if (!sb) return;
+
+    try {
+      const roleRow = rolePermissionsList.find((rp) => rp.role === roleKey);
+      if (!roleRow) return;
+
+      let currentPerms: string[] = Array.isArray(roleRow.permissions) 
+        ? [...roleRow.permissions] 
+        : [];
+
+      if (checked) {
+        if (!currentPerms.includes(permission)) {
+          currentPerms.push(permission);
+        }
+      } else {
+        currentPerms = currentPerms.filter((p) => p !== permission);
+      }
+
+      // Optimistic update
+      setRolePermissionsList((prev) =>
+        prev.map((rp) => (rp.role === roleKey ? { ...rp, permissions: currentPerms } : rp))
+      );
+
+      const { error } = await sb
+        .from("role_permissions")
+        .update({
+          permissions: currentPerms,
+          updated_at: new Date().toISOString()
+        })
+        .eq("role", roleKey);
+
+      if (error) throw error;
+      toast.success(`Updated permissions for ${roleRow.label}`);
+    } catch (err: any) {
+      toast.error("Failed to update role permissions: " + err.message);
+      void fetchRolePermissions();
+    }
+  };
+
+  const handleCreateCustomRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoleKey.trim() || !newRoleLabel.trim()) {
+      toast.error("Please provide a role key and label.");
+      return;
+    }
+
+    const sb = getSupabase();
+    if (!sb) return;
+
+    try {
+      setSavingPermissions(true);
+      const cleanKey = newRoleKey.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+      
+      const { error } = await sb
+        .from("role_permissions")
+        .insert({
+          role: cleanKey,
+          label: newRoleLabel.trim(),
+          permissions: ["all_read"]
+        });
+
+      if (error) throw error;
+      
+      toast.success(`Role '${newRoleLabel}' created successfully!`);
+      setNewRoleKey("");
+      setNewRoleLabel("");
+      setShowRoleForm(false);
+      void fetchRolePermissions();
+    } catch (err: any) {
+      toast.error("Failed to create role: " + err.message);
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+  const AVAILABLE_PERMISSIONS = [
+    { value: "all_read", label: "Read All Platform Data" },
+    { value: "all_write", label: "Write All Platform Data" },
+    { value: "view_users", label: "View User Profiles" },
+    { value: "manage_users", label: "Manage Users (Suspend/Roles)" },
+    { value: "view_listings", label: "View Listings" },
+    { value: "moderate_listings", label: "Moderate & Approve Listings" },
+    { value: "view_orders", label: "View Orders" },
+    { value: "manage_orders", label: "Manage Orders" },
+    { value: "view_disputes", label: "View Disputes" },
+    { value: "manage_disputes", label: "Resolve Disputes" },
+    { value: "view_payments", label: "View Payments" },
+    { value: "approve_payments", label: "Approve Payments" },
+    { value: "view_withdrawals", label: "View Withdrawals" },
+    { value: "process_withdrawals", label: "Process Withdrawals" },
+    { value: "view_transactions", label: "View Transactions" },
+    { value: "view_verifications", label: "View KYC Verifications" },
+    { value: "approve_verifications", label: "Approve KYC Verifications" },
+    { value: "view_security_incidents", label: "View Security Incident Logs" },
+    { value: "resolve_security_incidents", label: "Resolve Security Incidents" },
+    { value: "view_tickets", label: "View Support Tickets" },
+    { value: "respond_tickets", label: "Respond to Support Tickets" },
+    { value: "send_notifications", label: "Send In-App Notifications" },
+    { value: "manage_campaigns", label: "Manage Campaigns & Broadcasts" },
+    { value: "manage_announcements", label: "Manage Banners & Announcements" },
+    { value: "manage_emergency_alerts", label: "Send Emergency Alerts" },
+    { value: "manage_platform_settings", label: "Configure Platform Settings" },
+    { value: "manage_maintenance", label: "Toggle Maintenance Mode" },
+    { value: "manage_roles", label: "Manage Roles & Matrix" },
+    { value: "manage_employees", label: "Manage Employee Directory" },
+    { value: "view_analytics", label: "View Analytics" }
+  ];
 
   // Fetch functions
   const loadData = async () => {
@@ -261,12 +404,13 @@ function StaffManagementPage() {
       </div>
 
       {/* Tabs list */}
-      <div className="flex border-b border-border/80">
+      <div className="flex border-b border-border/80 flex-wrap">
         {[
           { key: "employees", label: "Employees", icon: Users },
           { key: "create", label: "Create Staff", icon: UserPlus },
           { key: "history", label: "Login History", icon: History },
           { key: "audit", label: "Activity Audit Logs", icon: Activity },
+          { key: "permissions", label: "Permissions Matrix", icon: Key },
         ].map((t) => (
           <button
             key={t.key}
@@ -685,6 +829,107 @@ function StaffManagementPage() {
               </div>
             );
           })()}
+
+          {/* TAB 5: ROLE PERMISSIONS MATRIX */}
+          {activeTab === "permissions" && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                    Role & Permission Configuration Matrix
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Map granular operation scopes to staff security roles. Changes take effect instantly.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRoleForm(!showRoleForm)}
+                  className="px-4 py-2 rounded-xl bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer border-none"
+                >
+                  {showRoleForm ? "Close Form" : "Create Custom Role"}
+                </button>
+              </div>
+
+              {showRoleForm && (
+                <form onSubmit={handleCreateCustomRole} className="p-4 rounded-xl border border-border bg-surface/30 space-y-4 max-w-md">
+                  <h3 className="font-semibold text-sm text-gold">Create New Custom Role</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-muted-foreground uppercase font-semibold">Role Key (lowercase, no spaces)</label>
+                      <input
+                        placeholder="e.g. dispute_agent"
+                        value={newRoleKey}
+                        required
+                        onChange={(e) => setNewRoleKey(e.target.value)}
+                        className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-muted-foreground uppercase font-semibold">Display Label</label>
+                      <input
+                        placeholder="e.g. Dispute Agent"
+                        value={newRoleLabel}
+                        required
+                        onChange={(e) => setNewRoleLabel(e.target.value)}
+                        className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={savingPermissions}
+                    className="h-8 px-4 rounded-xl bg-gold text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer"
+                  >
+                    {savingPermissions ? "Creating..." : "Save Custom Role"}
+                  </button>
+                </form>
+              )}
+
+              {loadingPermissions ? (
+                <div className="py-12 text-center text-muted-foreground animate-pulse text-xs">Loading permissions matrix...</div>
+              ) : (
+                <div className="overflow-x-auto border border-border/80 rounded-xl bg-background/20">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/80 bg-surface/40 text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">
+                        <th className="py-3 px-4 min-w-[200px] sticky left-0 bg-[#0f1013] border-r border-border">Permission Scope</th>
+                        {rolePermissionsList.map((rp) => (
+                          <th key={rp.role} className="py-3 px-4 text-center min-w-[120px]">
+                            <div>{rp.label}</div>
+                            <div className="text-[9px] font-mono text-muted-foreground font-normal lowercase">{rp.role}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {AVAILABLE_PERMISSIONS.map((perm) => (
+                        <tr key={perm.value} className="hover:bg-surface/10 transition-colors">
+                          <td className="py-2.5 px-4 font-semibold text-foreground sticky left-0 bg-[#0f1013] border-r border-border flex flex-col">
+                            <span>{perm.label}</span>
+                            <span className="text-[9px] font-mono font-normal text-muted-foreground/80">{perm.value}</span>
+                          </td>
+                          {rolePermissionsList.map((rp) => {
+                            const hasPerm = Array.isArray(rp.permissions) && rp.permissions.includes(perm.value);
+                            return (
+                              <td key={rp.role} className="py-2.5 px-4 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={hasPerm}
+                                  onChange={(e) => handleTogglePermission(rp.role, perm.value, e.target.checked)}
+                                  className="rounded border-border bg-background text-gold focus:ring-gold size-4 accent-gold cursor-pointer"
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* EMPLOYEE DETAIL DRAWER */}
           {selectedEmployee && (

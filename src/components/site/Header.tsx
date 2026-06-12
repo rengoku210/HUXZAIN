@@ -87,7 +87,7 @@ function getInitials(name?: string | null, email?: string | null): string {
   return (email?.[0] ?? "U").toUpperCase();
 }
 
-export function Header() {
+export function Header({ transparent }: { transparent?: boolean }) {
   const { isAuthenticated, user, profile, roles, signOut, ready } = useAuth();
   const navigate = useNavigate();
 
@@ -435,7 +435,7 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl w-full max-w-full overflow-x-clip md:overflow-x-visible">
+      <header className={`${transparent ? "absolute top-0 left-0 right-0 z-50 border-b-0 border-transparent bg-transparent backdrop-blur-none" : "sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl"} w-full max-w-full overflow-x-clip md:overflow-x-visible`}>
         {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="container-page flex h-16 items-center gap-4">
           <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
@@ -819,7 +819,7 @@ export function Header() {
 
         {/* ── Sub nav ────────────────────────────────────────────── */}
         {/* ── Category Quick Access Ribbon ────────────────────────────── */}
-        <div className="border-t border-border/60 bg-[#101114]/85 backdrop-blur-md w-full overflow-hidden relative shadow-inner" onMouseLeave={() => { setHoveredCatId(null); setCatOpen(false); }}>
+        <div className={`${transparent ? "border-t-0 border-transparent bg-transparent backdrop-blur-none shadow-none" : "border-t border-border/60 bg-[#101114]/85 backdrop-blur-md shadow-inner"} w-full overflow-hidden relative`} onMouseLeave={() => { setHoveredCatId(null); setCatOpen(false); }}>
           <div className="container-page flex items-center justify-between h-12 gap-4">
             <div className="flex-1 min-w-0 flex items-center gap-6 overflow-x-auto scrollbar-none py-1">
               
@@ -833,42 +833,66 @@ export function Header() {
               </button>
 
               {/* Navigation Links */}
-              <div className="flex items-center gap-4 sm:gap-6 md:gap-8">
+              <div className="flex items-center gap-3 sm:gap-4 md:gap-5 lg:gap-6 overflow-x-auto scrollbar-none py-1">
                 <Link
-                  to="/how-it-works"
-                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                  to="/"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap flex items-center gap-1"
                 >
-                  How It Works
+                  🔥 Trending
                 </Link>
                 <Link
-                  to="/how-it-works"
+                  to="/categories"
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
-                  Buyer Protection
+                  All Pages
                 </Link>
                 <Link
-                  to="/seller-panel"
+                  to="/category/gaming-accounts"
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
-                  Sell on Huxzain
+                  Gaming Accounts
+                </Link>
+                <Link
+                  to="/category/in-game-currency"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  In-Game Currency
+                </Link>
+                <Link
+                  to="/category/gift-cards"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Gift Cards
+                </Link>
+                <Link
+                  to="/category/software-tools"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Software & Tools
+                </Link>
+                <Link
+                  to="/category/subscriptions"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Subscriptions
+                </Link>
+                <Link
+                  to="/category/coaching-services"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Coaching Services
+                </Link>
+                <Link
+                  to="/category/boosting-services"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  Boosting Service
                 </Link>
                 <Link
                   to="/contact"
-                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
+                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap flex items-center gap-1"
                 >
-                  Support Center
-                </Link>
-                <Link
-                  to="/orders"
-                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
-                >
-                  Track Order
-                </Link>
-                <Link
-                  to="/contact"
-                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
-                >
-                  Contact Us
+                  ❓ Support
                 </Link>
               </div>
 

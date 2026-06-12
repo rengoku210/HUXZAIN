@@ -312,7 +312,7 @@ function VerifyPayment() {
                 </div>
               ) : (
                 <div className="relative rounded-xl overflow-hidden border border-border bg-black h-36">
-                  <img src={previewUrl} alt="Receipt" className="w-full h-full object-contain" />
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
                   <button
                     onClick={() => setFile(null)}
                     className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full border border-white/15"

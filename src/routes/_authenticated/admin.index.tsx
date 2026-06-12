@@ -19,7 +19,8 @@ import {
   ArrowUpRight, 
   CheckCircle2, 
   Clock, 
-  AlertCircle 
+  AlertCircle,
+  HeartPulse
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -258,6 +259,92 @@ function Page() {
         >
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh Data
         </button>
+      </div>
+
+      {/* Platform Health Monitor (documentation requirement: "Platform Health Monitoring" section) */}
+      <div className="rounded-2xl border border-border/60 bg-surface/20 overflow-hidden">
+        <div className="px-5 py-3 border-b border-border/40 flex items-center justify-between bg-surface/30">
+          <div className="flex items-center gap-2">
+            <HeartPulse className="size-4 text-emerald-400" />
+            <span className="font-semibold text-sm">Platform Health Monitor</span>
+            <span className="flex h-2 w-2 ml-1">
+              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground">Real-time • Auto-refreshes</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 lg:divide-x divide-border/40">
+          {[
+            {
+              label: "Open Disputes",
+              value: loading ? "—" : stats.openDisputes,
+              to: "/admin/disputes",
+              alert: stats.openDisputes > 0,
+              icon: ShieldAlert,
+            },
+            {
+              label: "Pending Payments",
+              value: loading ? "—" : stats.pendingPayments,
+              to: "/admin/payments",
+              alert: stats.pendingPayments > 0,
+              icon: Clock,
+            },
+            {
+              label: "Pending Verifications",
+              value: loading ? "—" : stats.pendingVerifications,
+              to: "/admin/verifications",
+              alert: stats.pendingVerifications > 0,
+              icon: BadgeCheck,
+            },
+            {
+              label: "Pending Withdrawals",
+              value: loading ? "—" : stats.pendingWithdrawals,
+              to: "/admin/withdrawals",
+              alert: stats.pendingWithdrawals > 0,
+              icon: AlertCircle,
+            },
+            {
+              label: "Open Tickets",
+              value: loading ? "—" : stats.pendingTickets,
+              to: "/admin/tickets",
+              alert: stats.pendingTickets > 0,
+              icon: AlertCircle,
+            },
+            {
+              label: "Platform Status",
+              value: "Operational",
+              to: "/admin/audit-logs",
+              alert: false,
+              icon: CheckCircle2,
+              isStatus: true,
+            },
+          ].map((item) => (
+            <Link
+              key={item.label}
+              to={item.to as any}
+              className={`flex items-center gap-3 px-5 py-3.5 hover:bg-surface/40 transition-all group ${
+                item.alert ? "bg-red-500/5" : ""
+              }`}
+            >
+              <item.icon
+                className={`size-4 shrink-0 ${
+                  item.alert ? "text-red-400" : item.isStatus ? "text-emerald-400" : "text-muted-foreground"
+                }`}
+              />
+              <div>
+                <div
+                  className={`font-bold text-sm tabular-nums ${
+                    item.alert ? "text-red-400" : item.isStatus ? "text-emerald-400" : "text-foreground"
+                  }`}
+                >
+                  {item.value}
+                </div>
+                <div className="text-[10px] text-muted-foreground">{item.label}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Main Metric Cards Grid */}
