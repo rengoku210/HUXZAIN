@@ -38,6 +38,7 @@ import { ListingCard } from "@/components/site/ListingCard";
 import { useAuth } from "@/lib/auth/auth-context";
 import HeroLogo from "@/components/HeroLogo";
 import { getSupabase } from "@/lib/supabase-client";
+import heroArtwork from "@/assets/hero-artwork.png";
 import type { ListingLike } from "@/lib/marketplace/listing-adapter";
 import {
   primaryCategories,
@@ -172,7 +173,7 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
       <section
         className="relative overflow-hidden w-full flex flex-col justify-center"
         style={{
-          backgroundImage: "url('/src/assets/hero-artwork.png')",
+          backgroundImage: `url('${heroArtwork}')`,
           backgroundSize: "cover",
           backgroundPosition: "center right",
           backgroundRepeat: "no-repeat",
