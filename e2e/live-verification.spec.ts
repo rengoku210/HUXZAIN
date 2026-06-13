@@ -61,7 +61,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Capture screenshot of Checkout redirect
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buy_now_checkout_redirect.png",
+      path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/buy_now_checkout_redirect.png",
       fullPage: false
     });
     console.log("Captured Buy Now -> Checkout redirect screenshot!");
@@ -92,7 +92,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     // Verify redirect or success modal
     await page.waitForSelector("text=Success", { timeout: 15000 });
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/payment_proof_submitted.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/payment_proof_submitted.png"
     });
     console.log("Checkout payment proof upload verified successfully!");
 
@@ -194,7 +194,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Take screenshot of role admin save
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_admin_saved_refresh.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/role_admin_saved_refresh.png"
     });
 
     // Log out Admin
@@ -214,15 +214,22 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Navigate to admin console
     await page.goto("http://localhost:8080/admin");
-    await page.waitForSelector("text=Admin Console", { timeout: 15000 });
+    await expect(page.locator("text=Admin Console").filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
     
     // Verify full admin panel visibility (e.g. Users sidebar element is visible)
-    const usersSidebarLink = page.locator('aside a', { hasText: "Users" });
+    let isMobile = (page.viewportSize()?.width ?? 1200) < 1024;
+    let usersSidebarLink;
+    if (isMobile) {
+      await page.click('button:has-text("Choose View")');
+      usersSidebarLink = page.locator('a', { hasText: "Users" }).first();
+    } else {
+      usersSidebarLink = page.locator('aside a', { hasText: "Users" });
+    }
     await expect(usersSidebarLink).toBeVisible();
     console.log("Full Admin permissions verified active successfully!");
 
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/login_admin_permissions.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/login_admin_permissions.png"
     });
 
     // Log out promoted user
@@ -257,7 +264,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Capture screenshot
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_staff_saved_refresh.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/role_staff_saved_refresh.png"
     });
 
     // Log out whitelist Admin
@@ -277,13 +284,18 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
 
     // Navigate to admin console
     await page.goto("http://localhost:8080/admin/payments");
-    await page.waitForSelector("text=Admin Console", { timeout: 15000 });
+    await expect(page.locator("text=Admin Console").filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
 
     // Confirm ONLY Payments, Subscriptions, and Support Tickets links exist, and others are hidden
-    const paymentsLink = page.locator('aside a', { hasText: "Payments" });
-    const subsLink = page.locator('aside a', { hasText: "Subscriptions" });
-    const ticketsLink = page.locator('aside a', { hasText: "Support Tickets" });
-    const hiddenUsersLink = page.locator('aside a', { hasText: "Users" });
+    isMobile = (page.viewportSize()?.width ?? 1200) < 1024;
+    if (isMobile) {
+      await page.click('button:has-text("Choose View")');
+    }
+    const menuSelector = isMobile ? 'div[class*="absolute"]' : 'aside';
+    const paymentsLink = page.locator(`${menuSelector} a`, { hasText: "Payments" }).first();
+    const subsLink = page.locator(`${menuSelector} a`, { hasText: "Subscriptions" }).first();
+    const ticketsLink = page.locator(`${menuSelector} a`, { hasText: "Support Tickets" }).first();
+    const hiddenUsersLink = page.locator(`${menuSelector} a`, { hasText: "Users" }).first();
 
     await expect(paymentsLink).toBeVisible();
     await expect(subsLink).toBeVisible();
@@ -292,7 +304,7 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     console.log("Staff permissions (restricted access) verified active successfully!");
 
     await page.screenshot({ 
-      path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/login_staff_permissions.png"
+      path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/login_staff_permissions.png"
     });
 
     // Log out promoted user

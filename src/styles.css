@@ -359,3 +359,22 @@ table {
   animation: gold-shimmer 3s linear infinite;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Mobile table responsive hardening
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure header/cells do not squeeze too much */
+  table th,
+  table td {
+    white-space: nowrap;
+  }
+}
+
+

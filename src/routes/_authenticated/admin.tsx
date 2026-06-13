@@ -24,7 +24,7 @@ import {
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 type NavItem = { to: string; label: string; icon: any; end?: boolean };
@@ -127,6 +127,8 @@ function AdminLayout() {
     return paths;
   }, [isPaymentReviewer, isVerificationOfficer, isContentModerator, isSupportStaff, auth]);
 
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   useEffect(() => {
     if (auth.ready && auth.isAuthenticated) {
       if (!allowed) {
@@ -167,11 +169,82 @@ function AdminLayout() {
     .map((g) => ({ ...g, items: g.items.filter((i) => filteredNav.some((x) => x.to === i.to)) }))
     .filter((g) => g.items.length > 0);
 
+  const activeItem = allItems.find((n) => n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)) || allItems[0];
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 container-page py-8 grid lg:grid-cols-[240px_1fr] gap-6">
-        <aside className="rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32">
+      <main className="flex-1 container-page py-6 lg:py-8 grid lg:grid-cols-[240px_1fr] gap-6">
+        
+        {/* Mobile Navigation Dropdown for Admin Panel */}
+        <div className="lg:hidden w-full mb-2 z-30 relative">
+          <button
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            className="w-full flex items-center justify-between p-4 rounded-2xl border border-border bg-surface/60 backdrop-blur-md shadow-lg cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-lg bg-gold/10 text-gold flex items-center justify-center">
+                {activeItem && <activeItem.icon size={16} />}
+              </div>
+              <div className="text-left">
+                <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Admin Console</div>
+                <div className="text-sm font-bold text-foreground">{activeItem?.label || "Navigation"}</div>
+              </div>
+            </div>
+            <span className="text-xs text-gold bg-gold/10 px-3 py-1.5 rounded-xl border border-gold/20 font-bold transition-all active:scale-95">
+              {mobileNavOpen ? "Close" : "Choose View"}
+            </span>
+          </button>
+
+          {mobileNavOpen && (
+            <div className="absolute left-0 right-0 mt-2 rounded-2xl border border-border bg-background/95 backdrop-blur-xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 z-50 max-h-[60vh] overflow-y-auto space-y-4">
+              {filteredGroups.map((group) => (
+                <div key={group.title}>
+                  <div className="px-3 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/60 mb-1.5">
+                    {group.title}
+                  </div>
+                  <ul className="grid grid-cols-2 gap-1.5">
+                    {group.items.map((n) => {
+                      const active = n.end
+                        ? location.pathname === n.to
+                        : location.pathname.startsWith(n.to);
+                      return (
+                        <li key={n.to}>
+                          <Link
+                            to={n.to}
+                            onClick={() => setMobileNavOpen(false)}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs transition-colors border ${
+                              active
+                                ? "bg-gold/10 text-gold border-gold/20 font-bold"
+                                : "text-muted-foreground hover:text-foreground hover:bg-surface border-transparent"
+                            }`}
+                          >
+                            <n.icon className="size-3.5" /> 
+                            <span className="truncate flex-1">{n.label}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+              <div className="border-t border-border/40 pt-4">
+                <button
+                  onClick={() => {
+                    setMobileNavOpen(false);
+                    auth.signOut();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 h-9 rounded-xl border border-border text-xs text-muted-foreground hover:text-destructive bg-surface/20 cursor-pointer"
+                >
+                  <LogOut size={12} /> Logout
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Sidebar (hidden on mobile) */}
+        <aside className="hidden lg:block rounded-2xl border border-border bg-surface/40 p-3 h-fit lg:sticky lg:top-32">
           <div className="px-3 py-3 border-b border-border/60 mb-3">
             <div className="text-xs text-muted-foreground">Admin Console</div>
             <div className="text-sm font-semibold truncate">
@@ -210,14 +283,16 @@ function AdminLayout() {
             <div className="border-t border-border/60 pt-3">
               <button
                 onClick={() => auth.signOut()}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-surface"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-surface cursor-pointer"
               >
                 <LogOut className="size-4" /> Logout
               </button>
             </div>
           </div>
         </aside>
-        <div>
+
+        {/* Main Content Area */}
+        <div className="min-w-0 w-full overflow-hidden">
           <Outlet />
         </div>
       </main>

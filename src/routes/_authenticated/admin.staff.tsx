@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import { 
   Users, 

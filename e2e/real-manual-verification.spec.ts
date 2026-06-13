@@ -34,7 +34,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await expect(buyerRow).toBeVisible();
 
     // Take screenshot of initial state
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_initial.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/role_initial.png" });
     console.log("Captured initial role state screenshot");
 
     // Change role from User (buyer) -> Admin (admin)
@@ -52,7 +52,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Verify it persists as Admin
     await expect(buyerRow.locator("select")).toHaveValue("admin");
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_admin.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/role_admin.png" });
     console.log("Role update to Admin verified successfully after refresh!");
 
     // Change role Admin -> Staff
@@ -66,7 +66,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Verify it persists as Staff
     await expect(buyerRow.locator("select")).toHaveValue("staff");
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/role_staff.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/role_staff.png" });
     console.log("Role update to Staff verified successfully after refresh!");
 
     // Now change it back to buyer (User) so the test is clean
@@ -106,7 +106,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
     // Wait for the success toast and database transaction to finish
     await page.waitForTimeout(5000);
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/payment_approved.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/payment_approved.png" });
     console.log("Payment approved and saved successfully in DB!");
 
     // Log out as admin
@@ -141,7 +141,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     const completePaymentBtn = page.locator('a:has-text("Complete payment")').first();
     await expect(completePaymentBtn).toBeHidden();
 
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buyer_orders.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/buyer_orders.png" });
     console.log("Buyer orders page status and badges verified successfully!");
 
     // 2. Verify notifications badge count is visible and can be opened in dropdown (only on desktop/sm+ screens)
@@ -154,7 +154,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
 
       const notificationItem = page.locator('button:has-text("Payment Confirmed")').first();
       await expect(notificationItem).toBeVisible();
-      await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buyer_notifications.png" });
+      await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/buyer_notifications.png" });
       console.log("Real-time notifications received and verified!");
     } else {
       console.log("Skipping notifications panel verification on mobile viewport.");
@@ -170,7 +170,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.fill('input[placeholder*="Write a secure message"]', "Hi, payment is approved. Please deliver logo.");
     await page.click('button[type="submit"]');
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/buyer_chat.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/buyer_chat.png" });
     console.log("Buyer successfully sent a message!");
 
     // Log out as buyer
@@ -216,7 +216,7 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.fill('input[placeholder*="Write a secure message"]', "Thank you! I will deliver it within 1 hour.");
     await page.click('button[type="submit"]');
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/019204eb-92b1-4864-8280-a51a87589602/seller_chat.png" });
+    await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/seller_chat.png" });
     console.log("Seller/Admin replied successfully! Chat E2E flow verified!");
   });
 });

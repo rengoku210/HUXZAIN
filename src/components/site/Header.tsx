@@ -819,7 +819,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
 
         {/* ── Sub nav ────────────────────────────────────────────── */}
         {/* ── Category Quick Access Ribbon ────────────────────────────── */}
-        <div className={`${transparent ? "border-t-0 border-transparent bg-transparent backdrop-blur-none shadow-none" : "border-t border-border/60 bg-[#101114]/85 backdrop-blur-md shadow-inner"} w-full overflow-hidden relative`} onMouseLeave={() => { setHoveredCatId(null); setCatOpen(false); }}>
+        <div className={`${transparent ? "border-t-0 border-transparent bg-transparent backdrop-blur-none shadow-none" : "border-t border-border/60 bg-[#101114]/85 backdrop-blur-md shadow-inner"} hidden md:block w-full overflow-hidden relative`} onMouseLeave={() => { setHoveredCatId(null); setCatOpen(false); }}>
           <div className="container-page flex items-center justify-between h-12 gap-4">
             <div className="flex-1 min-w-0 flex items-center gap-6 overflow-x-auto scrollbar-none py-1">
               
@@ -847,43 +847,50 @@ export function Header({ transparent }: { transparent?: boolean }) {
                   All Pages
                 </Link>
                 <Link
-                  to="/category/gaming-accounts"
+                  to="/category/$slug"
+                  params={{ slug: "gaming-accounts" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Gaming Accounts
                 </Link>
                 <Link
-                  to="/category/in-game-currency"
+                  to="/category/$slug"
+                  params={{ slug: "in-game-currency" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   In-Game Currency
                 </Link>
                 <Link
-                  to="/category/gift-cards"
+                  to="/category/$slug"
+                  params={{ slug: "gift-cards" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Gift Cards
                 </Link>
                 <Link
-                  to="/category/software-tools"
+                  to="/category/$slug"
+                  params={{ slug: "software-tools" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Software & Tools
                 </Link>
                 <Link
-                  to="/category/subscriptions"
+                  to="/category/$slug"
+                  params={{ slug: "subscriptions" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Subscriptions
                 </Link>
                 <Link
-                  to="/category/coaching-services"
+                  to="/category/$slug"
+                  params={{ slug: "coaching-services" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Coaching Services
                 </Link>
                 <Link
-                  to="/category/boosting-services"
+                  to="/category/$slug"
+                  params={{ slug: "boosting-services" } as any}
                   className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Boosting Service

@@ -87,7 +87,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function OrdersPage() {
+function OrdersPage() {
   const { isAuthenticated, ready, user } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);

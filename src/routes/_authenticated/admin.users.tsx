@@ -6,7 +6,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
 import { useAuth } from "@/lib/auth/auth-context";
-import { Search, UserCheck, ShieldAlert, Ban, CheckCircle, AlertTriangle, X, StickyNote, Lock, Unlock, LogIn } from "lucide-react";
+import { Search, UserCheck, ShieldAlert, Ban, CheckCircle, AlertTriangle, X, StickyNote, Lock, Unlock, LogIn, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Manage Users — HUXZAIN Admin" }] }),

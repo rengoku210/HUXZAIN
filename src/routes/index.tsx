@@ -171,18 +171,19 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
   return (
     <>
       <section
-        className="relative overflow-hidden w-full flex flex-col justify-center"
+        className="relative overflow-hidden w-full flex flex-col justify-center min-h-[520px] sm:min-h-[620px] md:min-h-[780px] bg-black bg-no-repeat bg-cover bg-[position:right_-180px_center] md:bg-[position:center_right]"
         style={{
           backgroundImage: `url('${heroArtwork}')`,
-          backgroundSize: "cover",
-          backgroundPosition: "center right",
-          backgroundRepeat: "no-repeat",
-          minHeight: "780px",
         }}
       >
-        {/* Dark overlay behind text area for readability */}
+        {/* Mobile Dark Overlay: Stronger 80% solid fade for max readability */}
         <div
-          className="absolute inset-0 z-0 pointer-events-none"
+          className="absolute inset-0 z-0 pointer-events-none block md:hidden bg-[#050505]/80"
+        />
+
+        {/* Desktop Dark Overlay */}
+        <div
+          className="absolute inset-0 z-0 pointer-events-none hidden md:block"
           style={{
             background: "linear-gradient(90deg, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.75) 35%, rgba(5,5,5,0.35) 60%, rgba(5,5,5,0.10) 100%)",
           }}
@@ -224,14 +225,14 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
               <div className="space-y-1.5 md:space-y-2">
                 <h1
                   className="font-display font-extrabold tracking-tight leading-[1.08] text-white"
-                  style={{ fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)" }}
+                  style={{ fontSize: "clamp(1.8rem, 5.5vw, 4.2rem)" }}
                 >
                   India's Modern
                 </h1>
                 <h1
                   className="font-display font-extrabold tracking-tight leading-[1.08]"
                   style={{
-                    fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)",
+                    fontSize: "clamp(1.8rem, 5.5vw, 4.2rem)",
                     background: "linear-gradient(135deg, #ffd700 0%, #e8c53a 50%, #b8860b 100%)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
@@ -248,7 +249,7 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
               </p>
 
               {/* Trust badges row */}
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10.5px] font-bold text-[#8e93a3] uppercase tracking-[0.08em] mt-2">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 text-[10.5px] font-bold text-[#8e93a3] uppercase tracking-[0.08em] mt-2 max-w-[500px]">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-flex items-center justify-center size-4 rounded-full border border-gold/45 bg-gold/5 text-gold shrink-0">
                     <Check className="size-2.5" />
@@ -279,9 +280,10 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
               {/* Search bar pill */}
               <form
                 onSubmit={handleSearchSubmit}
-                className="flex items-center overflow-hidden w-full max-w-[580px] p-1.5 bg-[#0d0e11]/95 border border-white/5 rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65)] backdrop-blur-md mt-8"
+                className="flex flex-col sm:flex-row items-stretch sm:items-center overflow-hidden w-full max-w-[580px] p-2 sm:p-1.5 bg-[#0d0e11]/95 border border-white/5 rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65)] backdrop-blur-md mt-6 sm:mt-8 gap-2 sm:gap-0"
               >
-                <div className="flex-1 flex items-center min-w-0 pl-3 pr-1 sm:px-4">
+                <div className="flex-1 flex items-center min-w-0 pl-3 pr-3 sm:pr-1 sm:pl-3 sm:px-4">
+                  <Search className="size-4 text-[#4a5060] mr-2 shrink-0 sm:hidden" />
                   <input
                     id="hero-search-input"
                     type="text"
@@ -293,6 +295,7 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
                   />
                 </div>
 
+                <div className="w-full h-px bg-white/10 sm:hidden" />
                 <div className="w-px h-6 bg-white/10 mx-1 shrink-0 hidden sm:block" />
 
                 <div className="relative flex items-center shrink-0 hidden sm:flex">
@@ -315,10 +318,10 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
                 <button
                   id="hero-search-btn"
                   type="submit"
-                  className="flex items-center justify-center gap-1.5 font-bold text-[11px] uppercase tracking-[0.08em] border-none cursor-pointer px-4 sm:px-6 rounded-xl bg-gold text-[#0a0b0d] hover:brightness-110 active:scale-[0.98] transition-all shrink-0 font-display"
+                  className="flex items-center justify-center gap-1.5 font-bold text-[11px] uppercase tracking-[0.08em] border-none cursor-pointer px-4 sm:px-6 rounded-xl bg-gold text-[#0a0b0d] hover:brightness-110 active:scale-[0.98] transition-all shrink-0 font-display w-full sm:w-auto"
                   style={{ height: "40px" }}
                 >
-                  <Search className="size-3.5" />
+                  <Search className="size-3.5 hidden sm:inline" />
                   Search
                 </button>
               </form>
