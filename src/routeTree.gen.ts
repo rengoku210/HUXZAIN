@@ -36,6 +36,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountIndexRouteImport } from './routes/account.index'
+import { Route as VerifyInvoiceNumberRouteImport } from './routes/verify.$invoiceNumber'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as GameBuddiesIdRouteImport } from './routes/game-buddies.$id'
 import { Route as CoachingIdRouteImport } from './routes/coaching.$id'
@@ -87,6 +88,7 @@ import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin.newsletter'
 import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin.listings'
 import { Route as AuthenticatedAdminInvoicesRouteImport } from './routes/_authenticated/admin.invoices'
+import { Route as AuthenticatedAdminInvoiceTemplatesRouteImport } from './routes/_authenticated/admin.invoice-templates'
 import { Route as AuthenticatedAdminFinancesRouteImport } from './routes/_authenticated/admin.finances'
 import { Route as AuthenticatedAdminEarningsRouteImport } from './routes/_authenticated/admin.earnings'
 import { Route as AuthenticatedAdminDisputesRouteImport } from './routes/_authenticated/admin.disputes'
@@ -230,6 +232,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountIndexRoute = AccountIndexRouteImport.update({
   id: '/account/',
   path: '/account/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyInvoiceNumberRoute = VerifyInvoiceNumberRouteImport.update({
+  id: '/verify/$invoiceNumber',
+  path: '/verify/$invoiceNumber',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductIdRoute = ProductIdRouteImport.update({
@@ -521,6 +528,12 @@ const AuthenticatedAdminInvoicesRoute =
     path: '/invoices',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminInvoiceTemplatesRoute =
+  AuthenticatedAdminInvoiceTemplatesRouteImport.update({
+    id: '/invoice-templates',
+    path: '/invoice-templates',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminFinancesRoute =
   AuthenticatedAdminFinancesRouteImport.update({
     id: '/finances',
@@ -618,6 +631,7 @@ export interface FileRoutesByFullPath {
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/verify/$invoiceNumber': typeof VerifyInvoiceNumberRoute
   '/account/': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
@@ -627,6 +641,7 @@ export interface FileRoutesByFullPath {
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
   '/admin/earnings': typeof AuthenticatedAdminEarningsRoute
   '/admin/finances': typeof AuthenticatedAdminFinancesRoute
+  '/admin/invoice-templates': typeof AuthenticatedAdminInvoiceTemplatesRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -705,6 +720,7 @@ export interface FileRoutesByTo {
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/verify/$invoiceNumber': typeof VerifyInvoiceNumberRoute
   '/account': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
@@ -714,6 +730,7 @@ export interface FileRoutesByTo {
   '/admin/disputes': typeof AuthenticatedAdminDisputesRoute
   '/admin/earnings': typeof AuthenticatedAdminEarningsRoute
   '/admin/finances': typeof AuthenticatedAdminFinancesRoute
+  '/admin/invoice-templates': typeof AuthenticatedAdminInvoiceTemplatesRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -796,6 +813,7 @@ export interface FileRoutesById {
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/verify/$invoiceNumber': typeof VerifyInvoiceNumberRoute
   '/account/': typeof AccountIndexRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
@@ -805,6 +823,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/disputes': typeof AuthenticatedAdminDisputesRoute
   '/_authenticated/admin/earnings': typeof AuthenticatedAdminEarningsRoute
   '/_authenticated/admin/finances': typeof AuthenticatedAdminFinancesRoute
+  '/_authenticated/admin/invoice-templates': typeof AuthenticatedAdminInvoiceTemplatesRoute
   '/_authenticated/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
   '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -887,6 +906,7 @@ export interface FileRouteTypes {
     | '/coaching/$id'
     | '/game-buddies/$id'
     | '/product/$id'
+    | '/verify/$invoiceNumber'
     | '/account/'
     | '/admin/analytics'
     | '/admin/audit-logs'
@@ -896,6 +916,7 @@ export interface FileRouteTypes {
     | '/admin/disputes'
     | '/admin/earnings'
     | '/admin/finances'
+    | '/admin/invoice-templates'
     | '/admin/invoices'
     | '/admin/listings'
     | '/admin/newsletter'
@@ -974,6 +995,7 @@ export interface FileRouteTypes {
     | '/coaching/$id'
     | '/game-buddies/$id'
     | '/product/$id'
+    | '/verify/$invoiceNumber'
     | '/account'
     | '/admin/analytics'
     | '/admin/audit-logs'
@@ -983,6 +1005,7 @@ export interface FileRouteTypes {
     | '/admin/disputes'
     | '/admin/earnings'
     | '/admin/finances'
+    | '/admin/invoice-templates'
     | '/admin/invoices'
     | '/admin/listings'
     | '/admin/newsletter'
@@ -1064,6 +1087,7 @@ export interface FileRouteTypes {
     | '/coaching/$id'
     | '/game-buddies/$id'
     | '/product/$id'
+    | '/verify/$invoiceNumber'
     | '/account/'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/audit-logs'
@@ -1073,6 +1097,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/disputes'
     | '/_authenticated/admin/earnings'
     | '/_authenticated/admin/finances'
+    | '/_authenticated/admin/invoice-templates'
     | '/_authenticated/admin/invoices'
     | '/_authenticated/admin/listings'
     | '/_authenticated/admin/newsletter'
@@ -1150,6 +1175,7 @@ export interface RootRouteChildren {
   AuthVerifiedRoute: typeof AuthVerifiedRoute
   CategorySlugRoute: typeof CategorySlugRoute
   ProductIdRoute: typeof ProductIdRoute
+  VerifyInvoiceNumberRoute: typeof VerifyInvoiceNumberRoute
   AccountIndexRoute: typeof AccountIndexRoute
 }
 
@@ -1342,6 +1368,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account/'
       preLoaderRoute: typeof AccountIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify/$invoiceNumber': {
+      id: '/verify/$invoiceNumber'
+      path: '/verify/$invoiceNumber'
+      fullPath: '/verify/$invoiceNumber'
+      preLoaderRoute: typeof VerifyInvoiceNumberRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/product/$id': {
@@ -1701,6 +1734,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminInvoicesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/invoice-templates': {
+      id: '/_authenticated/admin/invoice-templates'
+      path: '/invoice-templates'
+      fullPath: '/admin/invoice-templates'
+      preLoaderRoute: typeof AuthenticatedAdminInvoiceTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/finances': {
       id: '/_authenticated/admin/finances'
       path: '/finances'
@@ -1783,6 +1823,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDisputesRoute: typeof AuthenticatedAdminDisputesRoute
   AuthenticatedAdminEarningsRoute: typeof AuthenticatedAdminEarningsRoute
   AuthenticatedAdminFinancesRoute: typeof AuthenticatedAdminFinancesRoute
+  AuthenticatedAdminInvoiceTemplatesRoute: typeof AuthenticatedAdminInvoiceTemplatesRoute
   AuthenticatedAdminInvoicesRoute: typeof AuthenticatedAdminInvoicesRoute
   AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
@@ -1811,6 +1852,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDisputesRoute: AuthenticatedAdminDisputesRoute,
   AuthenticatedAdminEarningsRoute: AuthenticatedAdminEarningsRoute,
   AuthenticatedAdminFinancesRoute: AuthenticatedAdminFinancesRoute,
+  AuthenticatedAdminInvoiceTemplatesRoute:
+    AuthenticatedAdminInvoiceTemplatesRoute,
   AuthenticatedAdminInvoicesRoute: AuthenticatedAdminInvoicesRoute,
   AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
@@ -1968,6 +2011,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthVerifiedRoute: AuthVerifiedRoute,
   CategorySlugRoute: CategorySlugRoute,
   ProductIdRoute: ProductIdRoute,
+  VerifyInvoiceNumberRoute: VerifyInvoiceNumberRoute,
   AccountIndexRoute: AccountIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
@@ -127,6 +128,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const loadUserMeta = useCallback(
     async (userId: string, fallbackUser?: User | null) => {
       if (!supabase) return;
@@ -135,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
       if (!isUuid) {
         console.warn("[AuthContext] loadUserMeta called with invalid UUID:", userId);
-        setReady(true);
+        if (mountedRef.current) setReady(true);
         return;
       }
 
@@ -301,20 +310,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           new Date().getTime() > new Date(finalProfile.subscription_expires_at).getTime()
         ) {
           console.log("[Auth] Subscription/Coupon expired! Reverting user to standard plan...");
-          const { data: revertedProfile, error: revertErr } = await supabase
-            .from("profiles")
+          const { error: revertErr } = await supabase
+            .from("seller_subscriptions")
             .update({
-              subscription_tier: "standard",
-              subscription_expires_at: null,
+              plan_name: "Free",
+              expiry_date: null,
+              status: "Active",
               updated_at: new Date().toISOString()
             })
-            .eq("id", userId)
-            .select()
-            .maybeSingle();
+            .eq("seller_id", userId);
+
           if (revertErr) {
             console.error("[Auth] Revert error:", revertErr);
-          } else if (revertedProfile) {
-            finalProfile = revertedProfile;
+          } else {
+            const { data: updatedProf } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userId)
+              .maybeSingle();
+            if (updatedProf) {
+              finalProfile = updatedProf;
+            }
+          }
             
             // Notify user
             try {
@@ -326,12 +343,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               });
             } catch (e) { console.error("Notification trigger error:", e); }
           }
-        }
       } catch (err) {
         console.warn("[Auth] Expiration check exception:", err);
       }
 
       console.log(`[Auth] User meta loaded for ${userId}. Roles: ${dbRoles.join(", ")}`);
+      if (!mountedRef.current) return;
       setProfile(
         finalProfile ? ({ ...(finalProfile as Profile), email, is_seller: hasSeller } as Profile) : null,
       );

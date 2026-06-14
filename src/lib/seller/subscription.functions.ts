@@ -151,27 +151,6 @@ export const activateSubscription = createServerFn({ method: "POST" })
       throw new Error("Failed to activate plan in database: " + upsertErr.message);
     }
 
-    // Sync profiles.subscription_tier for frontend rendering matching Tanstack shell rules
-    // Mapping: pro -> pro, elite -> elite, enterprise -> enterprise, free/verified -> standard
-    let tierName = "standard";
-    if (planId === "pro") tierName = "pro";
-    else if (planId === "elite") tierName = "elite";
-    else if (planId === "enterprise") tierName = "enterprise";
-
-    if (status === "Active") {
-      const { error: profileErr } = await supabase
-        .from("profiles")
-        .update({
-          subscription_tier: tierName,
-          subscription_expires_at: planId === "free" ? null : expiry.toISOString()
-        })
-        .eq("id", sellerId);
-
-      if (profileErr) {
-        console.error("[SubscriptionServer] Profile tier sync failed:", profileErr.message);
-      }
-    }
-
     return { success: true, status, planName, price };
   });
 

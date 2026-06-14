@@ -35,9 +35,14 @@ import {
   Calendar,
   Sparkles,
   ChevronDown,
-  Info
+  Info,
+  Shield,
+  Monitor,
+  Phone,
+  Lock
 } from "lucide-react";
 import { toast } from "sonner";
+import { PhoneVerificationModal } from "@/components/site/PhoneVerificationModal";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Buyer Console Dashboard — HUXZAIN" }] }),
@@ -56,7 +61,7 @@ type Order = {
   delivered_at: string | null;
   delivery_notes: string | null;
   delivery_proof_url: string | null;
-  listings?: { title?: string | null; cover_image_url?: string | null; category_slug?: string | null } | null;
+  listings?: { title?: string | null; cover_image_url?: string | null; categories?: { slug?: string | null } | null } | null;
 };
 
 type Dispute = {
@@ -160,7 +165,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function DashboardPage() {
-  const { isAuthenticated, ready, user } = useAuth();
+  const { isAuthenticated, ready, user, profile, refreshUserMeta, updateProfile } = useAuth();
   const navigate = useNavigate();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
 
@@ -172,6 +177,8 @@ function DashboardPage() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [proofs, setProofs] = useState<PaymentProof[]>([]);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<Set<string>>(new Set());
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
   // Expanded layout for orders (visual timeline toggle)
@@ -235,7 +242,7 @@ function DashboardPage() {
       // 1. Fetch Orders
       const { data: orderData } = await supabase
         .from("orders")
-        .select("*, listings:listing_id(title, cover_image_url, category_slug)")
+        .select("*, listings:listing_id(title, cover_image_url, categories:category_id(slug))")
         .eq("buyer_id", user.id)
         .order("created_at", { ascending: false });
       setOrders((orderData ?? []) as Order[]);
@@ -244,7 +251,7 @@ function DashboardPage() {
       const { data: disputeData } = await supabase
         .from("disputes")
         .select("*, order:orders(listing_title, amount_inr)")
-        .or(`opened_by.eq.${user.id},order.buyer_id.eq.${user.id}`)
+        .eq("opened_by", user.id)
         .order("created_at", { ascending: false });
       setDisputes((disputeData ?? []) as any[]);
 
@@ -264,18 +271,13 @@ function DashboardPage() {
       const reviewedIds = new Set((reviewData ?? []).map((r) => r.order_id));
       setReviewedOrderIds(reviewedIds);
 
-      // 5. Populate profile state
-      const { data: profile } = await supabase
-        .from("profiles")
+      // 5. Fetch Active Sessions
+      const { data: sessionData } = await supabase
+        .from("active_sessions")
         .select("*")
-        .eq("id", user.id)
-        .single();
-      if (profile) {
-        setProfileName(profile.display_name || "");
-        setProfilePhone(profile.phone || "");
-        setProfileBio(profile.description || "");
-        setProfileAvatarUrl(profile.avatar_url || "");
-      }
+        .eq("user_id", user.id)
+        .order("last_active", { ascending: false });
+      setSessions(sessionData || []);
     } catch (e: any) {
       console.error("[Dashboard] Error fetching buyer details:", e);
       toast.error("Failed to load dashboard data: " + e.message);
@@ -289,6 +291,16 @@ function DashboardPage() {
       void loadDashboardData();
     }
   }, [isAuthenticated, user]);
+
+  // Synchronize local profile state with useAuth context
+  useEffect(() => {
+    if (profile) {
+      setProfileName(profile.display_name || "");
+      setProfilePhone(profile.phone || "");
+      setProfileBio(profile.bio || "");
+      setProfileAvatarUrl(profile.avatar_url || "");
+    }
+  }, [profile]);
 
   // Upload helpers
   async function uploadFile(file: File, bucket: string, path: string): Promise<string> {
@@ -521,24 +533,16 @@ function DashboardPage() {
   // Profile Edit
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
-    const supabase = getSupabase()!;
     setSavingProfile(true);
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          display_name: profileName.trim(),
-          phone: profilePhone.trim(),
-          description: profileBio.trim(),
-          avatar_url: profileAvatarUrl.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user!.id);
+      await updateProfile({
+        display_name: profileName.trim() || null,
+        bio: profileBio.trim() || null,
+        avatar_url: profileAvatarUrl.trim() || null,
+      });
 
-      if (error) throw error;
       toast.success("Profile saved successfully!");
-      void loadDashboardData();
     } catch (err: any) {
       toast.error("Failed to save profile: " + err.message);
     } finally {
@@ -590,10 +594,48 @@ function DashboardPage() {
     return proofs.filter(p => p.status === "reupload_requested");
   }, [proofs]);
 
+  // Combined notifications & active sessions recent activity
+  const recentActivity = useMemo(() => {
+    const activityItems: Array<{
+      id: string;
+      title: string;
+      description: string;
+      timestamp: Date;
+      type: "notification" | "session";
+    }> = [];
+
+    // Add notifications
+    notifications.forEach((n) => {
+      activityItems.push({
+        id: `notif-${n.id}`,
+        title: n.title,
+        description: n.body,
+        timestamp: new Date(n.created_at),
+        type: "notification",
+      });
+    });
+
+    // Add active sessions
+    sessions.forEach((s) => {
+      activityItems.push({
+        id: `sess-${s.id}`,
+        title: `Login Session: ${s.browser} on ${s.device}`,
+        description: `IP Address: ${s.ip_address || "Unknown IP"}`,
+        timestamp: new Date(s.last_active),
+        type: "session",
+      });
+    });
+
+    // Sort descending by timestamp
+    return activityItems
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 5);
+  }, [notifications, sessions]);
+
   // Inspection Hours Calculator
   const getInspectionPeriodText = (o: Order) => {
     if (!o.delivered_at || !o.listings) return null;
-    const cat = o.listings.category_slug || "digital-products";
+    const cat = o.listings.categories?.slug || "digital-products";
     const price = Number(o.amount_inr || o.amount_total || 0);
     // Standard standard tier check
     const inspectionHours = calculateInspectionHours(cat, price, "standard");
@@ -764,6 +806,46 @@ function DashboardPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Account Activity */}
+              <div className="space-y-3">
+                <h3 className="font-display font-bold text-sm text-foreground flex items-center justify-between">
+                  <span>Recent Account Activity</span>
+                  <button onClick={() => setActiveTab("notifications")} className="text-xs text-gold hover:underline font-semibold inline-flex items-center gap-1">
+                    View Alerts <ChevronRight size={12} />
+                  </button>
+                </h3>
+
+                {recentActivity.length === 0 ? (
+                  <div className="p-10 border border-border rounded-2xl bg-surface/20 text-center text-xs text-muted-foreground">
+                    No recent activity logs.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentActivity.map((activity) => {
+                      const ActIcon = activity.type === "session" ? Monitor : AlertCircle;
+                      return (
+                        <div key={activity.id} className="p-4 rounded-2xl border border-border bg-surface/20 flex items-start gap-3">
+                          <div className={`p-2 rounded-xl bg-surface border border-border ${activity.type === 'session' ? 'text-blue-400' : 'text-gold'} shrink-0`}>
+                            <ActIcon size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-xs text-foreground truncate">
+                              {activity.title}
+                            </h4>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                              {activity.description}
+                            </p>
+                          </div>
+                          <div className="text-[9px] text-muted-foreground whitespace-nowrap self-center">
+                            {activity.timestamp.toLocaleString()}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -962,9 +1044,9 @@ function DashboardPage() {
                 <p className="text-sm text-muted-foreground mt-0.5">Escalate escrow locks, discuss disputes with sellers, and view mediator resolutions.</p>
               </div>
 
-              <div className="flex gap-6 min-h-[400px]">
+              <div className="flex flex-col md:flex-row gap-6 min-h-[400px]">
                 {/* Left side: disputes lists */}
-                <div className="w-80 border border-border bg-surface/30 rounded-2xl flex flex-col divide-y divide-border overflow-hidden">
+                <div className="w-full md:w-80 border border-border bg-surface/30 rounded-2xl flex flex-col divide-y divide-border overflow-hidden flex-shrink-0">
                   <div className="p-3 bg-surface-elevated/40 text-[10px] uppercase font-bold text-muted-foreground">Disputes List ({disputes.length})</div>
                   {disputes.length === 0 ? (
                     <div className="p-8 text-center text-xs text-muted-foreground">No active disputes opened.</div>
@@ -1125,14 +1207,54 @@ function DashboardPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] uppercase font-bold text-muted-foreground">Phone number</label>
-                    <input
-                      type="text"
-                      value={profilePhone}
-                      onChange={(e) => setProfilePhone(e.target.value)}
-                      placeholder="Phone details"
-                      className="h-10 px-3 text-xs bg-background border border-border rounded-xl focus:border-gold/50 outline-none text-foreground font-semibold"
-                    />
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center justify-between">
+                      <span>Phone number</span>
+                      {profile?.phone_verified ? (
+                        <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-wider">Verified ✓</span>
+                      ) : profile?.phone ? (
+                        <span className="text-[9px] text-amber-400 font-bold bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">Unverified</span>
+                      ) : null}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                        placeholder="e.g. +919876543210"
+                        disabled={!!profile?.phone_verified}
+                        className="flex-1 h-10 px-3 text-xs bg-background border border-border rounded-xl focus:border-gold/50 outline-none text-foreground font-semibold disabled:opacity-75 disabled:cursor-not-allowed"
+                      />
+                      {!profile?.phone_verified && profilePhone.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setShowPhoneVerification(true)}
+                          className="h-10 px-4 rounded-xl bg-gold hover:brightness-110 text-black text-xs font-bold transition-all border-none cursor-pointer flex-shrink-0"
+                        >
+                          Verify OTP
+                        </button>
+                      )}
+                      {profile?.phone_verified && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to change your verified phone number? This will require re-verification.")) {
+                              const supabase = getSupabase()!;
+                              const { error } = await supabase.from("profiles").update({ phone_verified: false, phone_verified_at: null }).eq("id", user!.id);
+                              if (error) {
+                                toast.error("Failed to unlock phone: " + error.message);
+                              } else {
+                                await refreshUserMeta();
+                                setProfilePhone("");
+                                toast.info("Phone number unlocked. You can now type a new number and verify it.");
+                              }
+                            }
+                          }}
+                          className="h-10 px-3 rounded-xl border border-border text-muted-foreground hover:text-foreground text-xs font-semibold transition-all cursor-pointer flex-shrink-0 bg-transparent"
+                        >
+                          Unlock
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1424,6 +1546,16 @@ function DashboardPage() {
             </form>
           </div>
         </div>
+      )}
+      {showPhoneVerification && (
+        <PhoneVerificationModal
+          isOpen={showPhoneVerification}
+          onClose={() => setShowPhoneVerification(false)}
+          onSuccess={() => {
+            setShowPhoneVerification(false);
+          }}
+          initialPhone={profilePhone}
+        />
       )}
     </div>
   );

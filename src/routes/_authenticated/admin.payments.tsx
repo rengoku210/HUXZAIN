@@ -433,10 +433,22 @@ function AdminPayments() {
         const planMatch = activeProof.payment_reference.match(/^subscription:(.+)$/);
         if (planMatch) {
           const planId = planMatch[1];
+          const planName = planId.charAt(0).toUpperCase() + planId.slice(1);
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30); // 30 days subscription
+
           await supabase
-            .from("profiles")
-            .update({ subscription_tier: planId })
-            .eq("id", activeProof.user_id);
+            .from("seller_subscriptions")
+            .upsert({
+              seller_id: activeProof.user_id,
+              plan_name: planName,
+              start_date: new Date().toISOString(),
+              expiry_date: expiryDate.toISOString(),
+              status: "Active",
+              suspension_status: false,
+              boost_tokens_remaining: planId === "pro" ? 10 : planId === "elite" ? 20 : planId === "enterprise" ? 50 : 0,
+              updated_at: new Date().toISOString()
+            }, { onConflict: "seller_id" });
 
           // Notify buyer
           await supabase.from("notifications").insert({

@@ -1,4 +1,4 @@
-﻿// src/lib/payments/fraudScoringService.ts
+// src/lib/payments/fraudScoringService.ts
 import { getSupabase } from "../supabase-client";
 
 export interface FraudScoreResult {
@@ -62,10 +62,10 @@ export async function calculateFraudScore(params: {
   if (amount !== undefined) {
     const { data: order } = await supabase
       .from("orders")
-      .select("amount_total")
+      .select("amount_inr")
       .eq("id", orderId)
       .maybeSingle();
-    if (order && Math.abs(order.amount_total - amount) > 0.01) {
+    if (order && Math.abs((order.amount_inr || 0) - amount) > 0.01) {
       score += 20;
       tags.push("amount-mismatch");
     }

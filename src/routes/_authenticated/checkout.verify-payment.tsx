@@ -68,7 +68,7 @@ function VerifyPayment() {
     if (!supabase) return;
     supabase
       .from("orders")
-      .select("id, amount_inr, amount_total, currency, listing_id, seller_id, listings:listing_id(title, cover_image_url)")
+      .select("id, amount_inr, currency, listing_id, seller_id, listings:listing_id(title, cover_image_url)")
       .eq("id", orderId)
       .maybeSingle()
       .then(({ data }) => setOrder((data as OrderSummary | null) ?? null));

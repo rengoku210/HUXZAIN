@@ -17,6 +17,7 @@ import {
   Mail,
   ShoppingBag,
   Shield,
+  Phone,
   ArrowRight,
   Store,
   BadgeCheck,
@@ -228,6 +229,7 @@ function AccountPage() {
   const [bio, setBio] = useState("");
   const [country, setCountry] = useState("");
   const [emailVisibility, setEmailVisibility] = useState("private");
+  const [phone, setPhone] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -265,6 +267,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       setBio(profile.bio ?? "");
       setCountry(profile.country ?? "");
       setEmailVisibility(profile.email_visibility ?? "private");
+      setPhone(profile.phone ?? "");
       setTwoFactorEnabled((profile as any).two_factor_enabled ?? false);
       setNotifPreferences({
         emailAlerts: true,
@@ -541,6 +544,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       // After verification, retry seller activation
       activateRole('seller');
     }}
+    initialPhone={phone}
   />
 )}
       {avatarPreviewFile && (
@@ -664,6 +668,57 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                             <option value="private">Private</option>
                             <option value="public">Public</option>
                           </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium flex items-center justify-between">
+                          <span className="flex items-center gap-1.5"><Phone className="size-3.5 text-gold" /> Phone Number</span>
+                          {profile?.phone_verified ? (
+                            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-wider">Verified ✓</span>
+                          ) : profile?.phone ? (
+                            <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">Unverified</span>
+                          ) : null}
+                        </label>
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="e.g. +919876543210"
+                            disabled={!!profile?.phone_verified}
+                            className="flex-1 h-11 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:border-gold/50 outline-none transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
+                          />
+                          {!profile?.phone_verified && phone.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => setShowPhoneVerification(true)}
+                              className="h-11 px-5 rounded-xl bg-gold hover:brightness-110 text-black text-sm font-bold transition-all border-none cursor-pointer flex-shrink-0"
+                            >
+                              Verify via OTP
+                            </button>
+                          )}
+                          {profile?.phone_verified && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm("Are you sure you want to change your verified phone number? This will require re-verification.")) {
+                                  const supabase = getSupabase()!;
+                                  const { error } = await supabase.from("profiles").update({ phone_verified: false, phone_verified_at: null }).eq("id", user!.id);
+                                  if (error) {
+                                    toast.error("Failed to unlock phone: " + error.message);
+                                  } else {
+                                    await refreshUserMeta();
+                                    setPhone("");
+                                    toast.info("Phone number unlocked. You can now type a new number and verify it.");
+                                  }
+                                }
+                              }}
+                              className="h-11 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold transition-all cursor-pointer flex-shrink-0 bg-transparent"
+                            >
+                              Change
+                            </button>
+                          )}
                         </div>
                       </div>
 

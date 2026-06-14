@@ -376,7 +376,7 @@ function PromotionBanners() {
         <div 
           className="relative overflow-hidden rounded-3xl border border-purple-500/10 bg-gradient-to-br from-[#12081c] via-[#09040e] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(157,78,221,0.05)] hover:border-purple-500/25 hover:shadow-[0_0_40px_rgba(157,78,221,0.1)] transition-all duration-500 group"
           style={{
-            backgroundImage: "linear-gradient(to right, rgba(9, 4, 14, 0.96) 50%, rgba(9, 4, 14, 0.4) 100%), url('https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=70')",
+            backgroundImage: "linear-gradient(to right, rgba(9, 4, 14, 0.96) 50%, rgba(9, 4, 14, 0.4) 100%), url('/images/category-banners/Game Buddy.png')",
             backgroundSize: "cover",
             backgroundPosition: "right center",
             backgroundRepeat: "no-repeat"
@@ -446,7 +446,7 @@ function PromotionBanners() {
         <div 
           className="relative overflow-hidden rounded-3xl border border-gold/10 bg-gradient-to-br from-[#1c1408] via-[#0e0a04] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(212,160,23,0.05)] hover:border-gold/25 hover:shadow-[0_0_40px_rgba(212,160,23,0.1)] transition-all duration-500 group"
           style={{
-            backgroundImage: "linear-gradient(to right, rgba(14, 10, 4, 0.96) 50%, rgba(14, 10, 4, 0.4) 100%), url('https://images.unsplash.com/photo-1560253023-3ec5d502959f?w=800&auto=format&fit=crop&q=70')",
+            backgroundImage: "linear-gradient(to right, rgba(14, 10, 4, 0.96) 50%, rgba(14, 10, 4, 0.4) 100%), url('/images/category-banners/Coach.png')",
             backgroundSize: "cover",
             backgroundPosition: "right center",
             backgroundRepeat: "no-repeat"

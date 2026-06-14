@@ -43,13 +43,13 @@ function SellerPanel() {
         const [sellersRes, listingsRes, ordersRes] = await Promise.all([
           sb.from("profiles").select("id", { count: "exact" }).eq("is_seller", true),
           sb.from("listings").select("id", { count: "exact" }).eq("status", "active"),
-          sb.from("orders").select("amount_total").in("status", ["paid", "delivering", "delivered", "completed"]),
+          sb.from("orders").select("amount_inr").in("status", ["paid", "delivering", "delivered", "completed"]),
         ]);
 
         const sellerCount = sellersRes.count ?? 0;
         const listingCount = listingsRes.count ?? 0;
         const totalAmount = (ordersRes.data ?? []).reduce(
-          (acc: number, curr: any) => acc + Number(curr.amount_total),
+          (acc: number, curr: any) => acc + Number(curr.amount_inr || 0),
           0
         );
 

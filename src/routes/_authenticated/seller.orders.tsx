@@ -13,7 +13,8 @@ export const Route = createFileRoute("/_authenticated/seller/orders")({
 type SellerOrder = {
   id: string;
   buyer_id: string;
-  amount_total: number;
+  amount_total?: number;
+  amount_inr?: number;
   status: string;
   created_at: string;
   listings?: { title?: string | null } | null;
@@ -38,7 +39,7 @@ function statusLabel(status: string) {
 }
 
 function InvoiceModal({ order, onClose }: { order: SellerOrder; onClose: () => void }) {
-  const basePrice = Number(order.amount_total);
+  const basePrice = Number(order.amount_inr || order.amount_total || 0);
   const platformFee = basePrice * 0.08;
   const gst = platformFee * 0.18; // 18% GST on platform fee
   const netEarnings = basePrice - platformFee - gst;
@@ -290,7 +291,7 @@ function Page() {
                       {o.listings?.title ?? "Listing"}
                     </td>
                     <td className="py-3 text-right font-semibold">
-                      ₹{Number(o.amount_total).toFixed(2)}
+                      ₹{Number(o.amount_inr || o.amount_total || 0).toFixed(2)}
                     </td>
                     <td className="py-3 pl-4">
                       <StatusPill status={statusLabel(o.status)} />

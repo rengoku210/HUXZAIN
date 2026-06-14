@@ -158,6 +158,11 @@ function RootLayout() {
   useTrafficTracker();
 
   useEffect(() => {
+    // Don't run page visit tracking in automated testing environments
+    if (typeof window !== "undefined" && (window.navigator.webdriver || (window as any).__E2E_TESTING__)) {
+      return;
+    }
+
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
     let browserName = "Unknown";

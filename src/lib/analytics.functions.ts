@@ -91,7 +91,7 @@ export const getAnalyticsStats = createServerFn({ method: "GET" })
     // Load statistics
     const [rawVisitsRes, ordersRes, listingsRes] = await Promise.all([
       supabaseAdmin.from("visits_raw").select("*"),
-      supabaseAdmin.from("orders").select("amount_total, status, created_at"),
+      supabaseAdmin.from("orders").select("amount_inr, status, created_at"),
       supabaseAdmin.from("listings").select("id, title, view_count, category_id, categories(name)")
     ]);
 
@@ -155,7 +155,7 @@ export const getAnalyticsStats = createServerFn({ method: "GET" })
       browsers: Object.keys(browserCounts).map(k => ({ name: k, value: browserCounts[k] })),
       countries: Object.keys(countryCounts).map(k => ({ name: k, value: countryCounts[k] })),
       topPages,
-      totalSales: orders.filter(o => o.status === "completed").reduce((sum, o) => sum + Number(o.amount_total), 0)
+      totalSales: orders.filter(o => o.status === "completed").reduce((sum, o) => sum + Number(o.amount_inr || 0), 0)
     };
   });
 
@@ -221,7 +221,7 @@ export const getSellerAnalytics = createServerFn({ method: "POST" })
     // Load events, orders, and listing boosts
     const [eventsRes, ordersRes, boostsRes] = await Promise.all([
       supabaseAdmin.from("seller_analytics_events").select("*").eq("seller_id", sellerId),
-      supabaseAdmin.from("orders").select("id, amount_total, status, created_at").eq("seller_id", sellerId),
+      supabaseAdmin.from("orders").select("id, amount_inr, status, created_at").eq("seller_id", sellerId),
       supabaseAdmin.from("listing_boosts").select("*").eq("seller_id", sellerId)
     ]);
 
@@ -237,7 +237,7 @@ export const getSellerAnalytics = createServerFn({ method: "POST" })
     const clicks = events.filter(e => e.event_type === "click").length;
 
     const completedOrders = orders.filter(o => o.status === "completed" || o.status === "delivered");
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.amount_total || 0), 0);
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.amount_inr || 0), 0);
 
     const viewsDenominator = Math.max(1, listingViews);
     const conversionRate = (completedOrders.length / viewsDenominator) * 100;

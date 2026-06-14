@@ -14,6 +14,7 @@ import {
   Clock,
   Sparkles,
   User,
+  Building,
   ExternalLink
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-client";
@@ -70,6 +71,7 @@ function UnifiedPaymentPage() {
   const [copiedId, setCopiedId] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [utrReference, setUtrReference] = useState("");
+  const [buyerGstin, setBuyerGstin] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
  
   // Fetch listing & seller info if listingId is provided
@@ -221,6 +223,7 @@ function UnifiedPaymentPage() {
             payment_method: "manual",
             payment_status: "created",
             status: "pending_payment",
+            buyer_gstin: buyerGstin.trim() || null,
           })
           .select("id")
           .single();
@@ -253,6 +256,15 @@ function UnifiedPaymentPage() {
           });
         } catch (notifErr) {
           console.warn("[Unified Checkout] Non-blocking notification insert skipped:", notifErr);
+        }
+      } else if (finalOrderId && !isSubscription) {
+        try {
+          await supabase
+            .from("orders")
+            .update({ buyer_gstin: buyerGstin.trim() || null })
+            .eq("id", finalOrderId);
+        } catch (gstErr) {
+          console.warn("[Unified Checkout] Non-blocking update of buyer_gstin failed:", gstErr);
         }
       }
 
@@ -609,6 +621,26 @@ function UnifiedPaymentPage() {
                       This is the 12-digit number found in your payment transaction details. Providing it ensures immediate and precise admin approval.
                     </p>
                   </div>
+
+                  {/* Optional GSTIN Input */}
+                  {!isSubscription && (
+                    <div className="space-y-2 text-left bg-surface/10 border border-border p-5 rounded-2xl">
+                      <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Building size={13} className="text-gold" /> GSTIN (Optional — for B2B Invoice)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter your 15-digit GSTIN (e.g. 29AAAAA0000A1Z5)"
+                        value={buyerGstin}
+                        onChange={(e) => setBuyerGstin(e.target.value.toUpperCase())}
+                        className="w-full h-11 px-4 rounded-xl bg-surface/50 border border-border focus:border-gold/50 text-sm outline-none text-foreground placeholder:text-muted-foreground transition-all duration-300"
+                        maxLength={15}
+                      />
+                      <p className="text-[10px] text-muted-foreground leading-normal">
+                        Provide a valid 15-character GSTIN if you require a tax invoice for business expense claims.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Action submit button */}
                   <button

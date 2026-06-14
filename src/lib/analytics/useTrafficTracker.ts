@@ -17,6 +17,11 @@ export function useTrafficTracker() {
   useEffect(() => {
     const path = location.pathname;
 
+    // Don't run telemetry in automated testing environments or if webdriver is present
+    if (typeof window !== "undefined" && (window.navigator.webdriver || (window as any).__E2E_TESTING__)) {
+      return;
+    }
+
     // Don't track admin pages or auth pages
     if (path.startsWith("/admin") || path.startsWith("/auth") || path.startsWith("/team-login")) {
       return;
@@ -32,7 +37,7 @@ export function useTrafficTracker() {
         // Use sendBeacon-style fire-and-forget
         try {
           navigator.sendBeacon(
-            "/_server/trackDuration",
+            "/trackDuration",
             JSON.stringify({
               activityId: activityIdRef.current,
               durationSeconds: duration,
@@ -81,7 +86,7 @@ export function useTrafficTracker() {
         if (duration > 0 && duration < 3600) {
           try {
             navigator.sendBeacon(
-              "/_server/trackDuration",
+              "/trackDuration",
               JSON.stringify({
                 activityId: activityIdRef.current,
                 durationSeconds: duration,

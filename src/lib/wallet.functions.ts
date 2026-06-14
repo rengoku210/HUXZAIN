@@ -151,6 +151,17 @@ export async function completeOrderAndCreditSeller(orderId: string) {
     });
   } catch (e) { console.error("Notification trigger error:", e); }
 
+  // 8. Auto-generate invoice (idempotent — safe to call multiple times)
+  try {
+    const { error: invErr } = await supabase.rpc('create_seller_invoice', {
+      p_order_id: orderId
+    });
+    if (invErr) console.warn('[Invoice] Auto-generation failed:', invErr.message);
+    else console.log('[Invoice] Auto-generated for order:', orderId);
+  } catch (invEx) {
+    console.warn('[Invoice] Auto-generation exception:', invEx);
+  }
+
   return order;
 }
 
@@ -566,57 +577,18 @@ export async function applyCoupon(userId: string, code: string) {
 
   const cleanCode = code.trim().toUpperCase();
 
-  // 1. Check if user already used this coupon
-  const { data: alreadyUsed } = await supabase
-    .from("user_coupons")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("coupon_code", cleanCode)
-    .maybeSingle();
+  // Call the server-side RPC function to validate and execute redemption
+  const { data, error } = await supabase.rpc("apply_coupon_server", {
+    p_user_id: userId,
+    p_coupon_code: cleanCode
+  });
 
-  if (alreadyUsed) {
-    throw new Error("You have already used this coupon code.");
+  if (error) {
+    console.error("[WalletFunctions] Coupon redemption failed:", error);
+    throw new Error(error.message);
   }
 
-  // 2. Fetch coupon rules
-  const { data: coupon, error: cErr } = await supabase
-    .from("coupons")
-    .select("*")
-    .eq("code", cleanCode)
-    .maybeSingle();
-
-  if (cErr || !coupon) {
-    throw new Error("Invalid coupon code.");
-  }
-
-  console.log(`[WalletFunctions] Applying coupon: code=${cleanCode}, user=${userId}, duration=${coupon.reward_duration_days} days`);
-
-  // 3. Prevent duplicate usage by recording in user_coupons
-  const { error: useErr } = await supabase
-    .from("user_coupons")
-    .insert({
-      user_id: userId,
-      coupon_code: cleanCode
-    });
-
-  if (useErr) throw useErr;
-
-  // 4. Update profile subscription tier & expiry
-  const durationMs = Number(coupon.reward_duration_days) * 24 * 60 * 60 * 1000;
-  const expiry = new Date(Date.now() + durationMs).toISOString();
-
-  const { error: profErr } = await supabase
-    .from("profiles")
-    .update({
-      subscription_tier: "pro",
-      subscription_expires_at: expiry,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", userId);
-
-  if (profErr) throw profErr;
-
-  // 5. Notify user
+  // Send in-app notification to the user
   try {
     await supabase.from("notifications").insert({
       user_id: userId,
@@ -624,10 +596,13 @@ export async function applyCoupon(userId: string, code: string) {
       title: "Coupon Activated — Pro Plan Unlocked!",
       body: `You have successfully applied the coupon "${cleanCode}". Enjoy 3 days of Pro Plan customization, lower fees, and boost access!`
     });
-  } catch (e) { console.error("Notification trigger error:", e); }
+  } catch (e) {
+    console.error("Notification trigger error:", e);
+  }
 
-  return coupon;
+  return data;
 }
+
 
 // Add balance directly to a user's wallet (admin top-up approval, refunds, etc.)
 export async function addWalletBalance(

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { PanelCard, StatCard, StatusPill } from "@/components/seller/SellerShell";
 import { ArrowUpFromLine, Clock, Wallet, Inbox, Landmark, CheckCircle, RefreshCw, AlertTriangle, ShieldCheck, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useSellerTier } from "@/lib/seller/tier-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { getOrCreateWallet, requestWithdrawal, checkAndReleaseEscrows } from "@/lib/wallet.functions";
 import { parseWithdrawnOrderIds, getPayoutState, type OrderPayout } from "@/lib/payout-calculator";
@@ -14,7 +15,8 @@ export const Route = createFileRoute("/_authenticated/seller/withdrawals")({
 });
 
 function Page() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
+  const { tier } = useSellerTier();
   const [wallet, setWallet] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [payouts, setPayouts] = useState<OrderPayout[]>([]);
@@ -34,8 +36,6 @@ function Page() {
 
   // Active tab for payouts view
   const [payoutTab, setPayoutTab] = useState<"eligible" | "cooling" | "dormant" | "withdrawn">("eligible");
-
-  const tier = (profile?.subscription_tier || "standard") as any;
 
   async function loadData() {
     if (!user) return;
@@ -81,7 +81,7 @@ function Page() {
         const withdrawnIds = parseWithdrawnOrderIds(historyList);
 
         const mappedPayouts = (ordersData || []).map(o => 
-          getPayoutState(o, withdrawnIds, tier, reactivatedIds)
+          getPayoutState(o, withdrawnIds, tier as any, reactivatedIds)
         );
 
         setPayouts(mappedPayouts);
@@ -95,7 +95,7 @@ function Page() {
 
   useEffect(() => {
     loadData();
-  }, [user, profile?.subscription_tier]);
+  }, [user, tier]);
 
   const eligiblePayouts = payouts.filter(p => p.state === "eligible" || p.state === "reactivated");
   const coolingPayouts = payouts.filter(p => p.state === "cooling");

@@ -26,6 +26,8 @@ import { formatPrice } from "@/lib/marketplace/listing-adapter";
 import { calculateInspectionHours } from "@/lib/escrow";
 import { completeOrderAndCreditSeller } from "@/lib/wallet.functions";
 import { openDispute } from "@/lib/marketplace/disputeService";
+import { analyzeFraudRisk, buildFraudSystemMessage } from "@/lib/chat/fraud-detection";
+import { submitChatReport } from "@/lib/admin/moderation.functions";
 
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({ meta: [{ title: "Messages — HUXZAIN" }] }),
@@ -47,6 +49,11 @@ type Conversation = {
   buyer_unread: number;
   seller_unread: number;
   created_at: string;
+  chat_number?: string;
+  risk_score?: number;
+  risk_level?: string;
+  is_flagged?: boolean;
+  is_reported?: boolean;
   otherUser?: {
     display_name: string;
     username: string;
@@ -84,28 +91,7 @@ type Message = {
   created_at: string;
 };
 
-// Check contact sharing policy violations
-const CONTACT_PATTERNS = [
-  /whatsapp/i,
-  /telegram/i,
-  /discord/i,
-  /t\.me/i,
-  /discord\.gg/i,
-  /call\s+me/i,
-  /contact\s+me/i,
-  /message\s+me\s+on/i,
-  /instagram/i,
-  /snapchat/i,
-  /direct\s+transfer/i,
-  /upi\s+outside/i,
-  /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/, // email
-  /(\+?\d{1,4}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/, // phone
-  /[a-zA-Z0-9.-]+@[a-zA-Z]{2,4}/ // simple upi check
-];
 
-function checkContactViolation(text: string): boolean {
-  return CONTACT_PATTERNS.some(pat => pat.test(text));
-}
 
 function MessagesPage() {
   const { user, isAuthenticated, ready } = useAuth();
@@ -129,7 +115,13 @@ function MessagesPage() {
   const [submittingReview, setSubmittingReview] = useState(false);
 
   // Policy warning
-  const [showPolicyWarning, setShowPolicyWarning] = useState(false);
+  const [policyWarningText, setPolicyWarningText] = useState<string | null>(null);
+
+  // Report Conversation modal states
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportNotes, setReportNotes] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   // Order Room forms state
   const [reqRiotId, setReqRiotId] = useState("");
@@ -171,9 +163,10 @@ function MessagesPage() {
   // Monitor text input for real-time contact-sharing warning
   useEffect(() => {
     if (newMessage.trim()) {
-      setShowPolicyWarning(checkContactViolation(newMessage));
+      const result = analyzeFraudRisk(newMessage);
+      setPolicyWarningText(result.isFraud ? result.warningMessage : null);
     } else {
-      setShowPolicyWarning(false);
+      setPolicyWarningText(null);
     }
   }, [newMessage]);
 
@@ -243,7 +236,7 @@ function MessagesPage() {
       const [profilesRes, listingsRes, ordersRes, categoriesRes] = await Promise.all([
         supabase.from("profiles").select("id, display_name, username, avatar_url, subscription_tier").in("id", allUserIds),
         supabase.from("listings").select("id, title, cover_image_url, category_id, price_inr").in("id", listingIds),
-        supabase.from("orders").select("id, order_number, buyer_id, seller_id, listing_id, status, amount_inr, amount_total, delivered_at, completed_at").in("id", orderIds),
+        supabase.from("orders").select("id, order_number, buyer_id, seller_id, listing_id, status, amount_inr, delivered_at, completed_at").in("id", orderIds),
         supabase.from("categories").select("id, name, slug"),
       ]);
 
@@ -501,14 +494,21 @@ function MessagesPage() {
     setSending(true);
 
     try {
-      // 1. If policy violation detected, insert system policy warning in DB first
-      const hasViolation = checkContactViolation(body);
-      if (hasViolation) {
+      // 1. Analyze fraud risk
+      const fraudResult = analyzeFraudRisk(body);
+      if (fraudResult.isFraud && fraudResult.shouldBlock) {
+        toast.error(fraudResult.warningMessage || "Message blocked by safety filters.");
+        setSending(false);
+        return;
+      }
+
+      if (fraudResult.isFraud) {
         console.warn("[Chat] Policy violation warning logged.");
+        const systemMsgBody = buildFraudSystemMessage(fraudResult);
         await supabase.from("messages").insert({
           conversation_id: activeConv.id,
           sender_id: user.id,
-          body: `[SYSTEM_POLICY_WARNING]: Chat sender attempted to share contact information or off-platform payment keyword. Keep trade inside HUXZAIN escrow to prevent fraud. Input preview: "${body.slice(0, 50)}..."`,
+          body: systemMsgBody,
           is_system: true,
         });
 
@@ -516,11 +516,28 @@ function MessagesPage() {
         try {
           await supabase.from("policy_violations").insert({
             user_id: user.id,
-            violation_type: "contact_sharing",
+            violation_type: fraudResult.detectionType || "contact_sharing",
             message_body: body,
           });
         } catch (err) {
           console.error("Failed to insert policy violation record:", err);
+        }
+
+        // Insert into fraud_events table
+        try {
+          await supabase.from("fraud_events").insert({
+            conversation_id: activeConv.id,
+            chat_number: activeConv.chat_number || null,
+            user_id: user.id,
+            detection_type: fraudResult.detectionType || "unknown",
+            matched_pattern: fraudResult.matchedPattern || "unknown",
+            message_preview: body.slice(0, 200),
+            confidence_score: fraudResult.confidenceScore,
+            risk_tier: fraudResult.tier,
+            action_taken: fraudResult.shouldFlagConversation ? "flagged" : "logged",
+          });
+        } catch (err) {
+          console.error("Failed to insert fraud event:", err);
         }
 
         // Insert supporting audit alert
@@ -560,6 +577,20 @@ function MessagesPage() {
         updateData.seller_unread = (activeConv.seller_unread || 0) + 1;
       } else {
         updateData.buyer_unread = (activeConv.buyer_unread || 0) + 1;
+      }
+
+      if (fraudResult.isFraud) {
+        const newRiskScore = (activeConv.risk_score || 0) + fraudResult.riskScoreDelta;
+        let newRiskLevel = activeConv.risk_level || "safe";
+        if (newRiskScore >= 30) newRiskLevel = "critical";
+        else if (newRiskScore >= 15) newRiskLevel = "high_risk";
+        else if (newRiskScore > 0) newRiskLevel = "warning";
+
+        updateData.risk_score = newRiskScore;
+        updateData.risk_level = newRiskLevel;
+        if (fraudResult.shouldFlagConversation) {
+          updateData.is_flagged = true;
+        }
       }
 
       await supabase
@@ -887,6 +918,48 @@ function MessagesPage() {
     }
   }
 
+  // Submit report handler
+  async function handleReportSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeConv || !user) return;
+    if (!reportReason) {
+      toast.error("Please select a reason for reporting.");
+      return;
+    }
+
+    setReporting(true);
+    try {
+      const result = await submitChatReport({
+        data: {
+          conversation_id: activeConv.id,
+          chat_number: activeConv.chat_number || "HX-CHAT-UNKNOWN",
+          order_id: activeConv.order_id || undefined,
+          reporter_id: user.id,
+          buyer_id: activeConv.buyer_id,
+          seller_id: activeConv.seller_id,
+          reason: reportReason,
+          additional_notes: reportNotes,
+        }
+      });
+
+      if (result.success) {
+        toast.success("Conversation reported successfully. A moderator will review this chat.");
+        setReportModalOpen(false);
+        setReportReason("");
+        setReportNotes("");
+        // Reload conversations to update flags
+        await loadConversations(activeConv.id);
+      } else {
+        toast.error("Failed to submit report.");
+      }
+    } catch (err: any) {
+      console.error("[Report] Error submitting report:", err);
+      toast.error(err.message || "Failed to submit report.");
+    } finally {
+      setReporting(false);
+    }
+  }
+
   // Open Dispute
   async function handleOpenDispute(e: React.FormEvent) {
     e.preventDefault();
@@ -1029,7 +1102,12 @@ function MessagesPage() {
                             {new Date(c.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <div className="text-[10px] text-gold font-medium truncate mb-1">{c.subject}</div>
+                        <div className="text-[10px] text-gold font-medium truncate mb-1 flex items-center justify-between gap-1">
+                          <span className="truncate">{c.subject}</span>
+                          {c.chat_number && (
+                            <span className="font-mono text-[8px] bg-gold/10 px-1 rounded text-gold shrink-0">{c.chat_number}</span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-muted-foreground truncate leading-relaxed">
                           {c.last_message_preview || "No messages yet"}
                         </div>
@@ -1073,35 +1151,53 @@ function MessagesPage() {
                         {activeOtherName}
                         <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                       </div>
-                      <div className="text-[10px] lg:text-xs text-gold font-medium mt-0.5">{activeConv.subject}</div>
+                      <div className="text-[10px] lg:text-xs text-gold font-medium mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>{activeConv.subject}</span>
+                        {activeConv.chat_number && (
+                          <>
+                            <span className="text-muted-foreground/60">•</span>
+                            <span className="font-mono bg-gold/15 text-gold px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider">{activeConv.chat_number}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {activeConv.order && (
-                    <div className="flex items-center gap-2">
-                      {activeConv.order.status === "completed" && user?.id === activeConv.seller_id && (
-                        <button
-                          type="button"
-                          onClick={handleRequestReview}
-                          disabled={messages.some(m => m.body === "[SYSTEM_REQUEST_REVIEW]")}
-                          className="h-7 px-3 rounded-lg bg-gold text-primary-foreground font-bold text-[9px] uppercase tracking-wider hover:brightness-110 disabled:opacity-50 transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer border-none"
-                        >
-                          {messages.some(m => m.body === "[SYSTEM_REQUEST_REVIEW]") ? "Review Requested" : "Request Review"}
-                        </button>
-                      )}
-                      
-                      <div className="rounded-xl border border-border/80 bg-surface/50 px-2.5 py-1 lg:px-3 lg:py-1.5 text-[9px] lg:text-[10px] flex items-center gap-3 lg:gap-4 shrink-0 shadow-sm">
-                        <div>
-                          <span className="text-muted-foreground">Order:</span>{" "}
-                          <span className="font-bold uppercase tracking-wider text-gold">{activeConv.order.status.toUpperCase()}</span>
-                        </div>
-                        <div className="h-3 w-px bg-border/60" />
-                        <div className="font-mono font-bold text-gold">
-                          {formatPrice(activeConv.order.amount_inr || activeConv.order.amount_total || 0)}
+                  <div className="flex items-center gap-2">
+                    {activeConv.order && (
+                      <div className="flex items-center gap-2">
+                        {activeConv.order.status === "completed" && user?.id === activeConv.seller_id && (
+                          <button
+                            type="button"
+                            onClick={handleRequestReview}
+                            disabled={messages.some(m => m.body === "[SYSTEM_REQUEST_REVIEW]")}
+                            className="h-7 px-3 rounded-lg bg-gold text-primary-foreground font-bold text-[9px] uppercase tracking-wider hover:brightness-110 disabled:opacity-50 transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer border-none"
+                          >
+                            {messages.some(m => m.body === "[SYSTEM_REQUEST_REVIEW]") ? "Review Requested" : "Request Review"}
+                          </button>
+                        )}
+                        
+                        <div className="rounded-xl border border-border/80 bg-surface/50 px-2.5 py-1 lg:px-3 lg:py-1.5 text-[9px] lg:text-[10px] flex items-center gap-3 lg:gap-4 shrink-0 shadow-sm">
+                          <div>
+                            <span className="text-muted-foreground">Order:</span>{" "}
+                            <span className="font-bold uppercase tracking-wider text-gold">{activeConv.order.status.toUpperCase()}</span>
+                          </div>
+                          <div className="h-3 w-px bg-border/60" />
+                          <div className="font-mono font-bold text-gold">
+                            {formatPrice(activeConv.order.amount_inr || activeConv.order.amount_total || 0)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setReportModalOpen(true)}
+                      className="h-7 px-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 font-bold text-[9px] uppercase tracking-wider hover:bg-rose-500/20 hover:border-rose-500/50 transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer"
+                    >
+                      Report Chat
+                    </button>
+                  </div>
                 </div>
 
                 {/* Messages List */}
@@ -1303,11 +1399,11 @@ function MessagesPage() {
 
                 {/* Input area */}
                 <div className="border-t border-border/60 bg-surface/30 flex flex-col pt-2 pb-4 px-4">
-                  {showPolicyWarning && (
+                  {policyWarningText && (
                     <div className="mb-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 flex items-start gap-2 animate-in slide-in-from-bottom-2">
                       <AlertCircle className="size-4 shrink-0 mt-0.5 text-rose-400" />
                       <div>
-                        <span className="font-bold">Security Warning:</span> Exchanging off-platform contact info (WhatsApp, Telegram, Discord) or requesting payments outside HUXZAIN is strictly prohibited. Sharing contact details will flag your account for moderation review.
+                        <span className="font-bold">Security Warning:</span> {policyWarningText}
                       </div>
                     </div>
                   )}
@@ -2055,6 +2151,87 @@ function MessagesPage() {
                 Submit Review
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Conversation Modal */}
+      {reportModalOpen && activeConv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-surface border border-border/80 w-full max-w-md rounded-3xl p-6 relative shadow-2xl flex flex-col gap-4">
+            <button
+              onClick={() => {
+                setReportModalOpen(false);
+                setReportReason("");
+                setReportNotes("");
+              }}
+              className="absolute top-4 right-4 size-8 rounded-full hover:bg-surface-elevated text-muted-foreground hover:text-foreground flex items-center justify-center transition-all border-none bg-transparent cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div>
+              <h3 className="font-display font-bold text-base text-foreground flex items-center gap-1.5">
+                <Shield className="text-rose-400 size-5" /> Report Conversation
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                If you detect suspicious behavior, threats, or off-platform payment solicitations, report it to HUXZAIN Trust & Safety.
+              </p>
+            </div>
+
+            <form onSubmit={handleReportSubmit} className="space-y-4 text-sm">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Reason for Report</label>
+                <select
+                  required
+                  value={reportReason}
+                  onChange={e => setReportReason(e.target.value)}
+                  className="w-full h-10 px-3 text-xs bg-surface-elevated border border-border rounded-xl focus:border-gold/50 outline-none text-foreground cursor-pointer"
+                >
+                  <option value="">Select a reason...</option>
+                  <option value="Suspicious behavior">Suspicious behavior</option>
+                  <option value="Off-platform payment attempt">Off-platform payment attempt</option>
+                  <option value="UPI sharing">UPI sharing</option>
+                  <option value="Phone number sharing">Phone number sharing</option>
+                  <option value="Threats">Threats</option>
+                  <option value="Scam attempt">Scam attempt</option>
+                  <option value="Abuse">Abuse</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Additional Details</label>
+                <textarea
+                  value={reportNotes}
+                  onChange={e => setReportNotes(e.target.value)}
+                  placeholder="Provide any messages or context that will help the moderation team..."
+                  className="w-full h-24 p-3 text-xs bg-surface-elevated border border-border rounded-xl focus:border-gold/50 outline-none text-foreground resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportModalOpen(false);
+                    setReportReason("");
+                    setReportNotes("");
+                  }}
+                  className="flex-1 h-9 text-xs font-semibold rounded-xl border border-border hover:bg-surface transition-all cursor-pointer bg-transparent"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reporting}
+                  className="flex-1 h-9 text-xs font-bold rounded-xl bg-gold text-primary-foreground hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                >
+                  {reporting && <Loader2 className="size-3.5 animate-spin" />}
+                  Submit Report
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

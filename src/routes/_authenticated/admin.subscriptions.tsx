@@ -144,19 +144,8 @@ function SubscriptionsManager() {
       else if (selectedTier === "elite") profileTier = "elite";
       else if (selectedTier === "enterprise") profileTier = "enterprise";
 
-      // 1. Update profiles table
-      const { error: updErr } = await supabase
-        .from("profiles")
-        .update({
-          subscription_tier: profileTier,
-          subscription_expires_at: expiryIso,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", editingUser.id);
-
-      if (updErr) throw updErr;
-
-      // 2. Update/Upsert seller_subscriptions table
+      // 1. Update/Upsert seller_subscriptions table (Single Source of Truth)
+      // The DB trigger sync_seller_subscription_to_profile will automatically mirror this to public.profiles.
       const { error: subErr } = await supabase
         .from("seller_subscriptions")
         .upsert({

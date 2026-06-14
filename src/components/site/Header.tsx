@@ -109,6 +109,14 @@ export function Header({ transparent }: { transparent?: boolean }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     const unlockAudio = () => {
       if (audioCtxRef.current) return;
@@ -183,7 +191,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-      if (data) setNotifications(data);
+      if (mountedRef.current && data) setNotifications(data);
     } catch (err) {
       console.error("[Header] Error fetching notifications:", err);
     }
@@ -197,9 +205,11 @@ export function Header({ transparent }: { transparent?: boolean }) {
         .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("id", id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
-      );
+      if (mountedRef.current) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
+        );
+      }
     } catch (err) {
       console.error("[Header] Error marking notification as read:", err);
     }
@@ -215,10 +225,12 @@ export function Header({ transparent }: { transparent?: boolean }) {
         .update({ read_at: new Date().toISOString() })
         .eq("user_id", user.id)
         .is("read_at", null);
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }))
-      );
-      toast.success("All notifications marked as read.");
+      if (mountedRef.current) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }))
+        );
+        toast.success("All notifications marked as read.");
+      }
     } catch (err) {
       console.error("[Header] Error marking all notifications as read:", err);
     }
@@ -267,6 +279,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
   }, [isAuthenticated, user, soundEnabled]);
 
   useEffect(() => {
+    let mounted = true;
     async function loadNavData() {
       const sb = getSupabase();
       if (!sb) return;
@@ -278,6 +291,8 @@ export function Header({ transparent }: { transparent?: boolean }) {
 
         if (catsRes.error) throw catsRes.error;
         if (listingsRes.error) throw listingsRes.error;
+
+        if (!mounted) return;
 
         const cats = catsRes.data ?? [];
         const listings = listingsRes.data ?? [];
@@ -316,6 +331,9 @@ export function Header({ transparent }: { transparent?: boolean }) {
     }
 
     void loadNavData();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const isAdmin =
@@ -730,13 +748,18 @@ export function Header({ transparent }: { transparent?: boolean }) {
                         </div>
                       )}
                     </div>
-
                     <div className="py-1.5">
+                      <DropLink
+                        to="/dashboard"
+                        icon={LayoutDashboard}
+                        label="Buyer Dashboard"
+                        close={() => setAccountOpen(false)}
+                      />
                       {isSeller && (
                         <DropLink
                           to="/seller"
                           icon={Store}
-                          label="Dashboard"
+                          label="Seller Dashboard"
                           close={() => setAccountOpen(false)}
                         />
                       )}

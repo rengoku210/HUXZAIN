@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/seller/")({
 type RecentOrder = {
   id: string;
   buyer_id: string;
-  amount_total: number;
+  amount_inr: number;
   status: string;
   created_at: string;
   listings?: { title?: string | null } | null;
@@ -633,7 +633,7 @@ function Overview() {
                       {o.listings?.title ?? "Listing"}
                     </td>
                     <td className="py-3 text-right font-semibold">
-                      {formatINR(Number(o.amount_total))}
+                      {formatINR(Number(o.amount_inr || 0))}
                     </td>
                     <td className="py-3 pl-4">
                       <StatusPill status={statusLabel(o.status)} />

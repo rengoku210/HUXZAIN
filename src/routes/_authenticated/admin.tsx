@@ -20,6 +20,7 @@ import {
   Search,
   Activity,
   ShieldAlert,
+  Palette,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -57,6 +58,7 @@ const navGroups: NavGroup[] = [
       { to: "/admin/finances", label: "Financial Control", icon: Landmark },
       { to: "/admin/payments", label: "Payments", icon: CreditCard },
       { to: "/admin/invoices", label: "Invoices", icon: FileText },
+      { to: "/admin/invoice-templates", label: "Invoice Templates", icon: Palette },
       { to: "/admin/withdrawals", label: "Withdrawals", icon: CreditCard },
       { to: "/admin/earnings", label: "Earnings", icon: DollarSign },
       { to: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },

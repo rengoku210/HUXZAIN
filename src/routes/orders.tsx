@@ -14,7 +14,11 @@ import {
   ShoppingBag,
   ArrowRight,
   MessageSquare,
+  FileText,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { generateInvoicePDF } from "@/lib/invoice/invoice-pdf";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({ meta: [{ title: "My Orders - HUXZAIN" }] }),
@@ -93,6 +97,45 @@ function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "paid" | "completed">("all");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async (orderId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setDownloadingId(orderId);
+    try {
+      const { data: inv, error: invErr } = await supabase.rpc("create_seller_invoice", {
+        p_order_id: orderId,
+      });
+
+      if (invErr) throw invErr;
+      if (!inv) throw new Error("Invoice record not found");
+
+      const { data: temp } = await supabase
+        .from("invoice_templates")
+        .select("*")
+        .eq("singleton", true)
+        .maybeSingle();
+
+      const blob = await generateInvoicePDF(inv, temp || undefined, true);
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `HUXZAIN-${inv.invoice_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Invoice ${inv.invoice_number} downloaded successfully!`);
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to download invoice: " + e.message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     if (ready && !isAuthenticated) navigate({ to: "/login", search: { redirect: "/orders" } });
@@ -250,6 +293,24 @@ function OrdersPage() {
                             >
                               <MessageSquare className="size-3" /> Contact Seller / Chat With Seller
                             </Link>
+                            
+                            {o.status === "completed" && (
+                              <>
+                                <span className="text-muted-foreground/30 text-xs">|</span>
+                                <button
+                                  onClick={() => handleDownloadInvoice(o.id)}
+                                  disabled={downloadingId === o.id}
+                                  className="text-xs text-gold hover:underline inline-flex items-center gap-1 font-semibold bg-transparent border-none cursor-pointer p-0"
+                                >
+                                  {downloadingId === o.id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <FileText className="size-3" />
+                                  )}
+                                  Download Invoice
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>

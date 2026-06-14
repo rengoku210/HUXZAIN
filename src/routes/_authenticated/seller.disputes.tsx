@@ -39,7 +39,7 @@ function Page() {
         const buyerIds = sellerCases.map((c: any) => c.order?.buyer_id).filter(Boolean);
 
         const [ordersRes, buyersRes] = await Promise.all([
-          supabase.from("orders").select("id, listing_title, amount_inr, amount_total").in("id", orderIds),
+          supabase.from("orders").select("id, listing_title, amount_inr").in("id", orderIds),
           supabase.from("profiles").select("id, display_name, username").in("id", buyerIds)
         ]);
 
