@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Flag, ShieldCheck, ShieldAlert, Loader2, Calendar, Eye, CheckCircle, XCircle } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-client";
+import { useSignedUrl } from "@/components/SignedImage";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/reports")({
@@ -22,6 +23,24 @@ type ReportItem = {
   status: "open" | "resolved" | "dismissed";
   created_at: string;
 };
+
+// Report screenshots live in the private report-screenshots bucket; resolve a
+// short-lived signed URL. Legacy absolute URLs are passed through unchanged.
+function ReportScreenshotLink({ stored }: { stored: string }) {
+  const href = useSignedUrl(stored, "report-screenshots");
+  return (
+    <div className="mt-3">
+      <a
+        href={href || undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-gold hover:underline font-semibold"
+      >
+        <Eye size={12} /> View Screenshot Proof
+      </a>
+    </div>
+  );
+}
 
 function ReportsDesk() {
   const [loading, setLoading] = useState(true);
@@ -234,16 +253,7 @@ function ReportsDesk() {
                   </p>
 
                   {r.screenshot_url && (
-                    <div className="mt-3">
-                      <a
-                        href={r.screenshot_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-gold hover:underline font-semibold"
-                      >
-                        <Eye size={12} /> View Screenshot Proof
-                      </a>
-                    </div>
+                    <ReportScreenshotLink stored={r.screenshot_url} />
                   )}
                 </div>
               </div>

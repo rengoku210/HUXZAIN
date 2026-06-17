@@ -34,3 +34,21 @@ export function SignedImage({ path, bucket, onResolved, ...imgProps }: SignedIma
   }
   return <img {...imgProps} src={src} />;
 }
+
+/**
+ * Resolve a stored private-bucket value to a signed URL for use as a link href.
+ * Returns the signed URL (or "" while resolving) so callers can render an anchor.
+ */
+export function useSignedUrl(path: string | null | undefined, bucket: PrivateBucket): string {
+  const [url, setUrl] = useState<string>("");
+  useEffect(() => {
+    let active = true;
+    resolveSignedUrl(path, bucket).then((u) => {
+      if (active) setUrl(u);
+    });
+    return () => {
+      active = false;
+    };
+  }, [path, bucket]);
+  return url;
+}

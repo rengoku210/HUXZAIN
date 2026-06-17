@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
 import { scorePayment, type PaymentScore } from "@/lib/payment-scoring";
+import { resolveSignedUrl } from "@/lib/storage/signedUrls";
 import {
   CreditCard,
   CheckCircle,
@@ -81,8 +82,32 @@ function AdminPayments() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [paymentScore, setPaymentScore] = useState<PaymentScore | null>(null);
+  const [signedScreenshotUrl, setSignedScreenshotUrl] = useState<string>("");
 
   const supabase = getSupabase();
+
+  // Payment proofs live in the private payment-proofs bucket. Resolve a fresh
+  // signed URL whenever the active proof changes. Legacy rows that already hold
+  // a full URL are passed through unchanged by resolveSignedUrl/extractObjectPath.
+  useEffect(() => {
+    let active = true;
+    const stored = activeProof?.screenshot_url;
+    if (!stored) {
+      setSignedScreenshotUrl("");
+      return;
+    }
+    if (/^https?:\/\//i.test(stored) && stored.includes("/payment-proofs/") === false) {
+      // Legacy absolute URL (e.g. old public-bucket fallback) — use as-is.
+      setSignedScreenshotUrl(stored);
+      return;
+    }
+    resolveSignedUrl(stored, "payment-proofs").then((url) => {
+      if (active) setSignedScreenshotUrl(url || stored);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeProof?.id, activeProof?.screenshot_url]);
 
   async function fetchProofs() {
     if (!supabase) return;
@@ -211,10 +236,15 @@ function AdminPayments() {
     console.log("[AdminPayments] Running direct browser OCR for:", activeProof.screenshot_url);
 
     const proofId = activeProof.id;
-    const screenshotUrl = activeProof.screenshot_url;
+    const storedUrl = activeProof.screenshot_url;
 
     (async () => {
       try {
+        // Resolve a signed URL for the private payment-proofs object before fetching.
+        const screenshotUrl =
+          /^https?:\/\//i.test(storedUrl) && !storedUrl.includes("/payment-proofs/")
+            ? storedUrl
+            : (await resolveSignedUrl(storedUrl, "payment-proofs")) || storedUrl;
         // Step 1: Fetch the screenshot image as a blob
         const imgRes = await fetch(screenshotUrl);
         if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
@@ -1206,12 +1236,12 @@ function AdminPayments() {
                     {activeProof.screenshot_url ? (
                       <>
                         <img
-                          src={activeProof.screenshot_url}
+                          src={signedScreenshotUrl}
                           alt="Payment Screenshot"
                           className="max-w-full max-h-full object-contain"
                         />
                         <a
-                          href={activeProof.screenshot_url}
+                          href={signedScreenshotUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2 font-semibold"

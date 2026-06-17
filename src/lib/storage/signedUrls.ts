@@ -1,7 +1,11 @@
 import { getSupabase } from "../supabase-client";
 
 // Buckets that are private and must be accessed via short-lived signed URLs.
-export type PrivateBucket = "dispute-evidence" | "chat-attachments" | "report-screenshots";
+export type PrivateBucket =
+  | "dispute-evidence"
+  | "chat-attachments"
+  | "report-screenshots"
+  | "payment-proofs";
 
 const DEFAULT_EXPIRY = 60 * 60; // 1 hour
 

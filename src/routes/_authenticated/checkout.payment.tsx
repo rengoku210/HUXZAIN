@@ -277,20 +277,15 @@ function UnifiedPaymentPage() {
           .from("payment-proofs")
           .upload(filePath, file, { upsert: true, contentType: file.type });
 
-      let bucketName = "payment-proofs";
+      // Payment proofs are financial data: they must stay in the private
+      // payment-proofs bucket. No public fallback. Store the in-bucket path;
+      // it is resolved to a short-lived signed URL where displayed.
       if (uploadErr) {
-        console.warn("[Unified Checkout] Upload to payment-proofs bucket failed, trying listing-images fallback:", uploadErr.message);
-        const { error: fallbackErr } = await supabase.storage
-          .from("listing-images")
-          .upload(filePath, file, { upsert: true, contentType: file.type });
-
-        if (fallbackErr) throw fallbackErr;
-        bucketName = "listing-images";
+        throw new Error("Failed to upload payment proof. Please try again. (" + uploadErr.message + ")");
       }
 
-      // 3. Get public URL of screenshot
-      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-      const screenshotUrl = urlData.publicUrl;
+      // 3. Store the in-bucket path (read later via signed URL).
+      const screenshotUrl = filePath;
 
       // 4. IMMEDIATELY SHOW SUCCESS (Stop Spinner)
       clearTimeout(failsafeTimeout);

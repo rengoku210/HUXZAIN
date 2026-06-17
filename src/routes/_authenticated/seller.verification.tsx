@@ -208,24 +208,17 @@ function Page() {
       const ext = badgeFile.name.split(".").pop() ?? "png";
       const filePath = `${user.id}/badge/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
       
-      let bucketName = "payment-proofs";
-
       const { error: uploadErr } = await supabase.storage
         .from("payment-proofs")
         .upload(filePath, badgeFile, { upsert: true, contentType: badgeFile.type });
 
+      // Badge payment proofs are financial data: keep them in the private
+      // payment-proofs bucket with no public fallback. Store the in-bucket path.
       if (uploadErr) {
-        console.warn("[Badge Purchase] Error uploading to payment-proofs bucket, trying listing-images fallback:", uploadErr.message);
-        const { error: fallbackErr } = await supabase.storage
-          .from("listing-images")
-          .upload(filePath, badgeFile, { upsert: true, contentType: badgeFile.type });
-          
-        if (fallbackErr) throw fallbackErr;
-        bucketName = "listing-images";
+        throw new Error("Failed to upload payment proof. Please try again. (" + uploadErr.message + ")");
       }
 
-      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-      const screenshotUrl = urlData.publicUrl;
+      const screenshotUrl = filePath;
 
       const prices = {
         monthly: 499,

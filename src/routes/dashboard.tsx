@@ -308,15 +308,21 @@ function DashboardPage() {
     const fileExt = file.name.split(".").pop();
     const cleanFileName = `${user!.id}_${Date.now()}.${fileExt}`;
     
+    const objectPath = `${path}/${cleanFileName}`;
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(`${path}/${cleanFileName}`, file);
-      
+      .upload(objectPath, file);
+
     if (uploadError) throw uploadError;
 
+    // payment-proofs is a private bucket: store the in-bucket path (resolved to a
+    // signed URL where displayed). Public buckets keep returning a public URL.
+    if (bucket === "payment-proofs") {
+      return objectPath;
+    }
     const { data: { publicUrl } } = supabase.storage
       .from(bucket)
-      .getPublicUrl(`${path}/${cleanFileName}`);
+      .getPublicUrl(objectPath);
 
     return publicUrl;
   }

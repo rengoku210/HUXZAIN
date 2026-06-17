@@ -22,11 +22,37 @@ import {
   updateOrderTimeline,
   addOrderInvestigationNote,
 } from "@/lib/admin/orders.functions";
+import { SignedImage, useSignedUrl } from "@/components/SignedImage";
 
 export const Route = createFileRoute("/_authenticated/admin/orders")({
   head: () => ({ meta: [{ title: "Order Management — HUXZAIN Admin" }] }),
   component: AdminOrdersCenter,
 });
+
+// Payment proofs live in the private payment-proofs bucket; resolve a signed URL
+// for both the thumbnail and the "open raw" link. Legacy absolute URLs from the
+// old public-bucket fallback are passed through by resolveSignedUrl unchanged.
+function ProofThumb({ stored }: { stored: string }) {
+  const href = useSignedUrl(stored, "payment-proofs");
+  return (
+    <>
+      <SignedImage
+        path={stored}
+        bucket="payment-proofs"
+        className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+        alt="Screenshot slip"
+      />
+      <a
+        href={href || undefined}
+        target="_blank"
+        rel="noreferrer"
+        className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold uppercase gap-1.5 transition-all duration-200"
+      >
+        <ExternalLink size={12} /> Open Raw
+      </a>
+    </>
+  );
+}
 
 function AdminOrdersCenter() {
   const auth = useAuth();
@@ -437,21 +463,7 @@ function AdminOrdersCenter() {
                             <div key={idx} className="rounded-xl border border-border bg-surface/30 p-2.5 space-y-2 relative overflow-hidden group">
                               <div className="aspect-square bg-background rounded-lg overflow-hidden relative border border-border flex items-center justify-center">
                                 {proof.screenshot_url ? (
-                                  <>
-                                    <img
-                                      src={proof.screenshot_url}
-                                      className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
-                                      alt="Screenshot slip"
-                                    />
-                                    <a
-                                      href={proof.screenshot_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold uppercase gap-1.5 transition-all duration-200"
-                                    >
-                                      <ExternalLink size={12} /> Open Raw
-                                    </a>
-                                  </>
+                                  <ProofThumb stored={proof.screenshot_url} />
                                 ) : (
                                   <span className="text-[10px] text-muted-foreground">Broken Link</span>
                                 )}

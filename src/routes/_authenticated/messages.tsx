@@ -127,13 +127,11 @@ function MessagesPage() {
 
     setLoadingSecuredCreds(true);
     supabase
-      .from("listing_credentials")
-      .select("*")
-      .eq("listing_id", activeConv.listing_id)
-      .maybeSingle()
+      .rpc("reveal_listing_credentials", { p_listing_id: activeConv.listing_id })
       .then(({ data, error }) => {
-        if (data && !error) {
-          setSecuredCreds(data);
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && !error) {
+          setSecuredCreds(row);
         } else {
           setSecuredCreds(null);
         }
@@ -1995,6 +1993,23 @@ function MessagesPage() {
                           Escrow payout is kept on hold for the active inspection window ({calculateInspectionHours(activeConv.listing?.category_slug || "game-accounts", activeConv.order.amount_inr || activeConv.order.amount_total || 0, (activeConv?.sellerProfile?.subscription_tier || "standard") as any)} hours) to verify first owner claims and prevent account recovery fraud.
                         </p>
                       </div>
+
+                      {/* Buyer post-purchase safety instructions (DEL-09) — shown to the buyer once credentials are released */}
+                      {isBuyer && securedCreds && (
+                        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1.5">
+                          <div className="font-bold text-[10px] uppercase tracking-wider text-amber-400 flex items-center gap-1">
+                            <ShieldCheck size={12} /> Secure your account now
+                          </div>
+                          <ul className="text-[10px] text-muted-foreground leading-relaxed list-disc list-inside space-y-0.5">
+                            <li>Change the account password immediately.</li>
+                            <li>Change the recovery email &amp; phone to your own.</li>
+                            <li>Enable 2FA / two-step verification.</li>
+                            <li>Never share these credentials with anyone.</li>
+                            <li>Complete ownership transfer fully before approving delivery.</li>
+                            <li>Keep all communication inside HUXZAIN — report issues before the inspection window ends.</li>
+                          </ul>
+                        </div>
+                      )}
 
                       {/* Seller Action Button to release credentials */}
                       {isSeller && ["order_active", "seller_delivering", "payment_approved"].includes(activeConv.order.status) && !securedCreds && (

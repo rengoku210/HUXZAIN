@@ -88,21 +88,13 @@ function CheckoutPage() {
         .from("payment-proofs")
         .upload(filePath, file, { upsert: true, contentType: file.type });
 
-      let bucketName = "payment-proofs";
+      // Keep financial proof in the private bucket; no public fallback.
       if (uploadErr) {
-        // Fallback to 'listing-images' bucket if 'payment-proofs' bucket does not exist
-        console.warn("[Subscription Checkout] Error uploading to payment-proofs bucket, trying listing-images fallback:", uploadErr.message);
-        const { error: fallbackErr } = await supabase.storage
-          .from("listing-images")
-          .upload(filePath, file, { upsert: true, contentType: file.type });
-          
-        if (fallbackErr) throw fallbackErr;
-        bucketName = "listing-images";
+        throw new Error("Failed to upload payment proof. Please try again. (" + uploadErr.message + ")");
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-      const screenshotUrl = urlData.publicUrl;
+      // Store the in-bucket path; resolved to a signed URL where displayed.
+      const screenshotUrl = filePath;
 
       // IMMEDIATELY SHOW SUCCESS
       clearTimeout(failsafeTimeout);

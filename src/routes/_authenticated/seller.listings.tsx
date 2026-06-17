@@ -42,7 +42,7 @@ type Listing = {
   gallery_urls?: string[];
   tags?: string[];
   category_id?: string;
-  delivery_type: "instant" | "manual";
+  delivery_type: "instant" | "manual" | "hybrid";
   delivery_time?: string;
   created_at: string;
 };
@@ -67,7 +67,7 @@ function ListingModal({
   const [price, setPrice] = useState(listing?.price ? String(listing.price) : (listing?.price_cents ? String(listing.price_cents / 100) : ""));
   const [status, setStatus] = useState(listing?.status ?? "active");
   const [categoryId, setCategoryId] = useState(listing?.category_id ?? "");
-  const [deliveryType, setDeliveryType] = useState<"instant" | "manual">(listing?.delivery_type ?? "manual");
+  const [deliveryType, setDeliveryType] = useState<"instant" | "manual" | "hybrid">(listing?.delivery_type ?? "manual");
   const [deliveryTime, setDeliveryTime] = useState(listing?.delivery_time ? listing.delivery_time.replace(/\D/g, '') || "24" : "24");
   const [seoTitle, setSeoTitle] = useState((listing as any)?.seo_title ?? "");
   const [seoDescription, setSeoDescription] = useState((listing as any)?.seo_description ?? "");
@@ -104,17 +104,15 @@ function ListingModal({
     if (!supabase) return;
     
     supabase
-      .from("listing_credentials")
-      .select("*")
-      .eq("listing_id", listing.id)
-      .maybeSingle()
+      .rpc("reveal_listing_credentials", { p_listing_id: listing.id })
       .then(({ data, error }) => {
-        if (data) {
-          setLoginId(data.login_id || "");
-          setLoginPassword(data.password || "");
-          setInstructions(data.instructions || "");
-          setRecoveryDetails(data.recovery_details || "");
-          setEmailTransferDetails(data.email_transfer_details || "");
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && !error) {
+          setLoginId(row.login_id || "");
+          setLoginPassword(row.password || "");
+          setInstructions(row.instructions || "");
+          setRecoveryDetails(row.recovery_details || "");
+          setEmailTransferDetails(row.email_transfer_details || "");
         }
       });
   }, [listing?.id, categoryId, categories]);
@@ -391,6 +389,7 @@ function ListingModal({
         description: trimmedDescription,
         slug: generatedSlug,
         price_inr: priceNum,
+        delivery_type: deliveryType,
         delivery_time_hours: parseInt(deliveryTime) || 24,
         status: finalStatus,
         cover_image_url: coverImageUrl,
@@ -452,16 +451,14 @@ function ListingModal({
       // Upsert secure credentials
       if (isGameAccount) {
         const { error: credsErr } = await supabase
-          .from("listing_credentials")
-          .upsert({
-            listing_id: savedListingId,
-            login_id: loginId.trim(),
-            password: loginPassword,
-            instructions: instructions.trim() || null,
-            recovery_details: recoveryDetails.trim() || null,
-            email_transfer_details: emailTransferDetails.trim() || null,
-            updated_at: new Date().toISOString()
-          }, { onConflict: "listing_id" });
+          .rpc("set_listing_credentials", {
+            p_listing_id: savedListingId,
+            p_login_id: loginId.trim(),
+            p_password: loginPassword,
+            p_instructions: instructions.trim() || null,
+            p_recovery_details: recoveryDetails.trim() || null,
+            p_email_transfer_details: emailTransferDetails.trim() || null
+          });
 
         if (credsErr) {
           console.error("[ListingModal] Failed to save credentials:", credsErr);
@@ -586,11 +583,12 @@ function ListingModal({
                 <label className="block text-sm font-medium mb-1.5">Delivery Type</label>
                 <select
                   value={deliveryType}
-                  onChange={(e) => setDeliveryType(e.target.value as "instant" | "manual")}
+                  onChange={(e) => setDeliveryType(e.target.value as "instant" | "manual" | "hybrid")}
                   className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
                 >
-                  <option value="manual">Manual Delivery</option>
-                  <option value="instant">Instant Download</option>
+                  <option value="instant">Automatic / Instant (keys, gift cards, subscriptions)</option>
+                  <option value="manual">Manual (coaching, services, accounts)</option>
+                  <option value="hybrid">Hybrid (initial access + manual ownership transfer)</option>
                 </select>
               </div>
             </div>
@@ -1567,7 +1565,7 @@ function Page() {
       cover_url: l.cover_image_url ?? null,
       gallery_urls: l.images && l.images.length > 0 ? l.images : (l.gallery_urls ?? []),
       delivery_time: l.delivery_time ?? "",
-      delivery_type: (l.delivery_type ?? "manual") as "instant" | "manual",
+      delivery_type: (l.delivery_type ?? "manual") as "instant" | "manual" | "hybrid",
     }));
     setListings(mappedListings as Listing[]);
     const { data: cats } = await supabase
