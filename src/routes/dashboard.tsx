@@ -165,7 +165,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function DashboardPage() {
-  const { isAuthenticated, ready, user, profile, refreshUserMeta, updateProfile } = useAuth();
+  const { isAuthenticated, ready, user, profile, roles, refreshUserMeta, updateProfile } = useAuth();
   const navigate = useNavigate();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
 
@@ -660,10 +660,26 @@ function DashboardPage() {
                 )}
               </div>
               <div className="truncate">
-                <div className="font-bold text-sm text-foreground truncate">{profileName || "Huxzain Buyer"}</div>
-                <div className="text-[10px] text-gold uppercase tracking-wider font-semibold font-display">Verified Buyer</div>
+                <div className="font-bold text-sm text-foreground truncate">{profileName || "Huxzain User"}</div>
+                <div className="text-[10px] text-gold uppercase tracking-wider font-semibold font-display">
+                  {roles && roles.includes("admin")
+                    ? "Administrator"
+                    : roles && (roles.includes("staff") || roles.includes("moderator"))
+                      ? "Staff / Moderator"
+                      : profile?.is_seller
+                        ? "Verified Seller"
+                        : "Verified Buyer"}
+                </div>
               </div>
             </div>
+            {profile?.is_seller && (
+              <Link
+                to="/seller"
+                className="flex items-center justify-center gap-1.5 h-10 w-full rounded-xl border border-gold/30 hover:border-gold/60 bg-gold/5 text-gold text-xs font-bold transition-all mt-2"
+              >
+                Switch to Seller Console
+              </Link>
+            )}
           </div>
 
           <nav className="flex flex-row md:flex-col p-1 bg-surface/30 rounded-2xl border border-border md:space-y-1 overflow-x-auto w-full md:w-auto">

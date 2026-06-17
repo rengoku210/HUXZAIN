@@ -31,16 +31,13 @@ export async function submitReport(params: {
 }) {
   let screenshotUrl: string | undefined;
   if (params.screenshotFile) {
-    const fileName = `${Date.now()}_${params.screenshotFile.name}`;
-    const { data, error } = await supabase.storage
+    const path = `screenshots/${Date.now()}_${params.screenshotFile.name}`;
+    const { error } = await supabase.storage
       .from("report-screenshots")
-      .upload(`screenshots/${fileName}`, params.screenshotFile);
+      .upload(path, params.screenshotFile);
     if (error) throw error;
-    
-    const { data: { publicUrl } } = supabase.storage
-      .from("report-screenshots")
-      .getPublicUrl(`screenshots/${fileName}`);
-    screenshotUrl = publicUrl;
+    // Store the in-bucket path; the bucket is private and is read via signed URLs.
+    screenshotUrl = path;
   }
 
   const { data, error } = await supabase.from("reports").insert({

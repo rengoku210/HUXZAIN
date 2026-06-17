@@ -45,6 +45,64 @@ export const resolveEmployeeIdToEmail = createServerFn({ method: "POST" })
   });
 
 /**
+ * Pre-validates team login inputs, roles, and status before calling signInWithPassword.
+ */
+export const preValidateTeamLogin = createServerFn({ method: "POST" })
+  .inputValidator((d: { input: string; role: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Auth service is offline.");
+
+    const input = data.input.trim();
+    const role = data.role.trim();
+
+    if (!input) {
+      throw new Error("Invalid username. Email or Employee ID is required.");
+    }
+
+    let emp: any = null;
+    let error: any = null;
+
+    if (input.toUpperCase().startsWith("HUX-")) {
+      const employeeId = input.toUpperCase();
+      const res = await supabase
+        .from("employees")
+        .select("*")
+        .eq("employee_id", employeeId)
+        .maybeSingle();
+      emp = res.data;
+      error = res.error;
+      if (error || !emp) {
+        throw new Error("User not found. Employee ID is invalid.");
+      }
+    } else if (input.includes("@")) {
+      const email = input.toLowerCase();
+      const res = await supabase
+        .from("employees")
+        .select("*")
+        .eq("email", email)
+        .maybeSingle();
+      emp = res.data;
+      error = res.error;
+      if (error || !emp) {
+        throw new Error("Unauthorized access. This email is not registered as a team member.");
+      }
+    } else {
+      throw new Error("Invalid username. Please enter a valid Email or Employee ID.");
+    }
+
+    if (emp.status === "disabled") {
+      throw new Error("Account disabled. Please contact Super Admin.");
+    }
+
+    if (emp.role !== role) {
+      throw new Error("Role mismatch. The selected role does not match the role assigned to your employee account.");
+    }
+
+    return { email: emp.email, employeeId: emp.employee_id };
+  });
+
+/**
  * List all staff members.
  */
 export const listStaffMembers = createServerFn({ method: "GET" })

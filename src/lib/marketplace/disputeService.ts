@@ -26,16 +26,13 @@ export async function openDispute(params: {
   let evidenceUrls: string[] = [];
   if (params.evidenceFiles && params.evidenceFiles.length > 0) {
     for (const file of params.evidenceFiles) {
-      const fileName = `${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
+      const path = `evidence/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage
         .from("dispute-evidence")
-        .upload(`evidence/${fileName}`, file);
+        .upload(path, file);
       if (error) throw error;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from("dispute-evidence")
-        .getPublicUrl(`evidence/${fileName}`);
-      evidenceUrls.push(publicUrl);
+      // Store the in-bucket path; the bucket is private and is read via signed URLs.
+      evidenceUrls.push(path);
     }
   }
 
@@ -48,6 +45,17 @@ export async function openDispute(params: {
   }).select().single();
 
   if (error) throw error;
+
+  // Freeze the order's payout the moment a dispute is opened so escrow funds
+  // cannot auto-release to the seller while the case is under review.
+  const { error: freezeErr } = await supabase
+    .from("orders")
+    .update({ payout_status: "disputed", updated_at: new Date().toISOString() })
+    .eq("id", params.orderId);
+  if (freezeErr) {
+    console.error("[DisputeService] Failed to freeze order payout on dispute open:", freezeErr);
+  }
+
   return data as Dispute;
 }
 
@@ -73,18 +81,36 @@ export async function updateDisputeStatus(params: {
   status: DisputeStatus;
   resolution?: string;
 }) {
+  const isResolved = ['resolved_buyer', 'resolved_seller', 'closed'].includes(params.status);
+
   const { data, error } = await supabase
     .from("disputes")
-    .update({ 
-      status: params.status, 
+    .update({
+      status: params.status,
       resolution: params.resolution,
-      resolved_at: ['resolved_buyer', 'resolved_seller', 'closed'].includes(params.status) ? new Date().toISOString() : null
+      resolved_at: isResolved ? new Date().toISOString() : null
     })
     .eq("id", params.disputeId)
     .select()
     .single();
 
   if (error) throw error;
+
+  // When a dispute is resolved, lift the payout freeze so the normal escrow
+  // release flow can resume. Buyer-favored resolutions stay frozen for refund
+  // handling; seller-favored / closed cases return the order to cooling.
+  if (isResolved && data?.order_id) {
+    const newPayoutStatus = params.status === "resolved_buyer" ? "refunded" : "pending_cooling";
+    const { error: unfreezeErr } = await supabase
+      .from("orders")
+      .update({ payout_status: newPayoutStatus, updated_at: new Date().toISOString() })
+      .eq("id", data.order_id)
+      .eq("payout_status", "disputed");
+    if (unfreezeErr) {
+      console.error("[DisputeService] Failed to update order payout after dispute resolution:", unfreezeErr);
+    }
+  }
+
   return data as Dispute;
 }
 
@@ -97,16 +123,13 @@ export async function respondToDispute(params: {
   let newEvidenceUrls: string[] = [];
   if (params.evidenceFiles && params.evidenceFiles.length > 0) {
     for (const file of params.evidenceFiles) {
-      const fileName = `${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
+      const path = `evidence/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage
         .from("dispute-evidence")
-        .upload(`evidence/${fileName}`, file);
+        .upload(path, file);
       if (error) throw error;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from("dispute-evidence")
-        .getPublicUrl(`evidence/${fileName}`);
-      newEvidenceUrls.push(publicUrl);
+      // Store the in-bucket path; the bucket is private and is read via signed URLs.
+      newEvidenceUrls.push(path);
     }
   }
 

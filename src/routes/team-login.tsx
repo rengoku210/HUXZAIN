@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { Lock, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import { logTeamLoginAttempt } from "@/lib/auth/employee-auth";
-import { resolveEmployeeIdToEmail } from "@/lib/admin/staff.functions";
+import { resolveEmployeeIdToEmail, preValidateTeamLogin } from "@/lib/admin/staff.functions";
 
 export const Route = createFileRoute("/team-login")({
   head: () => ({
@@ -58,22 +58,28 @@ function TeamLogin() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
+    
+    let loginEmail = email.trim();
+    let employeeId: string | undefined = undefined;
+    const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+    const input = email.trim();
+
     try {
       setSubmitting(true);
-      
-      const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
-      const input = email.trim();
-      let loginEmail = input;
-      let employeeId: string | undefined = undefined;
 
-      // Check if input is Employee ID (starts with HUX-)
-      if (input.toUpperCase().startsWith("HUX-")) {
-        employeeId = input.toUpperCase();
-        const res = await resolveEmployeeIdToEmail({ data: { employeeId } });
-        loginEmail = res.email;
+      // Pre-validate on server (checks employee existence, status, and role)
+      const res = await preValidateTeamLogin({ data: { input, role } });
+      loginEmail = res.email;
+      employeeId = res.employeeId;
+
+      try {
+        await auth.signInWithPassword(loginEmail, password);
+      } catch (authErr: any) {
+        if (authErr.message?.includes("Invalid login credentials") || authErr.message?.includes("invalid_credentials")) {
+          throw new Error("Wrong password. Please try again.");
+        }
+        throw authErr;
       }
-
-      await auth.signInWithPassword(loginEmail, password);
       
       await logTeamLoginAttempt({ 
         data: { 
@@ -88,8 +94,6 @@ function TeamLogin() {
       
       // The redirect happens in useEffect after roles load.
     } catch (err: any) {
-      const device = /Mobile|Android|iP(ad|hone)/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
-      const input = email.trim();
       const isEmpId = input.toUpperCase().startsWith("HUX-");
       
       await logTeamLoginAttempt({ 

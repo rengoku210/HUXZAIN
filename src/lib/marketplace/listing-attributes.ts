@@ -20,13 +20,25 @@ export interface GameAccountAttributes {
   rank?: string;
   level?: number;
   skinsCount?: number;
-  rareSkins?: string;
-  emailChangeAvailable?: boolean;
+  rareSkins?: string; // Backward compat
+  rareItems?: string; // New field
+  emailChangeAvailable?: boolean; // Backward compat
+  emailChangeable?: boolean; // New field
   platform?: string; // e.g. PC, PSN, Xbox
-  warrantyPeriod?: string;
+  warrantyPeriod?: string; // Backward compat
+  warrantyInformation?: string; // New field
   linkedAccounts?: string;
-  originalOwner?: boolean;
-  recoveryInfo?: string;
+  originalOwner?: boolean; // Backward compat
+  firstOwnerStatus?: boolean; // New field
+  originalEmailIncluded?: boolean; // New field
+  accountCreationDate?: string; // New field
+  recoveryInfo?: string; // Backward compat
+  recoveryHistory?: string; // New field
+  purchaseReceiptsAvailable?: boolean; // New field
+  proofScreenshotsUrl?: string;
+  proofInventoryUrl?: string;
+  proofRankUrl?: string;
+  proofPurchaseUrl?: string;
 }
 
 export interface InGameCurrencyAttributes {

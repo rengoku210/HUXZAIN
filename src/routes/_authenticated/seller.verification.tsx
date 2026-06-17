@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PanelCard, StatusPill } from "@/components/seller/SellerShell";
-import { BadgeCheck, Upload, Shield, Mail, Phone, FileText, UserSquare2, Wallet, RefreshCw } from "lucide-react";
+import { BadgeCheck, Upload, Shield, Mail, Phone, FileText, UserSquare2, Wallet, RefreshCw, Clock, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { submitKYCVerification } from "@/lib/seller/subscription.functions";
@@ -31,12 +31,23 @@ function Page() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Verified Seller Badge States
+  const [badgeSub, setBadgeSub] = useState<any>(null);
+  const [badgeProof, setBadgeProof] = useState<any>(null);
+  const [badgePlan, setBadgePlan] = useState<"monthly" | "6months" | "yearly">("monthly");
+  const [badgePayStep, setBadgePayStep] = useState<"plans" | "pay" | "upload" | "pending">("plans");
+  const [badgeFile, setBadgeFile] = useState<File | null>(null);
+  const [badgePreviewUrl, setBadgePreviewUrl] = useState<string | null>(null);
+  const [badgeUtr, setBadgeUtr] = useState("");
+  const [badgeUploading, setBadgeUploading] = useState(false);
+
   async function loadData() {
     if (!user) return;
     try {
       setLoading(true);
       const supabase = getSupabase();
       if (supabase) {
+        // Fetch verifications
         const { data, error } = await supabase
           .from("verifications")
           .select("*")
@@ -46,7 +57,6 @@ function Page() {
         if (error) console.error("Error loading verification details:", error);
         if (data) {
           setVerification(data);
-          // Pre-populate payout details if they exist
           if (data.payout_details) {
             const pd = data.payout_details;
             if (pd.method) setPayoutMethod(pd.method);
@@ -54,6 +64,32 @@ function Page() {
             if (pd.accountNumber) setAccountNumber(pd.accountNumber);
             if (pd.ifscCode) setIfscCode(pd.ifscCode);
             if (pd.upiId) setUpiId(pd.upiId);
+          }
+        }
+
+        // Fetch badge subscriptions
+        const { data: bSub } = await supabase
+          .from("badge_subscriptions")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        setBadgeSub(bSub);
+
+        // Fetch badge payment proofs
+        const { data: bProof } = await supabase
+          .from("payment_proofs")
+          .select("*")
+          .eq("buyer_id", user.id)
+          .eq("payment_type", "badge")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        
+        if (bProof && bProof.length > 0) {
+          setBadgeProof(bProof[0]);
+          if (bSub && bSub.status === "active") {
+            setBadgePayStep("plans");
+          } else if (bProof[0].status === "pending") {
+            setBadgePayStep("pending");
           }
         }
       }
@@ -130,13 +166,103 @@ function Page() {
       setSelfieFile("");
       setAddrFile("");
       await loadData();
-      await refreshUserMeta();
     } catch (err: any) {
       toast.error("Verification submission failed: " + err.message);
     } finally {
       setSubmitting(false);
     }
   }
+
+  const handleBadgeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const selectedFile = files[0];
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        toast.error("File is too large. Max size is 5MB.");
+        return;
+      }
+      setBadgeFile(selectedFile);
+      setBadgePreviewUrl(URL.createObjectURL(selectedFile));
+    }
+  };
+
+  const submitBadgeProof = async () => {
+    if (!badgeFile) {
+      toast.error("Please upload your payment screenshot first.");
+      return;
+    }
+    if (!badgeUtr.trim()) {
+      toast.error("Please enter the UTR/Reference number.");
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase || !user) {
+      toast.error("Database connection not configured.");
+      return;
+    }
+
+    try {
+      setBadgeUploading(true);
+
+      const ext = badgeFile.name.split(".").pop() ?? "png";
+      const filePath = `${user.id}/badge/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+      
+      let bucketName = "payment-proofs";
+
+      const { error: uploadErr } = await supabase.storage
+        .from("payment-proofs")
+        .upload(filePath, badgeFile, { upsert: true, contentType: badgeFile.type });
+
+      if (uploadErr) {
+        console.warn("[Badge Purchase] Error uploading to payment-proofs bucket, trying listing-images fallback:", uploadErr.message);
+        const { error: fallbackErr } = await supabase.storage
+          .from("listing-images")
+          .upload(filePath, badgeFile, { upsert: true, contentType: badgeFile.type });
+          
+        if (fallbackErr) throw fallbackErr;
+        bucketName = "listing-images";
+      }
+
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+      const screenshotUrl = urlData.publicUrl;
+
+      const prices = {
+        monthly: 499,
+        "6months": 2399,
+        yearly: 3999,
+      };
+      const price = prices[badgePlan];
+
+      const unifiedPayload = {
+        buyer_id: user.id,
+        user_id: user.id,
+        order_id: null,
+        listing_id: null,
+        payment_type: "badge",
+        amount: price,
+        utr_reference: badgeUtr.trim(),
+        screenshot_url: screenshotUrl,
+        payment_reference: `badge:${badgePlan}`,
+        status: "pending",
+      };
+
+      const { error: proofErr } = await supabase.from("payment_proofs").insert(unifiedPayload);
+      if (proofErr) throw proofErr;
+
+      toast.success("Verification badge payment proof submitted!");
+      setBadgeFile(null);
+      setBadgePreviewUrl(null);
+      setBadgeUtr("");
+      setBadgePayStep("pending");
+      await loadData();
+    } catch (err: any) {
+      console.error("[Badge Purchase] Error:", err);
+      toast.error(`Submission failed: ${err.message ?? "Unknown database error"}`);
+    } finally {
+      setBadgeUploading(false);
+    }
+  };
 
   const isEmailVerified = !!(profile?.email_verified || user?.email_confirmed_at);
   const isPhoneVerified = !!profile?.phone_verified;
@@ -335,6 +461,224 @@ function Page() {
                   {submitting ? "Submitting for review..." : "Submit documents and payout details"}
                 </button>
               </div>
+            </PanelCard>
+
+            {/* Verified Seller Badge Card */}
+            <PanelCard title="Verified Seller Badge Subscription" action={<BadgeCheck className="text-gold size-4" />}>
+              {badgeSub && badgeSub.status === "active" ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
+                    <div className="size-10 rounded-lg bg-emerald-500/20 text-emerald-400 grid place-items-center shrink-0">
+                      <BadgeCheck size={22} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-foreground">Verified Seller Badge Active</div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Your Verified Seller badge is currently active and visible on your profile and listings.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-surface/50 border border-border p-3 rounded-lg">
+                    <div>
+                      <span className="text-muted-foreground block">Plan:</span>
+                      <span className="font-semibold text-foreground mt-0.5 block">{badgeSub.plan_name}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Expiry Date:</span>
+                      <span className="font-semibold text-foreground mt-0.5 block">
+                        {new Date(badgeSub.expiry_date).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric"
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : badgeProof && badgeProof.status === "pending" ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
+                    <div className="size-10 rounded-lg bg-blue-500/20 text-blue-400 grid place-items-center shrink-0 animate-pulse">
+                      <Clock size={22} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-foreground">Verification Proof Under Review</div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Your payment proof for the Verified Seller Badge is pending admin review.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs bg-surface/50 border border-border p-3 rounded-lg">
+                    <div>
+                      <span className="text-muted-foreground block">UTR Number:</span>
+                      <span className="font-mono font-semibold text-foreground mt-0.5 block truncate">{badgeProof.utr_reference || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Amount:</span>
+                      <span className="font-semibold text-gold mt-0.5 block">₹{badgeProof.amount}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Submitted:</span>
+                      <span className="font-semibold text-foreground mt-0.5 block">
+                        {new Date(badgeProof.created_at).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short"
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {badgePayStep === "plans" && (
+                    <div className="space-y-4">
+                      <p className="text-xs text-muted-foreground">
+                        Purchase the Verified Seller Badge separately to build unmatched credibility, unlock quick payout settlement times, and enable the hybrid escrow flow.
+                      </p>
+                      
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setBadgePlan("monthly")}
+                          className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                            badgePlan === "monthly"
+                              ? "bg-gold/5 border-gold shadow-lg shadow-gold/5"
+                              : "border-border/80 hover:bg-surface/30"
+                          }`}
+                        >
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Monthly</span>
+                            <div className="text-lg font-bold text-foreground mt-1">₹499</div>
+                          </div>
+                          <span className="text-[10px] text-gold font-semibold mt-3">Select Plan →</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => setBadgePlan("6months")}
+                          className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                            badgePlan === "6months"
+                              ? "bg-gold/5 border-gold shadow-lg shadow-gold/5"
+                              : "border-border/80 hover:bg-surface/30"
+                          }`}
+                        >
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">6 Months</span>
+                            <div className="text-lg font-bold text-foreground mt-1">₹2,399</div>
+                            <span className="text-[9px] text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded mt-1 inline-block">Save 20%</span>
+                          </div>
+                          <span className="text-[10px] text-gold font-semibold mt-3">Select Plan →</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => setBadgePlan("yearly")}
+                          className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                            badgePlan === "yearly"
+                              ? "bg-gold/5 border-gold shadow-lg shadow-gold/5"
+                              : "border-border/80 hover:bg-surface/30"
+                          }`}
+                        >
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Yearly</span>
+                            <div className="text-lg font-bold text-foreground mt-1">₹3,999</div>
+                            <span className="text-[9px] text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded mt-1 inline-block">Save 33%</span>
+                          </div>
+                          <span className="text-[10px] text-gold font-semibold mt-3">Select Plan →</span>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setBadgePayStep("pay")}
+                        className="w-full h-10 bg-gold text-black rounded-lg text-xs font-bold hover:brightness-110 active:scale-95 transition-all mt-2"
+                      >
+                        Continue to Payment · {badgePlan === "monthly" ? "₹499" : badgePlan === "6months" ? "₹2,399" : "₹3,999"}
+                      </button>
+                    </div>
+                  )}
+
+                  {badgePayStep === "pay" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">Scan QR to Pay</span>
+                        <button
+                          onClick={() => setBadgePayStep("plans")}
+                          className="text-[11px] text-muted-foreground hover:text-gold"
+                        >
+                          Change Plan
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-4 items-center bg-surface/30 border border-border p-4 rounded-xl">
+                        <div className="bg-white p-2 rounded-lg size-32 shrink-0">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(
+                              `upi://pay?pa=shprivateltd@upi&pn=HUXZAIN&am=${
+                                badgePlan === "monthly" ? 499 : badgePlan === "6months" ? 2399 : 3999
+                              }&cu=INR&tn=Verified%20Seller%20Badge`
+                            )}`}
+                            alt="Payment QR"
+                            className="size-full object-contain"
+                          />
+                        </div>
+                        <div className="space-y-1.5 text-center sm:text-left">
+                          <div className="text-xs text-muted-foreground">Amount Payable</div>
+                          <div className="text-xl font-bold text-gold font-display">
+                            ₹{badgePlan === "monthly" ? "499" : badgePlan === "6months" ? "2,399" : "3,999"}
+                          </div>
+                          <div className="text-[10px] font-mono bg-background/50 px-2 py-1 rounded border border-border inline-block">
+                            shprivateltd@upi
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[11px] text-muted-foreground block mb-1">Enter Transaction UTR / Ref Number</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 340982348574"
+                            value={badgeUtr}
+                            onChange={(e) => setBadgeUtr(e.target.value)}
+                            className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] text-muted-foreground block mb-1">Upload Payment Screenshot</label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex-1 flex items-center justify-center h-10 border border-dashed border-border rounded-lg cursor-pointer hover:bg-surface/20 transition-all text-xs text-muted-foreground gap-1.5">
+                              <Upload size={14} className="text-gold" />
+                              {badgeFile ? badgeFile.name : "Choose File..."}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleBadgeFileChange}
+                                className="hidden"
+                              />
+                            </label>
+                            {badgePreviewUrl && (
+                              <div className="size-10 rounded border border-border overflow-hidden bg-surface">
+                                <img src={badgePreviewUrl} alt="Preview" className="size-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={submitBadgeProof}
+                          disabled={badgeUploading}
+                          className="w-full h-10 bg-gold text-black rounded-lg text-xs font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 mt-2"
+                        >
+                          {badgeUploading ? "Uploading Screenshot..." : "Submit Payment Proof"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </PanelCard>
           </div>
 

@@ -28,6 +28,7 @@ import { completeOrderAndCreditSeller } from "@/lib/wallet.functions";
 import { openDispute } from "@/lib/marketplace/disputeService";
 import { analyzeFraudRisk, buildFraudSystemMessage } from "@/lib/chat/fraud-detection";
 import { submitChatReport } from "@/lib/admin/moderation.functions";
+import { getCategoryTypeFromSlug } from "@/lib/marketplace/listing-attributes";
 
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({ meta: [{ title: "Messages — HUXZAIN" }] }),
@@ -101,6 +102,44 @@ function MessagesPage() {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+  const [securedCreds, setSecuredCreds] = useState<any | null>(null);
+  const [loadingSecuredCreds, setLoadingSecuredCreds] = useState(false);
+
+  useEffect(() => {
+    if (!activeConv || !activeConv.order || !activeConv.listing) {
+      setSecuredCreds(null);
+      return;
+    }
+
+    const orderStatus = activeConv.order.status;
+    const catSlug = activeConv.listing.category_slug || "";
+    const isGameAcc = getCategoryTypeFromSlug(catSlug) === "game-accounts";
+
+    const canSee = isGameAcc && ["paid", "buyer_reviewing", "completed"].includes(orderStatus);
+
+    if (!canSee) {
+      setSecuredCreds(null);
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    setLoadingSecuredCreds(true);
+    supabase
+      .from("listing_credentials")
+      .select("*")
+      .eq("listing_id", activeConv.listing_id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (data && !error) {
+          setSecuredCreds(data);
+        } else {
+          setSecuredCreds(null);
+        }
+        setLoadingSecuredCreds(false);
+      });
+  }, [activeConv?.id, activeConv?.order?.status]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loadingList, setLoadingList] = useState(true);
@@ -712,6 +751,7 @@ function MessagesPage() {
   const listingData = activeConv?.listing;
   const isBuyer = activeConv ? activeConv.buyer_id === user?.id : false;
   const isSeller = activeConv ? activeConv.seller_id === user?.id : false;
+  const isGameAccount = activeConv?.listing?.category_slug ? (getCategoryTypeFromSlug(activeConv.listing.category_slug) === "game-accounts") : false;
 
   // Find system messages for data payloads
   const requirementsMsg = messages.find(m => m.is_system && m.body.startsWith("[SYSTEM_REQUIREMENTS_SUBMITTED]:"));
@@ -1709,7 +1749,7 @@ function MessagesPage() {
                   )}
 
                   {/* C: Seller Delivery Form */}
-                  {isSeller && activeConv.order.status === "seller_delivering" && (
+                  {isSeller && activeConv.order.status === "seller_delivering" && !isGameAccount && (
                     <form onSubmit={handleSubmitDelivery} className="p-3.5 rounded-2xl border border-gold/30 bg-gold/5 space-y-3">
                       <div className="font-bold text-[10px] uppercase tracking-wider text-gold">Submit Official Order Delivery</div>
                       <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -1798,7 +1838,7 @@ function MessagesPage() {
                   )}
 
                   {/* D: Delivery details view (if submitted) */}
-                  {deliveryPayload && (
+                  {deliveryPayload && !isGameAccount && (
                     <div className="p-3.5 rounded-2xl border border-border bg-emerald-500/5 space-y-2 text-xs">
                       <div className="font-bold text-[10px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                         <ShieldCheck size={12} /> Deliverables Submitted
@@ -1848,7 +1888,7 @@ function MessagesPage() {
                   )}
 
                   {/* E: Awaiting Requirements / Seller Processing status text */}
-                  {activeConv.order.status === "payment_approved" && requirementsPayload && !deliveryPayload && (
+                  {activeConv.order.status === "payment_approved" && requirementsPayload && !deliveryPayload && !isGameAccount && (
                     <div className="p-3.5 rounded-2xl border border-border bg-surface/30 text-center space-y-1 text-xs">
                       <Clock size={16} className="text-gold mx-auto animate-pulse" />
                       <div className="font-bold">Awaiting Seller Acceptance</div>
@@ -1860,7 +1900,7 @@ function MessagesPage() {
                     </div>
                   )}
 
-                  {activeConv.order.status === "order_active" && requirementsPayload && !deliveryPayload && (
+                  {activeConv.order.status === "order_active" && requirementsPayload && !deliveryPayload && !isGameAccount && (
                     <div className="p-3.5 rounded-2xl border border-border bg-surface/30 text-center space-y-1 text-xs">
                       <Clock size={16} className="text-gold mx-auto animate-pulse" />
                       <div className="font-bold">Work in Progress</div>
@@ -1872,7 +1912,7 @@ function MessagesPage() {
                     </div>
                   )}
 
-                  {activeConv.order.status === "seller_delivering" && (
+                  {activeConv.order.status === "seller_delivering" && !isGameAccount && (
                     <div className="p-3.5 rounded-2xl border border-border bg-surface/30 text-center space-y-1 text-xs">
                       <Clock size={16} className="text-gold mx-auto animate-pulse" />
                       <div className="font-bold">Fulfillment Delivery Started</div>
@@ -1881,6 +1921,131 @@ function MessagesPage() {
                           ? "Please upload the credentials/serial key/file link using the Delivery form above." 
                           : "The seller is uploading your deliverables. Please stand by."}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Special Hybrid Delivery Panel for Game Accounts */}
+                  {isGameAccount && ["paid", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "completed"].includes(activeConv.order.status) && (
+                    <div className="p-4 rounded-2xl border border-gold/30 bg-surface/30 space-y-4 text-xs text-left">
+                      <div className="font-bold text-xs uppercase tracking-wider text-gold flex items-center gap-1.5 border-b border-border/40 pb-2">
+                        <ShieldCheck size={14} className="text-gold" /> Hybrid Delivery Flow
+                      </div>
+
+                      {/* PHASE 1 */}
+                      <div className={`p-3 rounded-xl border ${activeConv.order.status === "buyer_reviewing" || activeConv.order.status === "completed" ? "border-emerald-500/20 bg-emerald-500/5" : "border-gold/20 bg-gold/5"}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-[10px] uppercase tracking-wider text-gold">Phase 1: Credentials Release</span>
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${securedCreds ? "bg-emerald-500/20 text-emerald-400" : "bg-gold/20 text-gold animate-pulse"}`}>
+                            {securedCreds ? "Released" : "Awaiting Release"}
+                          </span>
+                        </div>
+                        {securedCreds ? (
+                          <div className="space-y-1.5 font-mono text-[10px] bg-background/40 p-2.5 rounded-lg border border-border/40">
+                            <div>
+                              <span className="text-muted-foreground">Login ID:</span> <span className="font-bold text-white select-all">{securedCreds.login_id}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Password:</span> <span className="font-bold text-white select-all">{securedCreds.password}</span>
+                            </div>
+                            {securedCreds.instructions && (
+                              <div className="pt-1 mt-1 border-t border-border/20 text-left font-sans text-[9px] text-muted-foreground">
+                                <span className="font-semibold text-gold block mb-0.5">Instructions:</span>
+                                {securedCreds.instructions}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-muted-foreground leading-relaxed">
+                            {isSeller 
+                              ? "Click 'Release Secure Credentials' below to share the credentials vault with the buyer."
+                              : "Once the seller releases the details, the account credentials will be automatically populated here."}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PHASE 2 */}
+                      <div className={`p-3 rounded-xl border ${securedCreds ? "border-gold/20 bg-gold/5" : "border-border/40 bg-background/10 opacity-50"}`}>
+                        <div className="font-bold text-[10px] uppercase tracking-wider text-gold mb-1.5">Phase 2: Transfer & OTP Migration</div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Coordinate the email transfer, recovery links, and security updates with the other party.
+                        </p>
+                        {securedCreds && (
+                          <div className="mt-2.5 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[9px] text-amber-300 leading-normal font-sans">
+                            ⚠️ <strong>Crucial Escrow Reminder:</strong> All verification OTPs and email transition chats must happen directly inside this HUXZAIN chat window.
+                          </div>
+                        )}
+                        {securedCreds && securedCreds.recovery_details && (
+                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px]">
+                            <span className="font-sans font-bold text-gold block mb-0.5">Recovery Information:</span>
+                            {securedCreds.recovery_details}
+                          </div>
+                        )}
+                        {securedCreds && securedCreds.email_transfer_details && (
+                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px]">
+                            <span className="font-sans font-bold text-gold block mb-0.5">Email Transfer Details:</span>
+                            {securedCreds.email_transfer_details}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PHASE 3 */}
+                      <div className={`p-3 rounded-xl border border-border/40 bg-background/10 ${securedCreds ? "opacity-100" : "opacity-50"}`}>
+                        <div className="font-bold text-[10px] uppercase tracking-wider text-gold mb-1">Phase 3: Escrow Safety Hold Period</div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Escrow payout is kept on hold for the active inspection window ({calculateInspectionHours(activeConv.listing?.category_slug || "game-accounts", activeConv.order.amount_inr || activeConv.order.amount_total || 0, (activeConv?.sellerProfile?.subscription_tier || "standard") as any)} hours) to verify first owner claims and prevent account recovery fraud.
+                        </p>
+                      </div>
+
+                      {/* Seller Action Button to release credentials */}
+                      {isSeller && ["order_active", "seller_delivering", "payment_approved"].includes(activeConv.order.status) && !securedCreds && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const supabase = getSupabase();
+                              if (!supabase || !user) return;
+                              
+                              // Pull credentials first to verify they exist
+                              const { data: credsExist } = await supabase
+                                .from("listing_credentials")
+                                .select("listing_id")
+                                .eq("listing_id", activeConv.listing_id)
+                                .maybeSingle();
+
+                              if (!credsExist) {
+                                toast.error("You have not configured secure credentials for this listing. Please add them in the listings panel.");
+                                return;
+                              }
+
+                              const { error } = await supabase
+                                .from("orders")
+                                .update({
+                                  status: "buyer_reviewing",
+                                  delivered_at: new Date().toISOString(),
+                                  delivery_payload: { hybrid: true }
+                                })
+                                .eq("id", activeConv.order_id);
+
+                              if (error) throw error;
+                              
+                              // Send system message
+                              await supabase.from("messages").insert({
+                                conversation_id: activeConv.id,
+                                body: `[SYSTEM_DELIVERY_SUBMITTED]: Seller initiated Phase 1 Hybrid Delivery. Secure credentials have been released to the buyer.`,
+                                is_system: true,
+                                sender_id: user.id
+                              });
+
+                              toast.success("Secure credentials released successfully! Buyer inspection countdown has started.");
+                              void loadConversations(activeConv.id);
+                            } catch (err: any) {
+                              toast.error("Failed to release credentials: " + err.message);
+                            }
+                          }}
+                          className="w-full h-9 rounded-xl bg-gold text-black font-bold text-xs hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer"
+                        >
+                          Release Secure Credentials & Start Phase 1
+                        </button>
+                      )}
                     </div>
                   )}
 

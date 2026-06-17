@@ -96,8 +96,8 @@ function UnifiedPaymentPage() {
         const { data: listData, error: listErr } = await query.maybeSingle();
  
         if (listErr) throw listErr;
-        if (!listData) {
-          toast.error("Listing not found.");
+        if (!listData || listData.status !== "active") {
+          toast.error("This listing is not available for purchase.");
           return;
         }
  

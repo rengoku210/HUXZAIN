@@ -127,7 +127,7 @@ function AntiFraudAndChatMonitor() {
         getConversationsMonitor(),
         getFlaggedChats(),
         getReviewQueue(),
-        getFraudEvents({ page: 0, limit: 50 }),
+        getFraudEvents({ data: { page: 0, limit: 50 } }),
         getPlatformHealthFull(),
         getMaintenanceMode(),
       ]);
@@ -195,7 +195,7 @@ function AntiFraudAndChatMonitor() {
     const fetchLiveConv = async () => {
       setViewerLoading(true);
       try {
-        const res = await getLiveConversation({ conversation_id: selectedChatId });
+        const res = await getLiveConversation({ data: { conversation_id: selectedChatId } });
         setLiveConvData(res);
         setLiveMessages(res.messages || []);
         scrollToBottom();

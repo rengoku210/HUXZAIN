@@ -6,11 +6,35 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { fetchUserDisputes, respondToDispute } from "@/lib/marketplace/disputeService";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
+import { SignedImage } from "@/components/SignedImage";
 
 export const Route = createFileRoute("/_authenticated/seller/disputes")({
   head: () => ({ meta: [{ title: "Disputes — HUXZAIN Seller" }] }),
   component: Page,
 });
+
+function EvidenceLink({ path }: { path: string }) {
+  const [resolved, setResolved] = useState("");
+  return (
+    <a
+      href={resolved || undefined}
+      target="_blank"
+      rel="noreferrer"
+      className="group relative h-20 rounded-lg border border-border overflow-hidden bg-background flex items-center justify-center cursor-pointer hover:border-gold/50"
+    >
+      <SignedImage
+        path={path}
+        bucket="dispute-evidence"
+        onResolved={setResolved}
+        className="w-full h-full object-cover group-hover:scale-105 transition-all"
+        alt="Dispute evidence"
+      />
+      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold transition-all">
+        <ExternalLink size={10} className="mr-1" /> View Full
+      </div>
+    </a>
+  );
+}
 
 function Page() {
   const { user } = useAuth();
@@ -244,18 +268,7 @@ function Page() {
                         <div className="text-xs text-muted-foreground font-medium">Case Evidence Payload:</div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                           {selectedCase.evidence_urls.map((url: string, index: number) => (
-                            <a
-                              key={index}
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="group relative h-20 rounded-lg border border-border overflow-hidden bg-background flex items-center justify-center cursor-pointer hover:border-gold/50"
-                            >
-                              <img src={url} className="w-full h-full object-cover group-hover:scale-105 transition-all" alt="Dispute evidence" />
-                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold transition-all">
-                                <ExternalLink size={10} className="mr-1" /> View Full
-                              </div>
-                            </a>
+                            <EvidenceLink key={index} path={url} />
                           ))}
                         </div>
                       </div>

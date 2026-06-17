@@ -115,7 +115,7 @@ function Page() {
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "seller"),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "buyer"),
-        supabase.from("listings").select("id", { count: "exact", head: true }),
+        supabase.from("listings").select("id", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("orders").select("id", { count: "exact", head: true }),
         supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", startOfTodayIso),
         supabase.from("withdrawals").select("id", { count: "exact", head: true }).eq("status", "pending"),

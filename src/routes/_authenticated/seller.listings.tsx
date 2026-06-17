@@ -88,6 +88,69 @@ function ListingModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [loginId, setLoginId] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [recoveryDetails, setRecoveryDetails] = useState("");
+  const [emailTransferDetails, setEmailTransferDetails] = useState("");
+  const [uploadingProof, setUploadingProof] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!listing?.id) return;
+    const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
+    if (getCategoryTypeFromSlug(catSlug) !== "game-accounts") return;
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+    
+    supabase
+      .from("listing_credentials")
+      .select("*")
+      .eq("listing_id", listing.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (data) {
+          setLoginId(data.login_id || "");
+          setLoginPassword(data.password || "");
+          setInstructions(data.instructions || "");
+          setRecoveryDetails(data.recovery_details || "");
+          setEmailTransferDetails(data.email_transfer_details || "");
+        }
+      });
+  }, [listing?.id, categoryId, categories]);
+
+  async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>, key: string) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large (max 5MB).");
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      setUploadingProof(prev => ({ ...prev, [key]: true }));
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${userId}/proofs/${Date.now()}-${key}-${Math.random().toString(36).substring(7)}.${ext}`;
+      
+      const { data, error } = await supabase.storage
+        .from("listing-images")
+        .upload(path, file, { upsert: true, contentType: file.type });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
+      setAttributes(prev => ({ ...prev, [key]: urlData.publicUrl }));
+      toast.success("Proof uploaded successfully!");
+    } catch (err: any) {
+      toast.error(`Failed to upload proof: ${err.message}`);
+    } finally {
+      setUploadingProof(prev => ({ ...prev, [key]: false }));
+    }
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     const newItems = files.map(f => {
@@ -180,6 +243,55 @@ function ListingModal({
       return;
     }
 
+    // Resolve category UUID early
+    let finalCategoryId = categoryId;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
+    if (!isUuid) {
+      const matched = categories.find(c => c.slug === categoryId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id));
+      if (matched) {
+        finalCategoryId = matched.id;
+      } else if (categories.length > 0) {
+        finalCategoryId = categories.find(c => c.id !== "more")?.id || categories[0].id;
+      }
+    }
+
+    const catSlug = categories.find(c => c.id === finalCategoryId)?.slug || "";
+    const isGameAccount = getCategoryTypeFromSlug(catSlug) === "game-accounts";
+
+    if (isGameAccount) {
+      if (!attributes.game?.trim()) { toast.error("Game Name is required."); return; }
+      if (!attributes.region?.trim()) { toast.error("Region is required."); return; }
+      if (!attributes.rank?.trim()) { toast.error("Rank is required."); return; }
+      if (!attributes.platform?.trim()) { toast.error("Platform is required."); return; }
+      if (attributes.level === undefined || attributes.level === null || isNaN(attributes.level)) { toast.error("Level is required."); return; }
+      if (attributes.skinsCount === undefined || attributes.skinsCount === null || isNaN(attributes.skinsCount)) { toast.error("Skins Count is required."); return; }
+      if (!attributes.rareItems?.trim() && !attributes.rareSkins?.trim()) { toast.error("Rare Items list is required."); return; }
+      if (!attributes.linkedAccounts?.trim()) { toast.error("Linked Accounts info is required."); return; }
+      if (!attributes.warrantyInformation?.trim() && !attributes.warrantyPeriod?.trim()) { toast.error("Warranty Information is required."); return; }
+      if (!attributes.accountCreationDate?.trim()) { toast.error("Account Creation Date is required."); return; }
+      if (!attributes.recoveryHistory?.trim() && !attributes.recoveryInfo?.trim()) { toast.error("Recovery History is required."); return; }
+      if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
+      if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+    }
+
+    // Ensure key syncing for compatibility in JSONB attributes
+    const syncedAttributes = isGameAccount ? {
+      ...attributes,
+      type: "game-accounts" as const,
+      rareItems: attributes.rareItems || attributes.rareSkins || "",
+      rareSkins: attributes.rareItems || attributes.rareSkins || "",
+      emailChangeable: attributes.emailChangeable !== undefined ? attributes.emailChangeable : (attributes.emailChangeAvailable !== undefined ? attributes.emailChangeAvailable : true),
+      emailChangeAvailable: attributes.emailChangeable !== undefined ? attributes.emailChangeable : (attributes.emailChangeAvailable !== undefined ? attributes.emailChangeAvailable : true),
+      firstOwnerStatus: attributes.firstOwnerStatus !== undefined ? attributes.firstOwnerStatus : (attributes.originalOwner !== undefined ? attributes.originalOwner : true),
+      originalOwner: attributes.firstOwnerStatus !== undefined ? attributes.firstOwnerStatus : (attributes.originalOwner !== undefined ? attributes.originalOwner : true),
+      warrantyInformation: attributes.warrantyInformation || attributes.warrantyPeriod || "",
+      warrantyPeriod: attributes.warrantyInformation || attributes.warrantyPeriod || "",
+      recoveryHistory: attributes.recoveryHistory || attributes.recoveryInfo || "",
+      recoveryInfo: attributes.recoveryHistory || attributes.recoveryInfo || "",
+      originalEmailIncluded: attributes.originalEmailIncluded !== undefined ? attributes.originalEmailIncluded : true,
+      purchaseReceiptsAvailable: attributes.purchaseReceiptsAvailable !== undefined ? attributes.purchaseReceiptsAvailable : true
+    } : attributes;
+
     setSaving(true);
     console.log("[Rebuild Listing Flow] Starting creation pipeline...");
 
@@ -213,18 +325,6 @@ function ListingModal({
 
       const coverImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
 
-      // Resolve category UUID
-      let finalCategoryId = categoryId;
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
-      if (!isUuid) {
-        const matched = categories.find(c => c.slug === categoryId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id));
-        if (matched) {
-          finalCategoryId = matched.id;
-        } else if (categories.length > 0) {
-          finalCategoryId = categories.find(c => c.id !== "more")?.id || categories[0].id;
-        }
-      }
-
       // Generate clean slug
       const generatedSlug = slugify(trimmedTitle);
 
@@ -233,7 +333,57 @@ function ListingModal({
       if (dbStatus === "pending_review") {
         dbStatus = "draft";
       }
-      const finalStatus = isNew ? "active" : dbStatus;
+
+      // Auto-moderation check
+      const prohibited = ["hack", "cheats", "cheat", "aimbot", "exploit", "cracked", "stolen", "direct payment", "discord.gg", "whatsapp", "telegram", "contact me", "private deal", "deal outside", "bypass escrow"];
+      const foundKeywords: string[] = [];
+      const textToSearch = `${trimmedTitle} ${trimmedDescription} ${tags.join(" ")}`.toLowerCase();
+      
+      prohibited.forEach(word => {
+        if (textToSearch.includes(word)) {
+          foundKeywords.push(word);
+        }
+      });
+
+      const { data: duplicates } = await supabase
+        .from("listings")
+        .select("id")
+        .eq("title", trimmedTitle)
+        .neq("id", listing?.id || "00000000-0000-0000-0000-000000000000")
+        .neq("status", "draft")
+        .limit(1);
+
+      const isDuplicate = duplicates && duplicates.length > 0;
+      
+      let riskScore = 0;
+      let notes = "";
+      let isFlagged = false;
+
+      if (foundKeywords.length > 0) {
+        riskScore += 60 + foundKeywords.length * 10;
+        notes += `Auto-flagged: Prohibited keywords found: ${foundKeywords.join(", ")}. `;
+        isFlagged = true;
+      }
+
+      if (isDuplicate) {
+        riskScore += 50;
+        notes += `Auto-flagged: Duplicate listing title detected. `;
+        isFlagged = true;
+      }
+
+      if (riskScore > 100) riskScore = 100;
+
+      let finalStatus = isNew ? "active" : dbStatus;
+      let payloadRiskScore = null;
+      let payloadKeywords = null;
+      let payloadNotes = null;
+
+      if (isFlagged) {
+        finalStatus = "pending";
+        payloadRiskScore = riskScore;
+        payloadKeywords = foundKeywords.length > 0 ? foundKeywords : null;
+        payloadNotes = notes;
+      }
 
       // 3. Direct direct insert / update payload
       const payload: any = {
@@ -246,14 +396,18 @@ function ListingModal({
         cover_image_url: coverImageUrl,
         images: imageUrls,
         category_id: finalCategoryId,
-        attributes: attributes,
+        attributes: syncedAttributes,
         seo_title: seoTitle.trim() || null,
         seo_description: seoDescription.trim() || null,
         seo_keywords: seoKeywords.trim() || null,
+        risk_score: payloadRiskScore,
+        suspicious_keywords: payloadKeywords,
+        moderator_notes: payloadNotes
       };
 
       console.log("[Rebuild Listing Flow] Database payload:", JSON.stringify(payload, null, 2));
 
+      let savedListingId = "";
       if (isNew) {
         payload.seller_id = userId;
         console.log("[Rebuild Listing Flow] Performing direct INSERT...");
@@ -272,6 +426,7 @@ function ListingModal({
         if (!data) {
           throw new Error("Database insert completed but did not return the created row. This can happen due to Row Level Security (RLS) policies blocking your user from inserting.");
         }
+        savedListingId = data.id;
       } else {
         console.log("[Rebuild Listing Flow] Performing direct UPDATE...");
         payload.updated_at = new Date().toISOString();
@@ -291,10 +446,35 @@ function ListingModal({
         if (!data) {
           throw new Error("Database update completed but did not return the updated row. Make sure you own this listing.");
         }
+        savedListingId = data.id;
+      }
+
+      // Upsert secure credentials
+      if (isGameAccount) {
+        const { error: credsErr } = await supabase
+          .from("listing_credentials")
+          .upsert({
+            listing_id: savedListingId,
+            login_id: loginId.trim(),
+            password: loginPassword,
+            instructions: instructions.trim() || null,
+            recovery_details: recoveryDetails.trim() || null,
+            email_transfer_details: emailTransferDetails.trim() || null,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "listing_id" });
+
+        if (credsErr) {
+          console.error("[ListingModal] Failed to save credentials:", credsErr);
+          throw new Error(`Failed to save secure credentials: ${credsErr.message}`);
+        }
       }
 
       // 4. Success behavior
-      toast.success(isNew ? "Listing created successfully!" : "Listing updated successfully!");
+      if (isFlagged) {
+        toast.warning(`Listing submitted but flagged for manual review: ${notes}`);
+      } else {
+        toast.success(isNew ? "Listing created successfully!" : "Listing updated successfully!");
+      }
       onSaved(isNew);
       onClose();
     } catch (err: any) {
@@ -473,121 +653,264 @@ function ListingModal({
                   
                   if (type === "game-accounts") {
                     return (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Game <span className="text-red-400">*</span></label>
-                          <input
-                            value={attributes.game || ""}
-                            onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. Valorant"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Game Name <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.game || ""}
+                              onChange={(e) => setAttributes({...attributes, game: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. Valorant, Fortnite"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Region <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.region || ""}
+                              onChange={(e) => setAttributes({...attributes, region: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. Asia, NA, EU"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Rank <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.rank || ""}
+                              onChange={(e) => setAttributes({...attributes, rank: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. Radiant, Diamond"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Platform <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.platform || ""}
+                              onChange={(e) => setAttributes({...attributes, platform: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. PC, PS5, Xbox"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Level <span className="text-red-400">*</span></label>
+                            <input
+                              type="number"
+                              value={attributes.level || ""}
+                              onChange={(e) => setAttributes({...attributes, level: parseInt(e.target.value) || 0, type: "game-accounts"})}
+                              placeholder="e.g. 50"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Skins Count <span className="text-red-400">*</span></label>
+                            <input
+                              type="number"
+                              value={attributes.skinsCount || ""}
+                              onChange={(e) => setAttributes({...attributes, skinsCount: parseInt(e.target.value) || 0, type: "game-accounts"})}
+                              placeholder="e.g. 85"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-xs font-medium mb-1.5">Rare Items <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.rareItems || attributes.rareSkins || ""}
+                              onChange={(e) => setAttributes({...attributes, rareItems: e.target.value, rareSkins: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. Renegade Raider, Vandal Prime"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Linked Accounts <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.linkedAccounts || ""}
+                              onChange={(e) => setAttributes({...attributes, linkedAccounts: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. Steam, Twitch, none"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Email Changeable <span className="text-red-400">*</span></label>
+                            <select
+                              value={attributes.emailChangeable === undefined ? "true" : String(attributes.emailChangeable)}
+                              onChange={(e) => {
+                                const val = e.target.value === "true";
+                                setAttributes({...attributes, emailChangeable: val, emailChangeAvailable: val, type: "game-accounts"});
+                              }}
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            >
+                              <option value="true">Yes</option>
+                              <option value="false">No</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">First Owner Status <span className="text-red-400">*</span></label>
+                            <select
+                              value={attributes.firstOwnerStatus === undefined ? "true" : String(attributes.firstOwnerStatus)}
+                              onChange={(e) => {
+                                const val = e.target.value === "true";
+                                setAttributes({...attributes, firstOwnerStatus: val, originalOwner: val, type: "game-accounts"});
+                              }}
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            >
+                              <option value="true">Yes (Original Owner)</option>
+                              <option value="false">No (Resold Account)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Original Email Included <span className="text-red-400">*</span></label>
+                            <select
+                              value={attributes.originalEmailIncluded === undefined ? "true" : String(attributes.originalEmailIncluded)}
+                              onChange={(e) => setAttributes({...attributes, originalEmailIncluded: e.target.value === "true", type: "game-accounts"})}
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            >
+                              <option value="true">Yes</option>
+                              <option value="false">No</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Warranty Information <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.warrantyInformation || attributes.warrantyPeriod || ""}
+                              onChange={(e) => setAttributes({...attributes, warrantyInformation: e.target.value, warrantyPeriod: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. 7 Days, Lifetime, None"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Account Creation Date <span className="text-red-400">*</span></label>
+                            <input
+                              type="date"
+                              value={attributes.accountCreationDate || ""}
+                              onChange={(e) => setAttributes({...attributes, accountCreationDate: e.target.value, type: "game-accounts"})}
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-xs font-medium mb-1.5">Recovery History <span className="text-red-400">*</span></label>
+                            <input
+                              value={attributes.recoveryHistory || attributes.recoveryInfo || ""}
+                              onChange={(e) => setAttributes({...attributes, recoveryHistory: e.target.value, recoveryInfo: e.target.value, type: "game-accounts"})}
+                              placeholder="e.g. Never recovered, recovered once in 2024"
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1.5">Purchase Receipts Available <span className="text-red-400">*</span></label>
+                            <select
+                              value={attributes.purchaseReceiptsAvailable === undefined ? "true" : String(attributes.purchaseReceiptsAvailable)}
+                              onChange={(e) => setAttributes({...attributes, purchaseReceiptsAvailable: e.target.value === "true", type: "game-accounts"})}
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
+                            >
+                              <option value="true">Yes</option>
+                              <option value="false">No</option>
+                            </select>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Region <span className="text-red-400">*</span></label>
-                          <input
-                            value={attributes.region || ""}
-                            onChange={(e) => setAttributes({...attributes, region: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. Asia, NA, EU"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
+
+                        {/* Optional Proof Uploads */}
+                        <div className="border-t border-border pt-4 mt-2">
+                          <span className="text-xs font-semibold text-white block mb-2">Optional Proof Uploads (Trust Enhancement)</span>
+                          <div className="grid grid-cols-2 gap-4">
+                            {[
+                              { label: "Rank Proof", key: "proofRankUrl" },
+                              { label: "Inventory Proof", key: "proofInventoryUrl" },
+                              { label: "Purchase History Proof", key: "proofPurchaseUrl" },
+                              { label: "Screenshots Proof", key: "proofScreenshotsUrl" }
+                            ].map((p) => (
+                              <div key={p.key} className="rounded-xl border border-border bg-background/40 p-3">
+                                <div className="text-[11px] font-medium text-muted-foreground mb-1">{p.label}</div>
+                                {attributes[p.key] ? (
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-gold truncate">{attributes[p.key].split('/').pop()}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setAttributes(prev => {
+                                        const copy = { ...prev };
+                                        delete copy[p.key];
+                                        return copy;
+                                      })}
+                                      className="text-red-400 hover:text-red-500 text-xs shrink-0"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="file"
+                                      accept="image/*,application/pdf"
+                                      onChange={(e) => handleProofUpload(e, p.key)}
+                                      disabled={uploadingProof[p.key]}
+                                      className="text-xs text-muted-foreground w-full file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-gold/10 file:text-gold hover:file:bg-gold/20"
+                                    />
+                                    {uploadingProof[p.key] && <Loader2 className="size-3 text-gold animate-spin" />}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Rank <span className="text-red-400">*</span></label>
-                          <input
-                            value={attributes.rank || ""}
-                            onChange={(e) => setAttributes({...attributes, rank: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. Radiant"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Level <span className="text-red-400">*</span></label>
-                          <input
-                            type="number"
-                            value={attributes.level || ""}
-                            onChange={(e) => setAttributes({...attributes, level: parseInt(e.target.value) || 0, type: "game-accounts"})}
-                            placeholder="e.g. 50"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Platform (Plat) <span className="text-red-400">*</span></label>
-                          <input
-                            value={attributes.platform || ""}
-                            onChange={(e) => setAttributes({...attributes, platform: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. PC, PS5, Xbox"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Skins Count <span className="text-red-400">*</span></label>
-                          <input
-                            type="number"
-                            value={attributes.skinsCount || ""}
-                            onChange={(e) => setAttributes({...attributes, skinsCount: parseInt(e.target.value) || 0, type: "game-accounts"})}
-                            placeholder="e.g. 85"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="block text-xs font-medium mb-1.5">Rare Skins</label>
-                          <input
-                            value={attributes.rareSkins || ""}
-                            onChange={(e) => setAttributes({...attributes, rareSkins: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. Pink Mercy, Renegade Raider, Vandal Prime"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Email Change Available</label>
-                          <select
-                            value={attributes.emailChangeAvailable === undefined ? "true" : String(attributes.emailChangeAvailable)}
-                            onChange={(e) => setAttributes({...attributes, emailChangeAvailable: e.target.value === "true", type: "game-accounts"})}
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          >
-                            <option value="true">Yes</option>
-                            <option value="false">No</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Original Owner</label>
-                          <select
-                            value={attributes.originalOwner === undefined ? "true" : String(attributes.originalOwner)}
-                            onChange={(e) => setAttributes({...attributes, originalOwner: e.target.value === "true", type: "game-accounts"})}
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          >
-                            <option value="true">Yes</option>
-                            <option value="false">No</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Warranty Period</label>
-                          <input
-                            value={attributes.warrantyPeriod || ""}
-                            onChange={(e) => setAttributes({...attributes, warrantyPeriod: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. 30 Days, Lifetime"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5">Linked Accounts</label>
-                          <input
-                            value={attributes.linkedAccounts || ""}
-                            onChange={(e) => setAttributes({...attributes, linkedAccounts: e.target.value, type: "game-accounts"})}
-                            placeholder="e.g. Twitch, Prime, Discord"
-                            className="w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="block text-xs font-medium mb-1.5">Recovery Information</label>
-                          <textarea
-                            value={attributes.recoveryInfo || ""}
-                            onChange={(e) => setAttributes({...attributes, recoveryInfo: e.target.value, type: "game-accounts"})}
-                            placeholder="Describe any recovery codes, original creation details..."
-                            rows={2}
-                            className="w-full p-3 rounded-xl border border-border bg-surface/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                          />
+
+                        {/* Secure Credential Vault */}
+                        <div className="border-t border-gold/20 pt-4 mt-2 bg-gold/5 rounded-xl p-3 border border-gold/15">
+                          <span className="text-xs font-semibold text-gold block mb-1">🔐 Secure Account Credentials Vault</span>
+                          <p className="text-[10px] text-muted-foreground mb-3">
+                            These credentials are encrypted, hidden from the public listing, and only shared with the buyer automatically after successful payment.
+                          </p>
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[10px] text-muted-foreground mb-1">Login ID / Username <span className="text-red-400">*</span></label>
+                                <input
+                                  value={loginId}
+                                  onChange={(e) => setLoginId(e.target.value)}
+                                  placeholder="e.g. valorant_acc_1"
+                                  className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-muted-foreground mb-1">Login Password <span className="text-red-400">*</span></label>
+                                <input
+                                  type="password"
+                                  value={loginPassword}
+                                  onChange={(e) => setLoginPassword(e.target.value)}
+                                  placeholder="••••••••"
+                                  className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-muted-foreground mb-1">Delivery & Login Instructions</label>
+                              <textarea
+                                value={instructions}
+                                onChange={(e) => setInstructions(e.target.value)}
+                                placeholder="Enter specific instructions on how the buyer should log in and secure the account..."
+                                rows={2}
+                                className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-muted-foreground mb-1">Account Recovery Details (Security Questions, Codes)</label>
+                              <textarea
+                                value={recoveryDetails}
+                                onChange={(e) => setRecoveryDetails(e.target.value)}
+                                placeholder="Enter recovery codes, first location, transaction IDs, original ISP, security answers..."
+                                rows={2}
+                                className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-muted-foreground mb-1">Email Transfer Details</label>
+                              <textarea
+                                value={emailTransferDetails}
+                                onChange={(e) => setEmailTransferDetails(e.target.value)}
+                                placeholder="Enter credentials for the recovery email, or instructions on how email transfer will take place..."
+                                rows={2}
+                                className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1288,19 +1611,23 @@ function Page() {
     }
   }, [intent]);
 
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "hidden" | "draft" | "deleted">("all");
+
   async function executeDelete() {
     if (!deleteTarget) return;
     const supabase = getSupabase();
     if (!supabase) return;
     setDeleting(deleteTarget);
     try {
-      const { error } = await supabase.from("listings").delete().eq("id", deleteTarget);
+      const { error } = await supabase.from("listings").update({ status: "deleted" }).eq("id", deleteTarget);
       if (error) {
         toast.error(error.message);
       } else {
         toast.success("Listing deleted successfully.");
-        // OPTIMISTIC UPDATE: filter out the deleted listing from state immediately
-        setListings((prev) => prev.filter((l) => l.id !== deleteTarget));
+        // OPTIMISTIC UPDATE: set status to deleted in state
+        setListings((prev) =>
+          prev.map((l) => (l.id === deleteTarget ? { ...l, status: "deleted" } : l))
+        );
         setDeleteTarget(null);
         // Background sync
         fetchListings();
@@ -1312,21 +1639,58 @@ function Page() {
     }
   }
 
-  const filtered = listings.filter((l) => l.title.toLowerCase().includes(query.toLowerCase()));
+  async function executeRestore(id: string) {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .update({ status: "draft" })
+        .eq("id", id);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Listing restored to draft successfully.");
+        // OPTIMISTIC UPDATE: set status to draft in state
+        setListings((prev) =>
+          prev.map((l) => (l.id === id ? { ...l, status: "draft" } : l))
+        );
+        fetchListings();
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
 
   const stats = {
     active: listings.filter((l) => l.status === "active").length,
     hidden: listings.filter((l) => l.status === "hidden").length,
-    draft: listings.filter((l) => l.status === "draft").length,
+    draft: listings.filter((l) => l.status === "draft" || l.status === "pending" || l.status === "pending_review").length,
+    deleted: listings.filter((l) => l.status === "deleted").length,
   };
+
+  const filtered = listings.filter((l) => {
+    const matchesQuery = l.title.toLowerCase().includes(query.toLowerCase());
+    if (!matchesQuery) return false;
+    
+    if (activeTab === "all") return l.status !== "deleted";
+    if (activeTab === "active") return l.status === "active";
+    if (activeTab === "hidden") return l.status === "hidden";
+    if (activeTab === "draft") return l.status === "draft" || l.status === "pending" || l.status === "pending_review";
+    if (activeTab === "deleted") return l.status === "deleted";
+    return true;
+  });
 
   const statusColors: Record<string, string> = {
     active: "text-green-400 bg-green-500/10 border-green-500/20",
     paused: "text-muted-foreground bg-surface border-border",
     draft: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
+    pending: "text-blue-400 bg-blue-500/10 border-blue-500/20",
     pending_review: "text-blue-400 bg-blue-500/10 border-blue-500/20",
     rejected: "text-red-400 bg-red-500/10 border-red-500/20",
     archived: "text-muted-foreground bg-surface border-border",
+    hidden: "text-purple-400 bg-purple-500/10 border-purple-500/20",
+    deleted: "text-red-400 bg-red-500/10 border-red-500/20",
   };
 
   return (
@@ -1372,25 +1736,41 @@ function Page() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {[
-            { l: "Active", v: stats.active, c: "text-green-400" },
-            { l: "Hidden", v: stats.hidden, c: "text-muted-foreground" },
-            { l: "Drafts", v: stats.draft, c: "text-yellow-400" },
+            { id: "active", l: "Active", v: stats.active, c: "text-green-400" },
+            { id: "hidden", l: "Hidden", v: stats.hidden, c: "text-purple-400" },
+            { id: "draft", l: "Drafts", v: stats.draft, c: "text-yellow-400" },
+            { id: "deleted", l: "Deleted", v: stats.deleted, c: "text-red-400" },
           ].map((s) => (
-            <div
+            <button
               key={s.l}
-              className="rounded-xl border border-border bg-surface/40 p-4 text-center"
+              onClick={() => setActiveTab(s.id as any)}
+              className={`rounded-xl border p-4 text-center transition-all cursor-pointer ${
+                activeTab === s.id
+                  ? "border-gold bg-gold/5 shadow-md shadow-gold/5"
+                  : "border-border bg-surface/40 hover:border-gold/30"
+              }`}
             >
               <div className={`font-display text-2xl font-bold ${s.c}`}>{s.v}</div>
               <div className="text-xs text-muted-foreground mt-0.5">{s.l}</div>
-            </div>
+            </button>
           ))}
         </div>
 
         {/* Search + Table */}
         <PanelCard
-          title="All Listings"
+          title={
+            activeTab === "all"
+              ? "All Listings"
+              : activeTab === "active"
+              ? "Active Listings"
+              : activeTab === "hidden"
+              ? "Hidden Listings"
+              : activeTab === "draft"
+              ? "Draft Listings"
+              : "Deleted Listings"
+          }
           action={
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -1403,6 +1783,28 @@ function Page() {
             </div>
           }
         >
+          {/* Tabs row */}
+          <div className="flex border-b border-border/60 mb-6 overflow-x-auto">
+            {[
+              { id: "all", label: "All Listings" },
+              { id: "active", label: `Active (${stats.active})` },
+              { id: "hidden", label: `Hidden (${stats.hidden})` },
+              { id: "draft", label: `Drafts (${stats.draft})` },
+              { id: "deleted", label: `Deleted (${stats.deleted})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "border-gold text-gold"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="size-6 animate-spin text-gold" />
@@ -1474,34 +1876,46 @@ function Page() {
                       </td>
                       <td className="py-3 text-right">
                         <div className="inline-flex items-center gap-1">
-                          <a
-                            href={`/product/${l.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-colors"
-                            title="Preview"
-                          >
-                            <Eye className="size-4" />
-                          </a>
-                          <button
-                            onClick={() => setEditTarget(l)}
-                            className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-gold transition-colors"
-                            title="Edit"
-                          >
-                            <Edit className="size-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(l.id)}
-                            disabled={deleting === l.id || deleting !== null}
-                            className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
-                            title="Delete"
-                          >
-                            {deleting === l.id ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-4" />
-                            )}
-                          </button>
+                          {l.status === "deleted" ? (
+                            <button
+                              onClick={() => executeRestore(l.id)}
+                              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold text-xs font-semibold transition-all cursor-pointer border-none"
+                              title="Restore"
+                            >
+                              Restore
+                            </button>
+                          ) : (
+                            <>
+                              <a
+                                href={`/product/${l.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-colors"
+                                title="Preview"
+                              >
+                                <Eye className="size-4" />
+                              </a>
+                              <button
+                                onClick={() => setEditTarget(l)}
+                                className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-gold transition-colors"
+                                title="Edit"
+                              >
+                                <Edit className="size-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteTarget(l.id)}
+                                disabled={deleting === l.id || deleting !== null}
+                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                                title="Delete"
+                              >
+                                {deleting === l.id ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-4" />
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

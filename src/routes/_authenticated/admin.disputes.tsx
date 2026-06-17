@@ -10,11 +10,33 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { completeOrderAndCreditSeller, addWalletBalance } from "@/lib/wallet.functions";
+import { SignedImage } from "@/components/SignedImage";
 
 export const Route = createFileRoute("/_authenticated/admin/disputes")({
   head: () => ({ meta: [{ title: "Mediation Disputes Center — HUXZAIN Admin" }] }),
   component: Page,
 });
+
+function EvidenceThumb({ path, index, onZoom }: { path: string; index: number; onZoom: (url: string) => void }) {
+  const [resolved, setResolved] = useState("");
+  return (
+    <div
+      className="relative group rounded-xl overflow-hidden border border-border bg-surface-elevated/40 aspect-video cursor-zoom-in"
+      onClick={() => resolved && onZoom(resolved)}
+    >
+      <SignedImage
+        path={path}
+        bucket="dispute-evidence"
+        onResolved={setResolved}
+        alt={`Evidence #${index + 1}`}
+        className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+      />
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+        <Eye className="text-white size-5" />
+      </div>
+    </div>
+  );
+}
 
 type Dispute = {
   id: string;
@@ -396,7 +418,7 @@ function Page() {
       if (sellerPayout > 0) {
         // If it's a 100% payout to the seller, we can use the default completeOrderAndCreditSeller function to calculate plan fees
         if (sellerPercent === 100) {
-          await completeOrderAndCreditSeller(orderDetail.id);
+          await completeOrderAndCreditSeller(orderDetail.id, { bypassDisputeCheck: true });
         } else {
           // If it's a split payout, credit the seller's wallet directly as a refund/adjustment
           await addWalletBalance(orderDetail.seller_id, sellerPayout, "refund", orderDetail.id);
@@ -404,11 +426,14 @@ function Page() {
       }
 
       // 3. Update order status to 'refunded' (if 100% buyer) or 'completed' (for splits/seller favor)
+      // Also clear the 'disputed' payout freeze so the order no longer shows as locked.
       const finalOrderStatus = buyerPercent === 100 ? "refunded" : "completed";
+      const finalPayoutStatus = buyerPercent === 100 ? "refunded" : "pending_cooling";
       await supabase
         .from("orders")
-        .update({ 
+        .update({
           status: finalOrderStatus,
+          payout_status: finalPayoutStatus,
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -731,20 +756,7 @@ function Page() {
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {selectedDispute.evidence_urls.map((url, idx) => (
-                      <div 
-                        key={idx} 
-                        className="relative group rounded-xl overflow-hidden border border-border bg-surface-elevated/40 aspect-video cursor-zoom-in"
-                        onClick={() => setActiveLightboxImg(url)}
-                      >
-                        <img 
-                          src={url} 
-                          alt={`Evidence #${idx + 1}`} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                          <Eye className="text-white size-5" />
-                        </div>
-                      </div>
+                      <EvidenceThumb key={idx} path={url} index={idx} onZoom={setActiveLightboxImg} />
                     ))}
                   </div>
                 </div>

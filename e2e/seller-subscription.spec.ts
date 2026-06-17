@@ -85,9 +85,9 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
 
     // Verify Direct INR ₹ Pricing
     await expect(page.locator("text=Free/mo")).toBeVisible();
-    await expect(page.locator("text=₹299/mo")).toBeVisible();
-    await expect(page.locator("text=₹599/mo")).toBeVisible();
-    await expect(page.locator("text=₹999/mo")).toBeVisible();
+    await expect(page.locator("text=₹2999/mo")).toBeVisible();
+    await expect(page.locator("text=₹4999/mo")).toBeVisible();
+    await expect(page.locator("text=₹10000/mo")).toBeVisible();
 
     // Intercept navigation or click Upgrade
     await page.click('button:has-text("Upgrade to Enterprise")');
@@ -102,7 +102,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
 
     // Confirm Plan Meta Renders Correctly
     await expect(page.locator("text=Enterprise Subscription")).toBeVisible();
-    await expect(page.locator("text=₹999").first()).toBeVisible();
+    await expect(page.locator("text=₹10000").first()).toBeVisible();
 
     // Confirm instructions notice renders
     await expect(page.locator("text=Important Payment Instructions")).toBeVisible();

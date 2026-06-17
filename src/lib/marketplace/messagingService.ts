@@ -21,16 +21,13 @@ export async function sendMessage(params: {
 }) {
   let attachmentUrl: string | undefined;
   if (params.attachmentFile) {
-    const fileName = `${Date.now()}_${params.attachmentFile.name}`;
-    const { data, error } = await supabase.storage
+    const path = `attachments/${Date.now()}_${params.attachmentFile.name}`;
+    const { error } = await supabase.storage
       .from("chat-attachments")
-      .upload(`attachments/${fileName}`, params.attachmentFile);
+      .upload(path, params.attachmentFile);
     if (error) throw error;
-    
-    const { data: { publicUrl } } = supabase.storage
-      .from("chat-attachments")
-      .getPublicUrl(`attachments/${fileName}`);
-    attachmentUrl = publicUrl;
+    // Store the in-bucket path; the bucket is private and is read via signed URLs.
+    attachmentUrl = path;
   }
 
   const { data, error } = await supabase.from("messages").insert({

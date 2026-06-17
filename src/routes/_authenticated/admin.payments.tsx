@@ -31,7 +31,7 @@ interface UnifiedProofRow {
   id: string;
   user_id: string;
   listing_id: string | null;
-  payment_type: "listing" | "subscription";
+  payment_type: "listing" | "subscription" | "badge";
   amount: number;
   screenshot_url: string;
   payment_reference: string | null;
@@ -471,8 +471,60 @@ function AdminPayments() {
         }
       }
 
+      // 4. For verified seller badge purchases — activate badge
+      if (activeProof.payment_type === "badge" && activeProof.payment_reference) {
+        const planMatch = activeProof.payment_reference.match(/^badge:(.+)$/);
+        if (planMatch) {
+          const planId = planMatch[1];
+          const planName = planId === "monthly" ? "Monthly" : planId === "6months" ? "6 Months" : "Yearly";
+          const days = planId === "monthly" ? 30 : planId === "6months" ? 180 : 365;
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + days);
+
+          await supabase
+            .from("badge_subscriptions")
+            .upsert({
+              user_id: activeProof.user_id,
+              plan_name: planName,
+              start_date: new Date().toISOString(),
+              expiry_date: expiryDate.toISOString(),
+              status: "active",
+            }, { onConflict: "user_id" });
+
+          await supabase
+            .from("profile_badges")
+            .upsert({
+              user_id: activeProof.user_id,
+              badge_type: "verified_seller",
+            }, { onConflict: "user_id,badge_type" });
+
+          await supabase
+            .from("profiles")
+            .update({
+              is_verified: true,
+            })
+            .eq("id", activeProof.user_id);
+
+          await supabase
+            .from("verifications")
+            .upsert({
+              id: activeProof.user_id,
+              status: "approved",
+              reviewed_at: new Date().toISOString(),
+              admin_notes: `KYC approved automatically via Verified Seller Badge purchase approval [plan: ${planName}].`
+            }, { onConflict: "id" });
+
+          await supabase.from("notifications").insert({
+            user_id: activeProof.user_id,
+            kind: "badge.activated",
+            title: "Verified Seller Badge Activated!",
+            body: `Your Verified Seller badge is now active (${planName} Plan). A golden verification mark is now displayed on your profile and listings!`,
+          });
+        }
+      }
+
       toast.success(
-        `Payment ${activeProof.payment_type === "listing" ? "order" : "subscription"} approved successfully!`,
+        `Payment ${activeProof.payment_type === "listing" ? "order" : activeProof.payment_type === "subscription" ? "subscription" : "badge"} approved successfully!`,
       );
 
       // OPTIMISTIC STATE UPDATE

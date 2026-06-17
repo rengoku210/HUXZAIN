@@ -42,7 +42,7 @@ export async function getOrCreateWallet(userId: string) {
 }
 
 // Complete order and credit the seller with net earnings (deducting tier platform fee)
-export async function completeOrderAndCreditSeller(orderId: string) {
+export async function completeOrderAndCreditSeller(orderId: string, opts?: { bypassDisputeCheck?: boolean }) {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase client not initialized");
 
@@ -60,6 +60,27 @@ export async function completeOrderAndCreditSeller(orderId: string) {
   if (order.status === "completed") {
     console.log("[WalletFunctions] Order already completed:", orderId);
     return order;
+  }
+
+  // Defense-in-depth: never auto-credit a seller while the order is disputed.
+  // The admin mediation flow passes bypassDisputeCheck to settle the payout as
+  // part of resolving the dispute itself.
+  if (!opts?.bypassDisputeCheck) {
+    if (order.payout_status === "disputed") {
+      console.warn(`[WalletFunctions] Refusing to complete disputed order #${orderId}; payout frozen.`);
+      return order;
+    }
+    const { data: openDispute } = await supabase
+      .from("disputes")
+      .select("id")
+      .eq("order_id", orderId)
+      .not("status", "in", "(resolved_buyer,resolved_seller,closed)")
+      .limit(1)
+      .maybeSingle();
+    if (openDispute) {
+      console.warn(`[WalletFunctions] Order #${orderId} has an unresolved dispute; skipping auto-completion.`);
+      return order;
+    }
   }
 
   const sellerId = order.seller_id || order.listings?.seller_id;
@@ -172,6 +193,18 @@ export async function checkAndReleaseEscrows() {
 
   const now = new Date();
 
+  // 0. Build the set of orders with unresolved disputes. Funds for these orders
+  // must NOT auto-release at any stage (inspection, cooling, dormant) until the
+  // dispute is resolved by an admin.
+  const disputedOrderIds = new Set<string>();
+  const { data: openDisputes } = await supabase
+    .from("disputes")
+    .select("order_id, status")
+    .not("status", "in", "(resolved_buyer,resolved_seller,closed)");
+  if (openDisputes) {
+    for (const d of openDisputes) if (d.order_id) disputedOrderIds.add(d.order_id);
+  }
+
   // 1. AUTO-COMPLETE DELIVERED ORDERS
   const { data: deliveredOrders, error: delErr } = await supabase
     .from("orders")
@@ -181,6 +214,10 @@ export async function checkAndReleaseEscrows() {
   if (!delErr && deliveredOrders) {
     for (const order of deliveredOrders) {
       try {
+        if (disputedOrderIds.has(order.id)) {
+          console.log(`[EscrowRelease] Skipping disputed order #${order.id} (auto-complete).`);
+          continue;
+        }
         const deliveredAt = order.delivered_at;
         if (!deliveredAt) continue;
 
@@ -222,6 +259,10 @@ export async function checkAndReleaseEscrows() {
   if (!coolErr && coolingOrders) {
     for (const order of coolingOrders) {
       try {
+        if (disputedOrderIds.has(order.id)) {
+          console.log(`[EscrowRelease] Skipping disputed order #${order.id} (cooling release).`);
+          continue;
+        }
         const sellerId = order.seller_id;
         const payout = Number(order.seller_payout_inr || 0);
 

@@ -210,6 +210,16 @@ function SellerSidebar({
           </Link>
         )}
 
+        <Link
+          to="/dashboard"
+          onClick={() => {
+            if (onLinkClick) onLinkClick();
+          }}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-elevated border border-border/50"
+        >
+          <ShoppingBag className="size-4" /> Switch to Buyer Console
+        </Link>
+
         <button
           onClick={() => {
             if (onLinkClick) onLinkClick();
@@ -292,13 +302,20 @@ function MobileSellerNav() {
           ))}
 
           {/* Action buttons */}
-          <div className="border-t border-border/40 pt-4 flex gap-2">
+          <div className="border-t border-border/40 pt-4 flex flex-col gap-2">
+            <Link
+              to="/dashboard"
+              onClick={() => setOpen(false)}
+              className="h-9 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-2 bg-surface/20"
+            >
+              <ShoppingBag size={12} /> Switch to Buyer Console
+            </Link>
             <button
               onClick={() => {
                 setOpen(false);
                 auth.signOut();
               }}
-              className="flex-1 h-9 rounded-xl border border-border text-xs text-muted-foreground hover:text-destructive flex items-center justify-center gap-2 bg-surface/20"
+              className="h-9 rounded-xl border border-border text-xs text-muted-foreground hover:text-destructive flex items-center justify-center gap-2 bg-surface/20"
             >
               <LogOut size={12} /> Logout
             </button>
