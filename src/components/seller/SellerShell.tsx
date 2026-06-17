@@ -20,7 +20,6 @@ import {
   Megaphone,
   LogOut,
   AlertCircle,
-  Wallet,
   Bell,
   BadgeCheck,
   Palette,
@@ -65,7 +64,6 @@ const navGroups: NavGroup[] = [
     title: "Finance",
     items: [
       { to: "/seller/earnings", label: "Earnings", icon: DollarSign },
-      { to: "/seller/wallet", label: "Wallet", icon: Wallet },
       { to: "/seller/withdrawals", label: "Withdrawals", icon: ArrowUpRight },
       { to: "/seller/transactions", label: "Transactions", icon: Receipt },
     ],
