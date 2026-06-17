@@ -145,17 +145,21 @@ export type ListingAttributes =
 
 export function getCategoryTypeFromSlug(slug: string): ListingCategoryType {
   const s = slug.toLowerCase();
-  if (s === "gaming-accounts" || s.includes("account")) return "game-accounts";
-  if (s === "in-game-currency" || s.includes("currency") || s.includes("credit")) return "currency";
-  if (s === "boosting-services" || s.includes("boost")) return "boosting";
-  if (s === "gift-cards") return "gift-cards";
-  if (s === "software-tools") return "software-tools";
-  if (s === "subscriptions") return "subscriptions";
-  if (s === "coaching-services") return "coaching";
-  if (s === "game-buddies") return "game-buddies";
-  if (s === "freelance-services") return "freelance";
-  if (s === "editing-design") return "design";
-  if (s === "advertising-services") return "advertising";
-  if (s === "digital-marketplace") return "digital-marketplace";
+  // Substring matching so DB slug variants (e.g. "accounts" vs "game-accounts",
+  // "coaching" vs "coaching-services", "design" vs "editing-design",
+  // "digital-products" vs "digital-marketplace") still resolve to the right
+  // category-specific listing form instead of silently falling through to generic.
+  if (s.includes("account")) return "game-accounts";
+  if (s.includes("currency") || s.includes("credit") || s.includes("vp")) return "currency";
+  if (s.includes("boost")) return "boosting";
+  if (s.includes("gift")) return "gift-cards";
+  if (s.includes("software") || s.includes("tool")) return "software-tools";
+  if (s.includes("subscription")) return "subscriptions";
+  if (s.includes("coach")) return "coaching";
+  if (s.includes("buddy") || s.includes("buddies")) return "game-buddies";
+  if (s.includes("freelance")) return "freelance";
+  if (s.includes("design") || s.includes("editing") || s.includes("creative")) return "design";
+  if (s.includes("advertis") || s.includes("social")) return "advertising";
+  if (s.includes("digital")) return "digital-marketplace";
   return "generic";
 }
