@@ -11,6 +11,7 @@ import {
   Share2,
   Loader2,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -29,6 +30,7 @@ import {
   type ListingLike,
 } from "@/lib/marketplace/listing-adapter";
 import { submitReport } from "@/lib/reports.functions";
+import { fetchListingReviews } from "@/lib/marketplace/reviewService";
 import { sanitizeHexColor } from "@/lib/security";
 import { friendlyError } from "@/lib/error-messages";
 import { TrustBadge } from "@/components/site/TrustBadge";
@@ -79,6 +81,7 @@ function ProductPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [reviewList, setReviewList] = useState<any[]>([]);
   const [ordering, setOrdering] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(wishlistStore.isWishlisted(id));
   const [reportOpen, setReportOpen] = useState(false);
@@ -163,6 +166,14 @@ function ProductPage() {
           if (active) {
             setSellerProfile({ ...prof, customizations: cust });
           }
+        }
+
+        // Fetch public reviews for this listing (each is order-linked = verified purchase)
+        try {
+          const revs = await fetchListingReviews(data.id);
+          if (active) setReviewList(revs ?? []);
+        } catch {
+          /* non-fatal: reviews are supplementary */
         }
       }
       setLoading(false);
@@ -888,9 +899,36 @@ function ProductPage() {
         <div className="py-8 max-w-3xl text-sm text-muted-foreground leading-relaxed">
           {activeTab === 0 && (listing.description ?? "No description has been added yet.")}
           {activeTab === 1 && (
-            <div className="flex items-center gap-2">
-              <Star className="size-4 fill-gold text-gold" /> {rating ? rating.toFixed(1) : "New"}{" "}
-              average - {reviews} reviews
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Star className="size-4 fill-gold text-gold" /> {rating ? rating.toFixed(1) : "New"}{" "}
+                average - {reviews} reviews
+              </div>
+              {reviewList.length === 0 ? (
+                <p className="text-muted-foreground">No reviews yet. Reviews appear here after buyers complete an order.</p>
+              ) : (
+                <div className="space-y-3">
+                  {reviewList.map((r) => (
+                    <div key={r.id} className="rounded-xl border border-border bg-surface/30 p-4">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-foreground">{r.buyer?.username ?? "Verified buyer"}</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full font-semibold">
+                            <CheckCircle2 className="size-3" /> Verified Purchase
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`size-3.5 ${i < (r.rating ?? 0) ? "fill-gold text-gold" : "text-muted-foreground/40"}`} />
+                          ))}
+                        </div>
+                      </div>
+                      {r.comment && <p className="text-foreground/90 leading-relaxed">{r.comment}</p>}
+                      <p className="text-[11px] text-muted-foreground mt-1.5">{new Date(r.created_at).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {activeTab === 2 && (

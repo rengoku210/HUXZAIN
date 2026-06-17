@@ -692,9 +692,19 @@ function MessagesPage() {
     const supabase = getSupabase();
     if (!supabase) return;
 
+    // REV-01: reviews only allowed by the buyer after the order is completed.
+    if (activeConv.buyer_id !== user.id) {
+      toast.error("Only the buyer can review this order.");
+      return;
+    }
+    if (activeConv.order?.status !== "completed") {
+      toast.error("You can review only after the order is completed.");
+      return;
+    }
+
     try {
       setSubmittingReview(true);
-      
+
       // 1. Insert review record
       const { error: revErr } = await supabase
         .from("reviews")
