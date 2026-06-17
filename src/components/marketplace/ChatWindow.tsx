@@ -5,10 +5,32 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Paperclip, Send, FileIcon } from "lucide-react";
 import { format } from "date-fns";
+import { useSignedUrl } from "@/components/SignedImage";
 
 interface ChatWindowProps {
   threadId: string;
   userId: string;
+}
+
+// Chat attachments live in the private chat-attachments bucket; resolve a
+// short-lived signed URL. Legacy absolute URLs pass through unchanged.
+function AttachmentLink({ stored, isOwn }: { stored: string; isOwn: boolean }) {
+  const href = useSignedUrl(stored, "chat-attachments");
+  return (
+    <a
+      href={href || undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`mt-2 flex items-center gap-2 p-2 rounded-lg border ${
+        isOwn
+          ? 'bg-black/10 border-black/20 text-black'
+          : 'bg-black/40 border-white/10 text-gold'
+      }`}
+    >
+      <FileIcon size={16} />
+      <span className="text-xs font-semibold truncate max-w-[150px]">View Attachment</span>
+    </a>
+  );
 }
 
 export function ChatWindow({ threadId, userId }: ChatWindowProps) {
@@ -98,19 +120,7 @@ export function ChatWindow({ threadId, userId }: ChatWindowProps) {
                 {msg.body && <p className="whitespace-pre-wrap">{msg.body}</p>}
                 
                 {msg.attachment_url && (
-                  <a 
-                    href={msg.attachment_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className={`mt-2 flex items-center gap-2 p-2 rounded-lg border ${
-                      msg.sender_id === userId 
-                        ? 'bg-black/10 border-black/20 text-black' 
-                        : 'bg-black/40 border-white/10 text-gold'
-                    }`}
-                  >
-                    <FileIcon size={16} />
-                    <span className="text-xs font-semibold truncate max-w-[150px]">View Attachment</span>
-                  </a>
+                  <AttachmentLink stored={msg.attachment_url} isOwn={msg.sender_id === userId} />
                 )}
                 
                 <span className={`text-[10px] mt-1 block opacity-60 ${
