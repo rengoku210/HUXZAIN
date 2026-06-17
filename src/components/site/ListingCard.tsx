@@ -3,6 +3,7 @@ import { Star, Heart, BadgeCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { wishlistStore } from "@/lib/wishlist/wishlist-store";
+import { SellerBadge } from "@/components/site/SellerBadge";
 import {
   listingImage,
   listingPrice,
@@ -68,16 +69,7 @@ export function ListingCard({ l }: { l: ListingLike }) {
   const subscriptionTier = l.profiles?.subscription_tier;
   const isVerified = l.profiles?.is_verified;
 
-  let tierBadge = null;
-  if (subscriptionTier === "pro") {
-    tierBadge = <span className="text-[9px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20 ml-1.5">PRO</span>;
-  } else if (subscriptionTier === "elite") {
-    tierBadge = <span className="text-[9px] font-bold text-gold bg-gold/10 px-1.5 py-0.5 rounded border border-gold/20 ml-1.5">ELITE</span>;
-  } else if (subscriptionTier === "enterprise") {
-    tierBadge = <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20 ml-1.5">ENTERPRISE</span>;
-  } else if (isVerified) {
-    tierBadge = <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 ml-1.5">VERIFIED</span>;
-  }
+  const tierBadge = <SellerBadge subscriptionTier={subscriptionTier} isVerified={isVerified} className="ml-1.5" />;
 
   return (
     <Link

@@ -31,6 +31,7 @@ import {
 } from "@/lib/marketplace/listing-adapter";
 import { submitReport } from "@/lib/reports.functions";
 import { fetchListingReviews } from "@/lib/marketplace/reviewService";
+import { SellerBadge } from "@/components/site/SellerBadge";
 import { sanitizeHexColor } from "@/lib/security";
 import { friendlyError } from "@/lib/error-messages";
 import { TrustBadge } from "@/components/site/TrustBadge";
@@ -153,7 +154,7 @@ function ProductPage() {
         if (data.seller_id) {
           const { data: prof } = await supabase
             .from("profiles")
-            .select("display_name, username")
+            .select("display_name, username, subscription_tier, is_verified")
             .eq("id", data.seller_id)
             .maybeSingle();
             
@@ -532,9 +533,10 @@ function ProductPage() {
                   <div className="min-w-0 mb-1 z-10">
                     <h3 className="font-display font-bold text-sm truncate text-foreground flex items-center gap-1.5">
                       {seller}
-                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-gold/10 border border-gold/20 text-gold" title="Verified Seller">
-                        <BadgeCheck className="size-3" />
-                      </span>
+                      <SellerBadge
+                        subscriptionTier={sellerProfile?.subscription_tier}
+                        isVerified={sellerProfile?.is_verified}
+                      />
                     </h3>
                     
                     {/* Slogan */}
