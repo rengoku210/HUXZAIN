@@ -38,6 +38,12 @@ import {
   updateFlaggedChatStatus,
   getSecurityIncidents,
   resolveSecurityIncident,
+  issueWarning,
+  removeStrike,
+  muteUser,
+  suspendUser,
+  banUser,
+  unbanUser,
 } from "@/lib/admin/moderation.functions";
 import {
   getMaintenanceMode,
@@ -85,7 +91,9 @@ function AntiFraudAndChatMonitor() {
   const [strikeUserId, setStrikeUserId] = useState("");
   const [strikeReason, setStrikeReason] = useState("");
   const [strikeEvidence, setStrikeEvidence] = useState("");
-  const [strikeActionType, setStrikeActionType] = useState<"warning" | "restriction" | "suspension" | "ban">("warning");
+  const [strikeActionType, setStrikeActionType] = useState<"warning" | "strike" | "mute" | "suspend" | "ban" | "unban" | "strike_removal">("warning");
+  const [muteDuration, setMuteDuration] = useState("15");
+  const [suspendDuration, setSuspendDuration] = useState("7");
   const [strikeSubmitBusy, setStrikeSubmitBusy] = useState(false);
 
   // Maintenance form states
@@ -234,7 +242,7 @@ function AntiFraudAndChatMonitor() {
     };
   }, [selectedChatId]);
 
-  // Issue formal strike
+  // Issue formal strike / moderation action
   const handleIssueStrike = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!strikeUserId || !strikeReason) {
@@ -244,27 +252,95 @@ function AntiFraudAndChatMonitor() {
 
     setStrikeSubmitBusy(true);
     try {
-      const res = await issueStrike({
-        data: {
-          user_id: strikeUserId,
-          reason: strikeReason,
-          evidence: strikeEvidence || undefined,
-          moderator_id: auth.user?.id || "",
-          conversation_id: selectedChatId || undefined,
-          chat_number: liveConvData?.conversation?.chat_number || undefined,
-        },
-      });
+      const moderatorId = auth.user?.id || "";
 
-      toast.success(
-        `Strike ${res.strike_number} issued! permanent_ban=${res.is_permanent_ban}`
-      );
+      if (strikeActionType === "warning") {
+        await issueWarning({
+          data: {
+            user_id: strikeUserId,
+            moderator_id: moderatorId,
+            reason: strikeReason,
+            notes: strikeEvidence || undefined,
+          },
+        });
+        toast.success("Warning successfully recorded.");
+      } else if (strikeActionType === "strike") {
+        const res = await issueStrike({
+          data: {
+            user_id: strikeUserId,
+            reason: strikeReason,
+            evidence: strikeEvidence || undefined,
+            moderator_id: moderatorId,
+            conversation_id: selectedChatId || undefined,
+            chat_number: liveConvData?.conversation?.chat_number || undefined,
+          },
+        });
+        toast.success(
+          `Strike ${res.strike_number} issued! permanent_ban=${res.is_permanent_ban}`
+        );
+      } else if (strikeActionType === "mute") {
+        const res = await muteUser({
+          data: {
+            user_id: strikeUserId,
+            moderator_id: moderatorId,
+            duration_minutes: parseInt(muteDuration) || 15,
+            reason: strikeReason,
+          },
+        });
+        toast.success(`User muted until: ${new Date(res.expires_at).toLocaleString()}`);
+      } else if (strikeActionType === "suspend") {
+        const res = await suspendUser({
+          data: {
+            user_id: strikeUserId,
+            moderator_id: moderatorId,
+            duration_days: parseInt(suspendDuration) || 7,
+            reason: strikeReason,
+          },
+        });
+        toast.success(`User suspended until: ${new Date(res.expires_at).toLocaleString()}`);
+      } else if (strikeActionType === "ban") {
+        await banUser({
+          data: {
+            user_id: strikeUserId,
+            moderator_id: moderatorId,
+            reason: strikeReason,
+          },
+        });
+        toast.success("User permanently banned.");
+      } else if (strikeActionType === "unban") {
+        await unbanUser({
+          data: {
+            user_id: strikeUserId,
+            moderator_id: moderatorId,
+            reason: strikeReason,
+          },
+        });
+        toast.success("All restrictions lifted for user.");
+      } else if (strikeActionType === "strike_removal") {
+        const res = await removeStrike({
+          data: {
+            user_id: strikeUserId,
+            moderator_id: moderatorId,
+            reason: strikeReason,
+          },
+        });
+        toast.success(`Strike removed! New strike count: ${res.strike_count}`);
+      }
+
       setShowStrikeModal(false);
       setStrikeUserId("");
       setStrikeReason("");
       setStrikeEvidence("");
       loadAllData();
+      
+      // Reload live conversation details if open
+      if (selectedChatId) {
+        const res = await getLiveConversation({ data: { conversation_id: selectedChatId } });
+        setLiveConvData(res);
+        setLiveMessages(res.messages || []);
+      }
     } catch (err: any) {
-      toast.error(err.message || "Failed to issue strike.");
+      toast.error(err.message || "Failed to record moderation action.");
     } finally {
       setStrikeSubmitBusy(false);
     }
@@ -373,7 +449,7 @@ function AntiFraudAndChatMonitor() {
             }}
             className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-red-600 hover:bg-red-500 text-white active:scale-95 transition-all cursor-pointer border-none shadow-lg shadow-red-900/20"
           >
-            Disciplinary Action Strike
+            Record Moderation Action
           </button>
         </div>
       </div>
@@ -423,18 +499,18 @@ function AntiFraudAndChatMonitor() {
                 />
               </div>
 
-              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden">
-                <table className="w-full border-collapse text-left">
+              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto">
+                <table className="w-full border-collapse text-left min-w-[1000px]">
                   <thead>
-                    <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                      <th className="p-4">Chat ID</th>
-                      <th className="p-4">Buyer Info</th>
-                      <th className="p-4">Seller Info</th>
-                      <th className="p-4">Subject</th>
-                      <th className="p-4">Order Status</th>
-                      <th className="p-4">Msgs</th>
-                      <th className="p-4">Risk Rating</th>
-                      <th className="p-4 text-right">Actions</th>
+                    <tr className="border-b border-border/80 bg-surface/30 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      <th className="py-4 px-6 min-w-[130px]">Chat ID</th>
+                      <th className="py-4 px-6 min-w-[180px]">Buyer Info</th>
+                      <th className="py-4 px-6 min-w-[180px]">Seller Info</th>
+                      <th className="py-4 px-6 min-w-[200px]">Subject</th>
+                      <th className="py-4 px-6 min-w-[150px]">Order Status</th>
+                      <th className="py-4 px-6 min-w-[80px]">Msgs</th>
+                      <th className="py-4 px-6 min-w-[160px]">Risk Rating</th>
+                      <th className="py-4 px-6 min-w-[120px] text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -454,9 +530,9 @@ function AntiFraudAndChatMonitor() {
                         return (
                           <tr
                             key={c.id}
-                            className="border-b border-border/60 hover:bg-surface/20 transition-all text-xs"
+                            className="border-b border-border/40 hover:bg-surface/20 transition-all text-xs"
                           >
-                            <td className="p-4 font-mono font-bold text-gold">
+                            <td className="py-5 px-6 font-mono font-bold text-gold align-middle">
                               <div className="flex items-center gap-1.5">
                                 <span>{c.chat_number || "HX-CHAT-NEW"}</span>
                                 <button
@@ -471,9 +547,9 @@ function AntiFraudAndChatMonitor() {
                                 </button>
                               </div>
                             </td>
-                            <td className="p-4">
+                            <td className="py-5 px-6 align-middle">
                               <div className="font-semibold text-foreground">{c.buyer?.display_name || "Buyer"}</div>
-                              <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
                                 <span className="font-mono">{c.buyer?.email}</span>
                                 <button
                                   onClick={(e) => {
@@ -487,9 +563,9 @@ function AntiFraudAndChatMonitor() {
                                 </button>
                               </div>
                             </td>
-                            <td className="p-4">
+                            <td className="py-5 px-6 align-middle">
                               <div className="font-semibold text-foreground">{c.seller?.display_name || "Seller"}</div>
-                              <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
                                 <span className="font-mono">{c.seller?.email}</span>
                                 <button
                                   onClick={(e) => {
@@ -503,12 +579,14 @@ function AntiFraudAndChatMonitor() {
                                 </button>
                               </div>
                             </td>
-                            <td className="p-4 truncate max-w-[150px] font-medium text-foreground/80">{c.subject}</td>
-                            <td className="p-4">
+                            <td className="py-5 px-6 align-middle font-medium text-foreground/80" title={c.subject}>
+                              <div className="truncate max-w-[180px]">{c.subject}</div>
+                            </td>
+                            <td className="py-5 px-6 align-middle">
                               {c.order ? (
-                                <div className="space-y-0.5">
-                                  <span className="font-bold uppercase tracking-wider text-[10px] text-gold">{c.order.status}</span>
-                                  <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+                                <div className="space-y-1">
+                                  <span className="font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-gold/10 text-gold border border-gold/20">{c.order.status}</span>
+                                  <div className="text-[9px] text-muted-foreground flex items-center gap-1 mt-1.5">
                                     <span className="font-mono font-semibold">#{c.order.order_number?.slice(0, 8)}</span>
                                     <button
                                       onClick={(e) => {
@@ -523,19 +601,24 @@ function AntiFraudAndChatMonitor() {
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground italic text-[10px]">No Order Linked</span>
+                                <span className="text-muted-foreground/60 italic text-[10px]">No Order Linked</span>
                               )}
                             </td>
-                            <td className="p-4 font-mono font-semibold text-foreground/80">{c.message_count || 0}</td>
-                            <td className="p-4">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${riskColor}`}>
-                                {c.risk_level || "safe"} (Score: {c.risk_score || 0})
+                            <td className="py-5 px-6 align-middle">
+                              <span className="bg-surface/60 border border-border/80 text-foreground/90 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold">
+                                {c.message_count || 0}
                               </span>
                             </td>
-                            <td className="p-4 text-right">
+                            <td className="py-5 px-6 align-middle">
+                              <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold border uppercase tracking-wider inline-flex items-center gap-1 ${riskColor}`}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                                {c.risk_level || "safe"} ({c.risk_score || 0})
+                              </span>
+                            </td>
+                            <td className="py-5 px-6 align-middle text-right">
                               <button
                                 onClick={() => setSelectedChatId(c.id)}
-                                className="px-3 py-1.5 rounded-xl bg-gold/10 hover:bg-gold/20 border border-gold/20 text-[10px] font-bold uppercase tracking-wider text-gold active:scale-95 transition-all cursor-pointer flex items-center gap-1 ml-auto"
+                                className="px-3.5 py-2 rounded-xl bg-gold text-black hover:brightness-110 font-display text-[10px] font-bold uppercase tracking-wider active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-gold/10 hover:shadow-gold/20 border-none ml-auto"
                               >
                                 <ExternalLink size={11} /> Live View
                               </button>
@@ -550,19 +633,18 @@ function AntiFraudAndChatMonitor() {
             </div>
           )}
 
-          {/* TAB 2: FLAGGED CONVERSATIONS */}
           {activeTab === "flagged" && !selectedChatId && (
-            <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden animate-in fade-in duration-200">
-              <table className="w-full border-collapse text-left">
+            <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto animate-in fade-in duration-200">
+              <table className="w-full border-collapse text-left min-w-[1000px]">
                 <thead>
-                  <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                    <th className="p-4">Conversation</th>
-                    <th className="p-4">Buyer</th>
-                    <th className="p-4">Seller</th>
-                    <th className="p-4">Flag Reason</th>
-                    <th className="p-4">Risk Rating</th>
-                    <th className="p-4">Audit Status</th>
-                    <th className="p-4 text-right">Actions</th>
+                  <tr className="border-b border-border/80 bg-surface/30 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    <th className="py-4 px-6 min-w-[130px]">Conversation</th>
+                    <th className="py-4 px-6 min-w-[180px]">Buyer</th>
+                    <th className="py-4 px-6 min-w-[180px]">Seller</th>
+                    <th className="py-4 px-6 min-w-[200px]">Flag Reason</th>
+                    <th className="py-4 px-6 min-w-[160px]">Risk Rating</th>
+                    <th className="py-4 px-6 min-w-[140px]">Audit Status</th>
+                    <th className="py-4 px-6 min-w-[120px] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -582,9 +664,9 @@ function AntiFraudAndChatMonitor() {
                       return (
                         <tr
                           key={c.id}
-                          className="border-b border-border/60 hover:bg-surface/20 transition-all text-xs"
+                          className="border-b border-border/40 hover:bg-surface/20 transition-all text-xs"
                         >
-                          <td className="p-4 font-mono font-bold text-gold">
+                          <td className="py-5 px-6 font-mono font-bold text-gold align-middle">
                             <div className="flex items-center gap-1.5">
                               <span>{c.chat_number || "HX-CHAT-NEW"}</span>
                               <button
@@ -599,28 +681,29 @@ function AntiFraudAndChatMonitor() {
                               </button>
                             </div>
                           </td>
-                          <td className="p-4">
+                          <td className="py-5 px-6 align-middle">
                             <div className="font-semibold text-foreground">{c.buyer?.display_name || "Buyer"}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{c.buyer?.email}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono mt-1">{c.buyer?.email}</div>
                           </td>
-                          <td className="p-4">
+                          <td className="py-5 px-6 align-middle">
                             <div className="font-semibold text-foreground">{c.seller?.display_name || "Seller"}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{c.seller?.email}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono mt-1">{c.seller?.email}</div>
                           </td>
-                          <td className="p-4 font-semibold text-rose-300">
-                            <div className="flex items-center gap-1.5">
+                          <td className="py-5 px-6 align-middle font-semibold text-rose-300" title={c.flag_reason}>
+                            <div className="flex items-center gap-1.5 max-w-[180px]">
                               <ShieldAlert size={13} className="text-rose-400 shrink-0" />
-                              {c.flag_reason}
+                              <span className="truncate">{c.flag_reason}</span>
                             </div>
                           </td>
-                          <td className="p-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${riskColor}`}>
-                              {c.risk_level} (Score: {c.risk_score || 0})
+                          <td className="py-5 px-6 align-middle">
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold border uppercase tracking-wider inline-flex items-center gap-1 ${riskColor}`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                              {c.risk_level} ({c.risk_score || 0})
                             </span>
                           </td>
-                          <td className="p-4">
+                          <td className="py-5 px-6 align-middle">
                             <span
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                              className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border inline-block ${
                                 c.status === "pending_review"
                                   ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
                                   : c.status === "resolved"
@@ -631,10 +714,10 @@ function AntiFraudAndChatMonitor() {
                               {c.status.replace(/_/g, " ")}
                             </span>
                           </td>
-                          <td className="p-4 text-right">
+                          <td className="py-5 px-6 align-middle text-right">
                             <button
                               onClick={() => setSelectedChatId(c.conversation_id || c.id)}
-                              className="px-3 py-1.5 rounded-xl bg-gold/10 hover:bg-gold/20 border border-gold/20 text-[10px] font-bold uppercase tracking-wider text-gold active:scale-95 transition-all cursor-pointer flex items-center gap-1 ml-auto"
+                              className="px-3.5 py-2 rounded-xl bg-gold text-black hover:brightness-110 font-display text-[10px] font-bold uppercase tracking-wider active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-gold/10 hover:shadow-gold/20 border-none ml-auto"
                             >
                               <ExternalLink size={11} /> Investigate
                             </button>
@@ -656,16 +739,16 @@ function AntiFraudAndChatMonitor() {
                 <h3 className="text-xs uppercase font-bold tracking-wider text-rose-400 flex items-center gap-1.5">
                   <ShieldAlert size={14} /> Reported Escrow Chats
                 </h3>
-                <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden">
-                  <table className="w-full border-collapse text-left">
+                <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto">
+                  <table className="w-full border-collapse text-left min-w-[1000px]">
                     <thead>
-                      <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                        <th className="p-4">Chat ID</th>
-                        <th className="p-4">Report Reason</th>
-                        <th className="p-4">Reporter</th>
-                        <th className="p-4">Risk Rating</th>
-                        <th className="p-4">Created At</th>
-                        <th className="p-4 text-right">Actions</th>
+                      <tr className="border-b border-border/80 bg-surface/30 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                        <th className="py-4 px-6 min-w-[130px]">Chat ID</th>
+                        <th className="py-4 px-6 min-w-[220px]">Report Reason</th>
+                        <th className="py-4 px-6 min-w-[180px]">Reporter</th>
+                        <th className="py-4 px-6 min-w-[160px]">Risk Rating</th>
+                        <th className="py-4 px-6 min-w-[150px]">Created At</th>
+                        <th className="py-4 px-6 min-w-[180px] text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -684,43 +767,46 @@ function AntiFraudAndChatMonitor() {
                           if (conv.risk_level === "critical") riskColor = "bg-red-600/15 text-red-400 border-red-500/35 animate-pulse";
 
                           return (
-                            <tr key={r.id} className="border-b border-border/60 hover:bg-surface/20 transition-all text-xs">
-                              <td className="p-4 font-mono font-bold text-gold">
+                            <tr key={r.id} className="border-b border-border/40 hover:bg-surface/20 transition-all text-xs">
+                              <td className="py-5 px-6 font-mono font-bold text-gold align-middle">
                                 {r.chat_number || conv.chat_number || "HX-CHAT-NEW"}
                               </td>
-                              <td className="p-4">
-                                <div className="font-semibold text-rose-300">{r.reason}</div>
+                              <td className="py-5 px-6 align-middle">
+                                <div className="font-semibold text-rose-300 max-w-[200px] truncate" title={r.reason}>{r.reason}</div>
                                 {r.additional_notes && (
-                                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[200px] italic">
+                                  <div className="text-[10px] text-muted-foreground mt-1 truncate max-w-[200px] italic" title={r.additional_notes}>
                                     "{r.additional_notes}"
                                   </div>
                                 )}
                               </td>
-                              <td className="p-4">
+                              <td className="py-5 px-6 align-middle">
                                 <div className="font-semibold">{r.reporter?.display_name || "User"}</div>
-                                <div className="text-[9px] text-muted-foreground font-mono">{r.reporter?.email}</div>
+                                <div className="text-[9px] text-muted-foreground font-mono mt-1">{r.reporter?.email}</div>
                               </td>
-                              <td className="p-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${riskColor}`}>
-                                  {conv.risk_level || "safe"} (Score: {conv.risk_score || 0})
+                              <td className="py-5 px-6 align-middle">
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold border uppercase tracking-wider inline-flex items-center gap-1 ${riskColor}`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                                  {conv.risk_level || "safe"} ({conv.risk_score || 0})
                                 </span>
                               </td>
-                              <td className="p-4 font-mono text-[10px] text-muted-foreground">
+                              <td className="py-5 px-6 align-middle font-mono text-[10px] text-muted-foreground">
                                 {new Date(r.created_at).toLocaleString()}
                               </td>
-                              <td className="p-4 flex gap-1.5 justify-end">
-                                <button
-                                  onClick={() => handleResolveReport(r.id, "dismissed")}
-                                  className="px-2 py-1 rounded bg-surface hover:bg-surface/60 border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground active:scale-95 transition-all cursor-pointer bg-transparent"
-                                >
-                                  Dismiss
-                                </button>
-                                <button
-                                  onClick={() => setSelectedChatId(r.conversation_id)}
-                                  className="px-2.5 py-1.5 rounded-xl bg-gold/10 hover:bg-gold/20 border border-gold/20 text-[9px] font-bold uppercase tracking-wider text-gold active:scale-95 transition-all cursor-pointer flex items-center gap-1"
-                                >
-                                  <ExternalLink size={10} /> Live Audit
-                                </button>
+                              <td className="py-5 px-6 align-middle text-right">
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    onClick={() => handleResolveReport(r.id, "dismissed")}
+                                    className="px-3 py-2 rounded-xl bg-surface/50 hover:bg-surface border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground active:scale-95 transition-all cursor-pointer"
+                                  >
+                                    Dismiss
+                                  </button>
+                                  <button
+                                    onClick={() => setSelectedChatId(r.conversation_id)}
+                                    className="px-3.5 py-2 rounded-xl bg-gold text-black hover:brightness-110 font-display text-[9px] font-bold uppercase tracking-wider active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-gold/10 border-none"
+                                  >
+                                    <ExternalLink size={10} /> Live Audit
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -735,23 +821,23 @@ function AntiFraudAndChatMonitor() {
 
           {/* TAB 4: FRAUD EVENTS FEED */}
           {activeTab === "events" && !selectedChatId && (
-            <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden animate-in fade-in duration-200">
-              <table className="w-full border-collapse text-left">
+            <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto animate-in fade-in duration-200">
+              <table className="w-full border-collapse text-left min-w-[1000px]">
                 <thead>
-                  <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                    <th className="p-4">Chat ID</th>
-                    <th className="p-4">User</th>
-                    <th className="p-4">Violation Type</th>
-                    <th className="p-4">Pattern Matched</th>
-                    <th className="p-4">Message Preview</th>
-                    <th className="p-4">Tier / Conf</th>
-                    <th className="p-4 text-right">Audit</th>
+                  <tr className="border-b border-border/80 bg-surface/30 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    <th className="py-4 px-6 min-w-[130px]">Chat ID</th>
+                    <th className="py-4 px-6 min-w-[180px]">User</th>
+                    <th className="py-4 px-6 min-w-[150px]">Violation Type</th>
+                    <th className="py-4 px-6 min-w-[140px]">Pattern Matched</th>
+                    <th className="py-4 px-6 min-w-[200px]">Message Preview</th>
+                    <th className="py-4 px-6 min-w-[120px]">Tier / Conf</th>
+                    <th className="py-4 px-6 min-w-[120px] text-right">Audit</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fraudEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-xs text-muted-foreground">
+                      <td colSpan={7} className="p-8 text-center text-xs text-muted-foreground">
                         No automated fraud detection events logged in database.
                       </td>
                     </tr>
@@ -763,33 +849,38 @@ function AntiFraudAndChatMonitor() {
                       if (e.risk_tier === "critical") tierColor = "bg-red-600/15 text-red-400 border-red-500/35 animate-pulse";
 
                       return (
-                        <tr key={e.id} className="border-b border-border/60 hover:bg-surface/20 transition-all text-xs">
-                          <td className="p-4 font-mono font-bold text-gold">
+                        <tr key={e.id} className="border-b border-border/40 hover:bg-surface/20 transition-all text-xs">
+                          <td className="py-5 px-6 font-mono font-bold text-gold align-middle">
                             {e.chat_number || e.conversation?.chat_number || "HX-CHAT-NEW"}
                           </td>
-                          <td className="p-4 font-semibold">
-                            {e.user?.display_name || "User"}
-                            <div className="text-[9px] text-muted-foreground font-mono mt-0.5">{e.user?.email}</div>
+                          <td className="py-5 px-6 align-middle">
+                            <div className="font-semibold">{e.user?.display_name || "User"}</div>
+                            <div className="text-[9px] text-muted-foreground font-mono mt-1">{e.user?.email}</div>
                           </td>
-                          <td className="p-4 font-semibold text-rose-300 text-[10px] uppercase font-mono">{e.detection_type}</td>
-                          <td className="p-4 font-medium text-amber-300 font-mono text-[10px]">{e.matched_pattern || "n/a"}</td>
-                          <td className="p-4 text-muted-foreground italic truncate max-w-[150px]">
-                            "{e.message_preview || "No message body preview"}"
-                          </td>
-                          <td className="p-4">
-                            <div className="space-y-1">
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border uppercase tracking-wider ${tierColor}`}>
-                                {e.risk_tier}
-                              </span>
-                              <div className="text-[8px] text-muted-foreground font-mono font-semibold">Conf: {e.confidence_score}%</div>
+                          <td className="py-5 px-6 align-middle font-semibold text-rose-300 text-[10px] uppercase font-mono">{e.detection_type}</td>
+                          <td className="py-5 px-6 align-middle font-medium text-amber-300 font-mono text-[10px]">{e.matched_pattern || "n/a"}</td>
+                          <td className="py-5 px-6 align-middle text-muted-foreground italic" title={e.message_preview}>
+                            <div className="truncate max-w-[180px]">
+                              "{e.message_preview || "No message body preview"}"
                             </div>
                           </td>
-                          <td className="p-4 text-right">
+                          <td className="py-5 px-6 align-middle">
+                            <div className="space-y-1">
+                              <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold border uppercase tracking-wider inline-flex items-center gap-1 ${tierColor}`}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                                {e.risk_tier}
+                              </span>
+                              <div className="text-[9px] text-muted-foreground font-mono mt-1.5">
+                                Conf: {((e.confidence_score || 0) * 100).toFixed(0)}%
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-5 px-6 align-middle text-right">
                             <button
                               onClick={() => setSelectedChatId(e.conversation_id)}
-                              className="px-2.5 py-1.5 rounded-xl bg-gold/10 hover:bg-gold/20 border border-gold/20 text-[9px] font-bold uppercase tracking-wider text-gold active:scale-95 transition-all cursor-pointer flex items-center gap-1 ml-auto"
+                              className="px-3.5 py-2 rounded-xl bg-gold text-black hover:brightness-110 font-display text-[9px] font-bold uppercase tracking-wider active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-gold/10 border-none ml-auto"
                             >
-                              <ExternalLink size={10} /> Live
+                              <ExternalLink size={10} /> Live Audit
                             </button>
                           </td>
                         </tr>
@@ -1046,13 +1137,13 @@ function AntiFraudAndChatMonitor() {
                       if (liveConvData) {
                         setStrikeUserId(liveConvData.conversation.seller_id);
                         setStrikeReason("Off-platform contact/payment solicitation in chat");
-                        setStrikeActionType("warning");
+                        setStrikeActionType("strike");
                         setShowStrikeModal(true);
                       }
                     }}
                     className="w-full py-2.5 rounded-xl bg-amber-500 text-primary-foreground font-semibold text-xs tracking-wider uppercase active:scale-95 transition-all cursor-pointer border-none shadow-md shadow-amber-900/10 flex items-center justify-center gap-1.5"
                   >
-                    <ShieldAlert size={14} /> Strike Seller
+                    <ShieldAlert size={14} /> Moderate Seller
                   </button>
 
                   <button
@@ -1060,13 +1151,13 @@ function AntiFraudAndChatMonitor() {
                       if (liveConvData) {
                         setStrikeUserId(liveConvData.conversation.buyer_id);
                         setStrikeReason("Soliciting off-platform details or direct payments");
-                        setStrikeActionType("warning");
+                        setStrikeActionType("strike");
                         setShowStrikeModal(true);
                       }
                     }}
                     className="w-full py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs tracking-wider uppercase active:scale-95 transition-all cursor-pointer border-none shadow-md flex items-center justify-center gap-1.5"
                   >
-                    <ShieldAlert size={14} /> Strike Buyer
+                    <ShieldAlert size={14} /> Moderate Buyer
                   </button>
 
                   {liveConvData?.reports?.some(r => r.status === "open") && (
@@ -1129,13 +1220,66 @@ function AntiFraudAndChatMonitor() {
                   onChange={(e: any) => setStrikeActionType(e.target.value)}
                   className="w-full bg-[#101114] border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-gold text-foreground cursor-pointer"
                 >
-                  <option value="warning">Strike 1: Formal Warning</option>
-                  <option value="restriction">Strike 2: 3-Day Restriction</option>
-                  <option value="suspension">Strike 3: 7-Day Suspension</option>
-                  <option value="ban">Strike 4: Permanent Ban</option>
+                  <option value="warning">Issue Warning (No Strike)</option>
+                  <option value="strike">Issue Strike (+1 Strike)</option>
+                  <option value="mute">Mute Chat</option>
+                  <option value="suspend">Suspend Account</option>
+                  <option value="ban">Permanent Ban</option>
+                  <option value="unban">Lift Restrictions / Unban</option>
+                  <option value="strike_removal">Remove Strike (-1 Strike)</option>
                 </select>
               </div>
 
+              {strikeActionType === "mute" && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Mute Duration</label>
+                  <select
+                    value={muteDuration}
+                    onChange={(e) => setMuteDuration(e.target.value)}
+                    className="w-full bg-[#101114] border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-gold text-foreground cursor-pointer"
+                  >
+                    <option value="15">15 Minutes</option>
+                    <option value="60">1 Hour</option>
+                    <option value="1440">24 Hours</option>
+                    <option value="10080">7 Days</option>
+                    <option value="43200">30 Days</option>
+                  </select>
+                </div>
+              )}
+
+              {strikeActionType === "suspend" && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Suspension Duration</label>
+                  <select
+                    value={suspendDuration}
+                    onChange={(e) => setSuspendDuration(e.target.value)}
+                    className="w-full bg-[#101114] border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-gold text-foreground cursor-pointer"
+                  >
+                    <option value="1">1 Day</option>
+                    <option value="3">3 Days</option>
+                    <option value="7">7 Days</option>
+                    <option value="30">30 Days</option>
+                    <option value="90">90 Days</option>
+                  </select>
+                </div>
+              )}
+
+              {strikeActionType !== "mute" && strikeActionType !== "suspend" && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Policy Violation Code</label>
+                  <input
+                    type="text"
+                    required
+                    value={strikeReason}
+                    onChange={(e) => setStrikeReason(e.target.value)}
+                    placeholder="e.g. UPI evasion / Direct deals"
+                    className="w-full bg-[#101114] border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-gold text-foreground"
+                  />
+                </div>
+              )}
+            </div>
+
+            {(strikeActionType === "mute" || strikeActionType === "suspend") && (
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Policy Violation Code</label>
                 <input
@@ -1147,7 +1291,7 @@ function AntiFraudAndChatMonitor() {
                   className="w-full bg-[#101114] border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-gold text-foreground"
                 />
               </div>
-            </div>
+            )}
 
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Audit Evidence / Chat References</label>

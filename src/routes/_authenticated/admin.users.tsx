@@ -6,7 +6,16 @@ import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
 import type { Role } from "@/lib/roles";
 import { useAuth } from "@/lib/auth/auth-context";
-import { Search, UserCheck, ShieldAlert, Ban, CheckCircle, AlertTriangle, X, StickyNote, Lock, Unlock, LogIn, Clock } from "lucide-react";
+import { Search, UserCheck, ShieldAlert, Ban, CheckCircle, AlertTriangle, X, StickyNote, Lock, Unlock, LogIn, Clock, Shield } from "lucide-react";
+import { 
+  issueWarning, 
+  issueStrike, 
+  removeStrike, 
+  muteUser, 
+  suspendUser, 
+  banUser, 
+  unbanUser 
+} from "@/lib/admin/moderation.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Manage Users — HUXZAIN Admin" }] }),
@@ -71,9 +80,11 @@ function Page() {
   const [activeTab, setActiveTab] = useState<"general" | "warnings">("general");
   const [userWarnings, setUserWarnings] = useState<any[]>([]);
   const [loadingWarnings, setLoadingWarnings] = useState(false);
-  const [warningAction, setWarningAction] = useState<"warning" | "restriction" | "suspension" | "ban" | "strike_removal">("warning");
+  const [warningAction, setWarningAction] = useState<"warning" | "strike" | "mute" | "suspend" | "ban" | "unban" | "strike_removal">("warning");
   const [warningReason, setWarningReason] = useState("");
   const [warningDetails, setWarningDetails] = useState("");
+  const [muteDuration, setMuteDuration] = useState("15");
+  const [suspendDuration, setSuspendDuration] = useState("7");
   const [warningSubmitting, setWarningSubmitting] = useState(false);
 
   const fetchUsers = async () => {
@@ -246,89 +257,92 @@ function Page() {
     try {
       setWarningSubmitting(true);
 
-      // 1. Insert into user_warnings table
-      const { error: insertErr } = await sb
-        .from("user_warnings")
-        .insert({
-          user_id: selectedUser.id,
-          reason: warningReason,
-          details: warningDetails || null,
-          action_taken: warningAction,
-          issued_by: auth.user?.id || null,
-        });
+      const moderatorId = auth.user?.id || "";
 
-      if (insertErr) throw insertErr;
-
-      // 2. Compute new profile metrics
-      let newWarningsCount = selectedUser.warnings_count ?? 0;
-      let newStrikesCount = selectedUser.strikes_count ?? 0;
-      let newTrustScore = selectedUser.trust_score ?? 100;
-      let nextSuspendedAt = selectedUser.suspended_at;
-
+      // Call appropriate server function based on action type
       if (warningAction === "warning") {
-        newWarningsCount += 1;
-        newStrikesCount += 1;
-        newTrustScore = Math.max(0, newTrustScore - 15);
-      } else if (warningAction === "strike_removal") {
-        newStrikesCount = Math.max(0, newStrikesCount - 1);
-        newTrustScore = Math.min(100, newTrustScore + 15);
-      } else if (warningAction === "suspension") {
-        nextSuspendedAt = new Date().toISOString();
-        newWarningsCount += 1;
-        newStrikesCount += 1;
-        newTrustScore = Math.max(0, newTrustScore - 30);
+        await issueWarning({
+          data: {
+            user_id: selectedUser.id,
+            moderator_id: moderatorId,
+            reason: warningReason,
+            notes: warningDetails || undefined,
+          },
+        });
+      } else if (warningAction === "strike") {
+        await issueStrike({
+          data: {
+            user_id: selectedUser.id,
+            reason: warningReason,
+            evidence: warningDetails || undefined,
+            moderator_id: moderatorId,
+          },
+        });
+      } else if (warningAction === "mute") {
+        await muteUser({
+          data: {
+            user_id: selectedUser.id,
+            moderator_id: moderatorId,
+            duration_minutes: parseInt(muteDuration) || 15,
+            reason: warningReason,
+          },
+        });
+      } else if (warningAction === "suspend") {
+        await suspendUser({
+          data: {
+            user_id: selectedUser.id,
+            moderator_id: moderatorId,
+            duration_days: parseInt(suspendDuration) || 7,
+            reason: warningReason,
+          },
+        });
       } else if (warningAction === "ban") {
-        nextSuspendedAt = new Date("3000-01-01T00:00:00Z").toISOString();
-        newWarningsCount += 1;
-        newStrikesCount = Math.max(3, newStrikesCount + 1);
-        newTrustScore = 0;
-      } else if (warningAction === "restriction") {
-        newWarningsCount += 1;
-        newTrustScore = Math.max(0, newTrustScore - 10);
+        await banUser({
+          data: {
+            user_id: selectedUser.id,
+            moderator_id: moderatorId,
+            reason: warningReason,
+          },
+        });
+      } else if (warningAction === "unban") {
+        await unbanUser({
+          data: {
+            user_id: selectedUser.id,
+            moderator_id: moderatorId,
+            reason: warningReason,
+          },
+        });
+      } else if (warningAction === "strike_removal") {
+        await removeStrike({
+          data: {
+            user_id: selectedUser.id,
+            moderator_id: moderatorId,
+            reason: warningReason,
+          },
+        });
       }
 
-      // 3. Update profiles table
-      const { error: profileErr } = await sb
+      // Fetch newly updated profile metrics from DB
+      const { data: updatedProf } = await sb
         .from("profiles")
-        .update({
-          warnings_count: newWarningsCount,
-          strikes_count: newStrikesCount,
-          trust_score: newTrustScore,
-          suspended_at: nextSuspendedAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedUser.id);
+        .select("id, display_name, username, created_at, suspended_at, is_seller, is_verified, email, role, warnings_count, strikes_count, trust_score")
+        .eq("id", selectedUser.id)
+        .single();
 
-      if (profileErr) throw profileErr;
+      if (updatedProf) {
+        const updatedUser = {
+          ...selectedUser,
+          warnings_count: updatedProf.warnings_count ?? 0,
+          strikes_count: updatedProf.strikes_count ?? 0,
+          trust_score: updatedProf.trust_score ?? 100,
+          suspended_at: updatedProf.suspended_at,
+        };
 
-      // 4. Log staff action
-      if (auth.user) {
-        try {
-          await sb.from("staff_action_logs").insert({
-            staff_id: auth.user.id,
-            action: `issue_${warningAction}`,
-            target_type: "user",
-            target_id: selectedUser.id,
-            new_value: `reason: ${warningReason}, strikes: ${newStrikesCount}`,
-            ip_address: "Client Session",
-          });
-        } catch (err) {
-          console.error("Failed to log staff action:", err);
-        }
+        setSelectedUser(updatedUser);
+        setUsers((prev) =>
+          prev.map((u) => (u.id === selectedUser.id ? updatedUser : u))
+        );
       }
-
-      const updatedUser = {
-        ...selectedUser,
-        warnings_count: newWarningsCount,
-        strikes_count: newStrikesCount,
-        trust_score: newTrustScore,
-        suspended_at: nextSuspendedAt,
-      };
-
-      setSelectedUser(updatedUser);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === selectedUser.id ? updatedUser : u))
-      );
 
       // Refresh warnings list
       const { data: refreshedWarnings } = await sb
@@ -1006,22 +1020,58 @@ function Page() {
                         onChange={(e) => setWarningAction(e.target.value as any)}
                         className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50 cursor-pointer"
                       >
-                        <option value="warning">Issue Warning (+1 Strike)</option>
-                        <option value="restriction">Temporary Restriction</option>
-                        <option value="suspension">Temporary Suspension</option>
+                        <option value="warning">Issue Warning (No Strike)</option>
+                        <option value="strike">Issue Strike (+1 Strike)</option>
+                        <option value="mute">Mute Chat</option>
+                        <option value="suspend">Suspend Account</option>
                         <option value="ban">Permanent Ban</option>
+                        <option value="unban">Lift Restrictions / Unban</option>
                         <option value="strike_removal">Remove Strike (-1 Strike)</option>
                       </select>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-muted-foreground uppercase font-semibold">Context Details</label>
-                      <input
-                        placeholder="e.g. 7-day restriction, Ticket reference"
-                        value={warningDetails}
-                        onChange={(e) => setWarningDetails(e.target.value)}
-                        className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50 placeholder:text-muted-foreground/50"
-                      />
-                    </div>
+                    {warningAction === "mute" && (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-muted-foreground uppercase font-semibold">Mute Duration</label>
+                        <select
+                          value={muteDuration}
+                          onChange={(e) => setMuteDuration(e.target.value)}
+                          className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50 cursor-pointer"
+                        >
+                          <option value="15">15 Minutes</option>
+                          <option value="60">1 Hour</option>
+                          <option value="1440">24 Hours</option>
+                          <option value="10080">7 Days</option>
+                          <option value="43200">30 Days</option>
+                        </select>
+                      </div>
+                    )}
+                    {warningAction === "suspend" && (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-muted-foreground uppercase font-semibold">Suspension Duration</label>
+                        <select
+                          value={suspendDuration}
+                          onChange={(e) => setSuspendDuration(e.target.value)}
+                          className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50 cursor-pointer"
+                        >
+                          <option value="1">1 Day</option>
+                          <option value="3">3 Days</option>
+                          <option value="7">7 Days</option>
+                          <option value="30">30 Days</option>
+                          <option value="90">90 Days</option>
+                        </select>
+                      </div>
+                    )}
+                    {warningAction !== "mute" && warningAction !== "suspend" && (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-muted-foreground uppercase font-semibold">Context Details</label>
+                        <input
+                          placeholder="e.g. Ticket reference / evidence note"
+                          value={warningDetails}
+                          onChange={(e) => setWarningDetails(e.target.value)}
+                          className="bg-background/80 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground outline-none focus:border-gold/50 placeholder:text-muted-foreground/50"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1">

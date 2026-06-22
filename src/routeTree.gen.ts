@@ -47,8 +47,10 @@ import { Route as AuthVerifiedRouteImport } from './routes/auth.verified'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AccountVerifyPhoneRouteImport } from './routes/account.verify-phone'
 import { Route as ServerTrackDurationRouteImport } from './routes/_server.trackDuration'
+import { Route as AuthenticatedSuspendedRouteImport } from './routes/_authenticated/suspended'
 import { Route as AuthenticatedSellerRouteImport } from './routes/_authenticated/seller'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
+import { Route as AuthenticatedBannedRouteImport } from './routes/_authenticated/banned'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedSellerIndexRouteImport } from './routes/_authenticated/seller.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -292,6 +294,11 @@ const ServerTrackDurationRoute = ServerTrackDurationRouteImport.update({
   path: '/trackDuration',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSuspendedRoute = AuthenticatedSuspendedRouteImport.update({
+  id: '/suspended',
+  path: '/suspended',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedSellerRoute = AuthenticatedSellerRouteImport.update({
   id: '/seller',
   path: '/seller',
@@ -300,6 +307,11 @@ const AuthenticatedSellerRoute = AuthenticatedSellerRouteImport.update({
 const AuthenticatedMessagesRoute = AuthenticatedMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBannedRoute = AuthenticatedBannedRouteImport.update({
+  id: '/banned',
+  path: '/banned',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -642,8 +654,10 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/banned': typeof AuthenticatedBannedRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/seller': typeof AuthenticatedSellerRouteWithChildren
+  '/suspended': typeof AuthenticatedSuspendedRoute
   '/trackDuration': typeof ServerTrackDurationRoute
   '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -735,7 +749,9 @@ export interface FileRoutesByTo {
   '/team-login': typeof TeamLoginRoute
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/banned': typeof AuthenticatedBannedRoute
   '/messages': typeof AuthenticatedMessagesRoute
+  '/suspended': typeof AuthenticatedSuspendedRoute
   '/trackDuration': typeof ServerTrackDurationRoute
   '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -830,8 +846,10 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/banned': typeof AuthenticatedBannedRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/seller': typeof AuthenticatedSellerRouteWithChildren
+  '/_authenticated/suspended': typeof AuthenticatedSuspendedRoute
   '/_server/trackDuration': typeof ServerTrackDurationRoute
   '/account/verify-phone': typeof AccountVerifyPhoneRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -926,8 +944,10 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/admin'
+    | '/banned'
     | '/messages'
     | '/seller'
+    | '/suspended'
     | '/trackDuration'
     | '/account/verify-phone'
     | '/auth/callback'
@@ -1019,7 +1039,9 @@ export interface FileRouteTypes {
     | '/team-login'
     | '/terms'
     | '/verify-email'
+    | '/banned'
     | '/messages'
+    | '/suspended'
     | '/trackDuration'
     | '/account/verify-phone'
     | '/auth/callback'
@@ -1113,8 +1135,10 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/_authenticated/admin'
+    | '/_authenticated/banned'
     | '/_authenticated/messages'
     | '/_authenticated/seller'
+    | '/_authenticated/suspended'
     | '/_server/trackDuration'
     | '/account/verify-phone'
     | '/auth/callback'
@@ -1486,6 +1510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerTrackDurationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/suspended': {
+      id: '/_authenticated/suspended'
+      path: '/suspended'
+      fullPath: '/suspended'
+      preLoaderRoute: typeof AuthenticatedSuspendedRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/seller': {
       id: '/_authenticated/seller'
       path: '/seller'
@@ -1498,6 +1529,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof AuthenticatedMessagesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/banned': {
+      id: '/_authenticated/banned'
+      path: '/banned'
+      fullPath: '/banned'
+      preLoaderRoute: typeof AuthenticatedBannedRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin': {
@@ -1997,16 +2035,20 @@ const AuthenticatedSellerRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedBannedRoute: typeof AuthenticatedBannedRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedSellerRoute: typeof AuthenticatedSellerRouteWithChildren
+  AuthenticatedSuspendedRoute: typeof AuthenticatedSuspendedRoute
   AuthenticatedCheckoutPaymentRoute: typeof AuthenticatedCheckoutPaymentRoute
   AuthenticatedCheckoutVerifyPaymentRoute: typeof AuthenticatedCheckoutVerifyPaymentRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedBannedRoute: AuthenticatedBannedRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedSellerRoute: AuthenticatedSellerRouteWithChildren,
+  AuthenticatedSuspendedRoute: AuthenticatedSuspendedRoute,
   AuthenticatedCheckoutPaymentRoute: AuthenticatedCheckoutPaymentRoute,
   AuthenticatedCheckoutVerifyPaymentRoute:
     AuthenticatedCheckoutVerifyPaymentRoute,

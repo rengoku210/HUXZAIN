@@ -35,6 +35,14 @@ export type Profile = {
   rating_count?: number;
   updated_at?: string | null;
   role?: string | null;
+  suspended_at?: string | null;
+  banned_at?: string | null;
+  restricted_until?: string | null;
+  strikes_count?: number;
+  is_muted?: boolean;
+  is_suspended?: boolean;
+  is_banned?: boolean;
+  moderation_reason?: string | null;
 };
 
 type AuthState = {
@@ -148,15 +156,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // 1. Fetch existing profile and roles first
+      // 1. Fetch existing profile, roles, moderation status, and latest action
       // We use try-catch and specific checks to ensure null safety
       let p, r;
       try {
-        const [resP, resR] = await Promise.all([
+        const [resP, resR, resM, resA] = await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
           supabase.from("user_roles").select("role").eq("user_id", userId),
+          supabase.from("user_moderation_status").select("*").eq("user_id", userId).maybeSingle(),
+          supabase.from("moderation_actions")
+            .select("reason, expires_at, action_type")
+            .eq("target_user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ]);
-        p = resP.data;
+        
+        const m = resM.data;
+        const a = resA.data;
+
+        p = resP.data ? {
+          ...resP.data,
+          is_muted: !!m?.is_muted,
+          is_suspended: !!m?.is_suspended,
+          is_banned: !!m?.is_banned,
+          moderation_reason: a?.reason ?? null,
+        } : null;
         r = resR.data;
         
         if (resP.error) console.warn("Profile load error:", resP.error.message);

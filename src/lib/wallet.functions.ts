@@ -281,6 +281,22 @@ export async function checkAndReleaseEscrows() {
 
         if (!sellerId || payout <= 0) continue;
 
+        // Check if seller is suspended, banned, or frozen
+        const { data: sellerProf } = await supabase
+          .from("profiles")
+          .select("frozen_at, suspended_at, banned_at, restricted_until")
+          .eq("id", sellerId)
+          .single();
+
+        const isSellerSuspended = sellerProf?.suspended_at && (!sellerProf?.restricted_until || new Date(sellerProf.restricted_until) > new Date());
+        const isSellerBanned = !!sellerProf?.banned_at;
+        const isSellerFrozen = !!sellerProf?.frozen_at;
+
+        if (isSellerSuspended || isSellerBanned || isSellerFrozen) {
+          console.log(`[EscrowRelease] Skipping order #${order.id} cooling release: Seller ${sellerId} is suspended, banned, or frozen.`);
+          continue;
+        }
+
         // 2.1 Update order payout_status to 'eligible'
         const { error: updErr } = await supabase
           .from("orders")
@@ -393,6 +409,17 @@ export async function requestWithdrawal(userId: string, amount: number, method: 
 
   const wallet = await getOrCreateWallet(userId);
 
+  // Check if user is suspended, banned, or frozen
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("frozen_at, suspended_at, banned_at, restricted_until")
+    .eq("id", userId)
+    .single();
+
+  const isSuspended = profile?.suspended_at && (!profile?.restricted_until || new Date(profile.restricted_until) > new Date());
+  const isBanned = !!profile?.banned_at;
+  const isFrozen = !!profile?.frozen_at;
+
   // Check if withdrawals are frozen in reports table
   const { data: freezeRow } = await supabase
     .from("reports")
@@ -403,8 +430,8 @@ export async function requestWithdrawal(userId: string, amount: number, method: 
     .eq("status", "open")
     .maybeSingle();
 
-  if (freezeRow) {
-    throw new Error("Your payouts and withdrawals are temporarily frozen by platform administration. Please open a support ticket for mediation.");
+  if (isSuspended || isBanned || isFrozen || freezeRow) {
+    throw new Error("Your payouts and withdrawals are frozen by platform moderation.");
   }
 
   if (wallet.available_balance < amount) {

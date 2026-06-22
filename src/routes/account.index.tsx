@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
+import { getStrikeHistory } from "@/lib/admin/moderation.functions";
 
 export const Route = createFileRoute("/account/")({
   validateSearch: (s: Record<string, unknown>): { intent?: string } => ({
@@ -43,7 +44,7 @@ export const Route = createFileRoute("/account/")({
   component: AccountPage,
 });
 
-type Tab = "profile" | "security" | "orders" | "roles" | "notifications";
+type Tab = "profile" | "security" | "orders" | "roles" | "notifications" | "standing";
 
 const ROLE_LABELS: Record<string, { label: string; color: string; Icon: any }> = {
   buyer: { label: "Buyer", color: "border-gold/40 bg-gold/10 text-gold", Icon: BadgeCheck },
@@ -222,6 +223,8 @@ function AccountPage() {
   const intentProcessed = useRef(false);
 
   const [tab, setTab] = useState<Tab>("profile");
+  const [strikesList, setStrikesList] = useState<any[]>([]);
+  const [loadingStrikes, setLoadingStrikes] = useState(false);
 
   // Local form state
   const [displayName, setDisplayName] = useState("");
@@ -289,6 +292,24 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       navigate({ to: "/login", search: { redirect: "/account" } });
     }
   }, [ready, isAuthenticated, navigate]);
+
+  // Strikes loading hook
+  useEffect(() => {
+    async function loadStrikes() {
+      if (tab === "standing" && user) {
+        setLoadingStrikes(true);
+        try {
+          const res = await getStrikeHistory({ data: { user_id: user.id } });
+          setStrikesList(res || []);
+        } catch (err) {
+          toast.error("Failed to load strike history.");
+        } finally {
+          setLoadingStrikes(false);
+        }
+      }
+    }
+    loadStrikes();
+  }, [tab, user]);
 
   // 3. Load Notifications
   useEffect(() => {
@@ -531,6 +552,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "orders", label: "My Orders", icon: ShoppingBag },
     { id: "roles", label: "Account Roles", icon: BadgeCheck },
+    { id: "standing", label: "Account Standing", icon: Shield },
   ];
 
   return (
@@ -785,9 +807,77 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                             <>
                               <Sparkles className="size-4" /> Become Seller
                             </>
-                          )}
+                        )}
                         </button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* —— Account Standing / Strike History —————————————————————————— */}
+                {tab === "standing" && (
+                  <div className="rounded-2xl border border-border bg-surface/40 p-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div>
+                      <h2 className="text-base font-semibold flex items-center gap-2">
+                        <Shield className="text-gold size-5" /> Account Standing & Strikes
+                      </h2>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Check your account reputation, warning logs, and strike standing on the HUXZAIN platform.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl border border-border/80 bg-background/50 text-center">
+                        <div className="text-[10px] uppercase text-muted-foreground font-semibold">Active Strikes</div>
+                        <div className={`text-2xl font-bold font-mono mt-1 ${profile?.strikes_count && profile.strikes_count >= 3 ? 'text-red-400 animate-pulse' : profile?.strikes_count && profile.strikes_count > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {profile?.strikes_count ?? 0} / 5
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl border border-border/80 bg-background/50 text-center">
+                        <div className="text-[10px] uppercase text-muted-foreground font-semibold">Trust Status</div>
+                        <div className="text-sm font-semibold mt-2 text-foreground">
+                          {(profile?.strikes_count ?? 0) === 0 ? "Excellent Standing" : (profile?.strikes_count ?? 0) < 3 ? "Warning Active" : "Suspension Warning"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-4 border-t border-border/40">
+                      <h3 className="text-xs font-semibold text-muted-foreground">Strike & Warning Logs</h3>
+                      {loadingStrikes ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="size-6 text-gold animate-spin" />
+                        </div>
+                      ) : strikesList.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-muted-foreground">
+                          ✓ Zero strikes active. Thank you for keeping the platform safe.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {strikesList.map((s, idx) => (
+                            <div key={s.id || idx} className="p-4 rounded-xl border border-border/80 bg-background/50 space-y-2">
+                              <div className="flex justify-between items-start">
+                                <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                                  Strike {s.strike_number}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {new Date(s.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs font-semibold text-foreground">Reason: {s.reason}</p>
+                              {s.evidence && (
+                                <p className="text-[10px] text-muted-foreground italic bg-surface/30 p-2 rounded">
+                                  Evidence notes: {s.evidence}
+                                </p>
+                              )}
+                              {s.suspension_ends_at && (
+                                <p className="text-[10px] text-red-400 font-medium">
+                                  Suspension applied until: {new Date(s.suspension_ends_at).toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

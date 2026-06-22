@@ -96,7 +96,7 @@ type Message = {
 
 
 function MessagesPage() {
-  const { user, isAuthenticated, ready } = useAuth();
+  const { user, isAuthenticated, ready, profile } = useAuth();
   const search = Route.useSearch();
   const orderId = search.orderId;
   const navigate = useNavigate();
@@ -1457,31 +1457,45 @@ function MessagesPage() {
 
                 {/* Input area — pinned to the bottom of the message panel */}
                 <div className="shrink-0 border-t border-border/60 bg-surface/30 flex flex-col pt-2 pb-4 px-4">
-                  {policyWarningText && (
-                    <div className="mb-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 flex items-start gap-2 animate-in slide-in-from-bottom-2">
-                      <AlertCircle className="size-4 shrink-0 mt-0.5 text-rose-400" />
-                      <div>
-                        <span className="font-bold">Security Warning:</span> {policyWarningText}
+                  {profile?.is_muted ? (
+                    <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5 text-xs text-red-400 flex items-start gap-2.5">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <span className="font-bold block text-foreground">You are currently muted by platform moderation.</span>
+                        <p className="text-[10px] text-muted-foreground">
+                          Reason: {profile.moderation_reason || "Policy Violation"}.
+                        </p>
                       </div>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {policyWarningText && (
+                        <div className="mb-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 flex items-start gap-2 animate-in slide-in-from-bottom-2">
+                          <AlertCircle className="size-4 shrink-0 mt-0.5 text-rose-400" />
+                          <div>
+                            <span className="font-bold">Security Warning:</span> {policyWarningText}
+                          </div>
+                        </div>
+                      )}
 
-                  <form onSubmit={handleSend} className="flex gap-2">
-                    <input
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder={`Write a secure message to ${activeOtherName}...`}
-                      className="flex-1 h-11 px-4 rounded-xl border border-border bg-surface/50 text-xs focus:outline-none focus:border-gold/50 placeholder:text-muted-foreground text-foreground"
-                      disabled={sending}
-                    />
-                    <button
-                      type="submit"
-                      disabled={sending || !newMessage.trim()}
-                      className="size-11 rounded-xl bg-gold text-primary-foreground hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center border-none cursor-pointer"
-                    >
-                      <Send size={16} />
-                    </button>
-                  </form>
+                      <form onSubmit={handleSend} className="flex gap-2">
+                        <input
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder={`Write a secure message to ${activeOtherName}...`}
+                          className="flex-1 h-11 px-4 rounded-xl border border-border bg-surface/50 text-xs focus:outline-none focus:border-gold/50 placeholder:text-muted-foreground text-foreground"
+                          disabled={sending}
+                        />
+                        <button
+                          type="submit"
+                          disabled={sending || !newMessage.trim()}
+                          className="size-11 rounded-xl bg-gold text-primary-foreground hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center border-none cursor-pointer"
+                        >
+                          <Send size={16} />
+                        </button>
+                      </form>
+                    </>
+                  )}
                 </div>
               </>
             )}

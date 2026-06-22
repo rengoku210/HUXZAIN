@@ -368,33 +368,62 @@ export const issueStrike = createServerFn({ method: "POST" })
     const supabase = getAdminClient();
     if (!supabase) throw new Error("Database service is offline.");
 
-    // Get current strike count
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("strikes_count, display_name")
-      .eq("id", data.user_id)
+    // 1. Insert strike moderation action
+    const { error: actErr } = await supabase
+      .from("moderation_actions")
+      .insert({
+        target_user_id: data.user_id,
+        admin_id: data.moderator_id,
+        action_type: "strike",
+        reason: data.reason,
+        notes: data.evidence || null,
+      });
+
+    if (actErr) {
+      console.error("[Strike] Error creating moderation action:", actErr.message);
+      throw new Error("Failed to record moderation action.");
+    }
+
+    // 2. Fetch the newly updated user moderation status
+    const { data: newStatus } = await supabase
+      .from("user_moderation_status")
+      .select("*")
+      .eq("user_id", data.user_id)
       .single();
 
-    const currentStrikes = profile?.strikes_count ?? 0;
-    const newStrikeNumber = currentStrikes + 1;
+    const newStrikeNumber = newStatus?.strike_count ?? 1;
+    const is_permanent_ban = !!newStatus?.is_banned;
+    const is_suspended = !!newStatus?.is_suspended;
+    const suspension_ends_at = newStatus?.suspension_expires_at ?? null;
 
-    // Determine automatic consequences
-    let restriction_ends_at: string | null = null;
-    let suspension_ends_at: string | null = null;
-    const is_permanent_ban = newStrikeNumber >= 4;
+    // 3. Insert notification based on strike number
+    let kind = "strike.warning";
+    let title = `Strike ${newStrikeNumber} Issued`;
+    let body = `A strike has been issued against your account for: ${data.reason}`;
 
-    if (newStrikeNumber === 2) {
-      restriction_ends_at = new Date(
-        Date.now() + 3 * 24 * 60 * 60 * 1000
-      ).toISOString();
+    if (newStrikeNumber === 1) {
+      kind = "strike.warning";
+      body = `Warning: Strike 1 issued for: ${data.reason}. Please review our community guidelines. Further violations will result in account suspension.`;
+    } else if (newStrikeNumber === 2) {
+      kind = "strike.strong_warning";
+      body = `Strong Warning: Strike 2 issued for: ${data.reason}. Your next violation will trigger an automatic 30-day account suspension.`;
+    } else if (newStrikeNumber === 3) {
+      kind = "strike.suspension";
+      body = `Account Suspended: Strike 3 issued for: ${data.reason}. Your account has been automatically suspended for 30 days.`;
+    } else if (newStrikeNumber >= 5) {
+      kind = "strike.ban";
+      body = `Account Banned: Strike ${newStrikeNumber} issued for: ${data.reason}. Your account is permanently restricted and under manual ban review.`;
     }
-    if (newStrikeNumber === 3) {
-      suspension_ends_at = new Date(
-        Date.now() + 7 * 24 * 60 * 60 * 1000
-      ).toISOString();
-    }
 
-    // Insert strike (trigger handles profile updates)
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind,
+      title,
+      body,
+      read_at: null,
+    });
+
+    // 4. Insert into user_strikes for backwards compatibility
     const { data: strike, error: sErr } = await supabase
       .from("user_strikes")
       .insert({
@@ -406,7 +435,7 @@ export const issueStrike = createServerFn({ method: "POST" })
         conversation_id: data.conversation_id || null,
         chat_number: data.chat_number || null,
         fraud_event_id: data.fraud_event_id || null,
-        restriction_ends_at,
+        restriction_ends_at: null,
         suspension_ends_at,
         is_permanent_ban,
       })
@@ -414,11 +443,10 @@ export const issueStrike = createServerFn({ method: "POST" })
       .single();
 
     if (sErr) {
-      console.error("[Strike] issueStrike error:", sErr.message);
-      throw new Error("Failed to issue strike.");
+      console.warn("[Strike] Warning: Failed to write backwards compatibility user_strike record:", sErr.message);
     }
 
-    // Log moderation action (immutable)
+    // 5. Log moderation audit
     const { data: mod } = await supabase
       .from("profiles")
       .select("display_name")
@@ -430,8 +458,8 @@ export const issueStrike = createServerFn({ method: "POST" })
       moderator_display_name: mod?.display_name ?? "Unknown Moderator",
       action: is_permanent_ban
         ? "PERMANENT_BAN"
-        : newStrikeNumber === 3
-        ? "SUSPENSION_7D"
+        : is_suspended
+        ? "SUSPENSION_30D"
         : newStrikeNumber === 2
         ? "RESTRICTION_3D"
         : "STRIKE_WARNING",
@@ -443,14 +471,14 @@ export const issueStrike = createServerFn({ method: "POST" })
       metadata: { strike_number: newStrikeNumber, strike_id: strike?.id },
     });
 
-    // Also log to existing user_warnings table for backwards compatibility
+    // 6. Also log to user_warnings for compatibility
     await supabase.from("user_warnings").insert({
       user_id: data.user_id,
       reason: data.reason,
       details: `Strike ${newStrikeNumber}: ${data.evidence || "No additional evidence"}`,
       action_taken: is_permanent_ban
         ? "ban"
-        : newStrikeNumber === 3
+        : is_suspended
         ? "suspension"
         : newStrikeNumber === 2
         ? "restriction"
@@ -462,9 +490,194 @@ export const issueStrike = createServerFn({ method: "POST" })
       success: true,
       strike_number: newStrikeNumber,
       is_permanent_ban,
-      restriction_ends_at,
+      restriction_ends_at: null,
       suspension_ends_at,
     };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REMOVE STRIKE
+// ─────────────────────────────────────────────────────────────────────────────
+export const removeStrike = createServerFn({ method: "POST" })
+  .inputValidator((d: { user_id: string; moderator_id: string; reason: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    const { data: status } = await supabase
+      .from("user_moderation_status")
+      .select("strike_count")
+      .eq("user_id", data.user_id)
+      .single();
+
+    const currentStrikes = status?.strike_count ?? 0;
+    const newStrikes = Math.max(0, currentStrikes - 1);
+
+    await supabase
+      .from("user_moderation_status")
+      .update({ strike_count: newStrikes, updated_at: new Date().toISOString() })
+      .eq("user_id", data.user_id);
+
+    await supabase.from("moderation_actions").insert({
+      target_user_id: data.user_id,
+      admin_id: data.moderator_id,
+      action_type: "unban",
+      reason: `Strike removed: ${data.reason}`,
+      notes: `New strike count: ${newStrikes}`,
+    });
+
+    await supabase.from("user_warnings").insert({
+      user_id: data.user_id,
+      reason: `Strike Removed: ${data.reason}`,
+      action_taken: "strike_removal",
+      issued_by: data.moderator_id,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind: "strike.removed",
+      title: "Strike Removed",
+      body: `One strike has been removed from your account. Your current strike count is ${newStrikes}.`,
+    });
+
+    return { success: true, strike_count: newStrikes };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MUTE USER
+// ─────────────────────────────────────────────────────────────────────────────
+export const muteUser = createServerFn({ method: "POST" })
+  .inputValidator((d: { user_id: string; moderator_id: string; duration_minutes: number; reason: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    const expiresAt = new Date(Date.now() + data.duration_minutes * 60 * 1000).toISOString();
+
+    await supabase.from("moderation_actions").insert({
+      target_user_id: data.user_id,
+      admin_id: data.moderator_id,
+      action_type: "mute",
+      reason: data.reason,
+      expires_at: expiresAt,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind: "user.muted",
+      title: "Account Muted",
+      body: `You have been muted from sending messages. Reason: ${data.reason}. Expires at: ${expiresAt}`,
+    });
+
+    return { success: true, expires_at: expiresAt };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUSPEND USER
+// ─────────────────────────────────────────────────────────────────────────────
+export const suspendUser = createServerFn({ method: "POST" })
+  .inputValidator((d: { user_id: string; moderator_id: string; duration_days: number; reason: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    const expiresAt = new Date(Date.now() + data.duration_days * 24 * 60 * 60 * 1000).toISOString();
+
+    await supabase.from("moderation_actions").insert({
+      target_user_id: data.user_id,
+      admin_id: data.moderator_id,
+      action_type: "suspend",
+      reason: data.reason,
+      expires_at: expiresAt,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind: "user.suspended",
+      title: "Account Suspended",
+      body: `Your account has been suspended until ${expiresAt}. Reason: ${data.reason}`,
+    });
+
+    return { success: true, expires_at: expiresAt };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BAN USER
+// ─────────────────────────────────────────────────────────────────────────────
+export const banUser = createServerFn({ method: "POST" })
+  .inputValidator((d: { user_id: string; moderator_id: string; reason: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    await supabase.from("moderation_actions").insert({
+      target_user_id: data.user_id,
+      admin_id: data.moderator_id,
+      action_type: "permanent_ban",
+      reason: data.reason,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind: "user.banned",
+      title: "Account Permanently Restricted",
+      body: `Your account has been permanently restricted. Reason: ${data.reason}`,
+    });
+
+    return { success: true };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNBAN USER
+// ─────────────────────────────────────────────────────────────────────────────
+export const unbanUser = createServerFn({ method: "POST" })
+  .inputValidator((d: { user_id: string; moderator_id: string; reason: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    await supabase.from("moderation_actions").insert({
+      target_user_id: data.user_id,
+      admin_id: data.moderator_id,
+      action_type: "unban",
+      reason: data.reason,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind: "user.unbanned",
+      title: "Account Restrictions Lifted",
+      body: `Your account restrictions have been lifted. You can now access all platform features.`,
+    });
+
+    return { success: true };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ISSUE WARNING
+// ─────────────────────────────────────────────────────────────────────────────
+export const issueWarning = createServerFn({ method: "POST" })
+  .inputValidator((d: { user_id: string; moderator_id: string; reason: string; notes?: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    await supabase.from("moderation_actions").insert({
+      target_user_id: data.user_id,
+      admin_id: data.moderator_id,
+      action_type: "warning",
+      reason: data.reason,
+      notes: data.notes || null,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: data.user_id,
+      kind: "user.warning",
+      title: "Moderation Warning",
+      body: `You have received a warning from moderation: ${data.reason}`,
+    });
+
+    return { success: true };
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
