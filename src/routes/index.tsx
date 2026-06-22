@@ -400,9 +400,9 @@ function PromotionBanners() {
         <div 
           className="relative overflow-hidden rounded-3xl border border-purple-500/10 bg-gradient-to-br from-[#12081c] via-[#09040e] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(157,78,221,0.05)] hover:border-purple-500/25 hover:shadow-[0_0_40px_rgba(157,78,221,0.1)] transition-all duration-500 group"
           style={{
-            backgroundImage: "linear-gradient(to right, rgba(9, 4, 14, 0.96) 50%, rgba(9, 4, 14, 0.4) 100%), url('/images/category-banners/Game Buddy.jpg')",
+            backgroundImage: "linear-gradient(to right, rgba(9, 4, 14, 0.96) 35%, rgba(9, 4, 14, 0) 80%), url('/images/category-banners/Game Buddy.jpg')",
             backgroundSize: "cover",
-            backgroundPosition: "right center",
+            backgroundPosition: "35% center",
             backgroundRepeat: "no-repeat"
           }}
         >
@@ -447,7 +447,7 @@ function PromotionBanners() {
               Find Game Buddies <ArrowRight className="size-3.5" />
             </Link>
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <div className="flex -space-x-2.5 overflow-hidden">
                 {[
                   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop",
@@ -462,6 +462,7 @@ function PromotionBanners() {
                   />
                 ))}
               </div>
+              <span className="text-[11px] font-bold text-white/90">10K+ Active Gamers</span>
             </div>
           </div>
         </div>
@@ -470,9 +471,9 @@ function PromotionBanners() {
         <div 
           className="relative overflow-hidden rounded-3xl border border-gold/10 bg-gradient-to-br from-[#1c1408] via-[#0e0a04] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(212,160,23,0.05)] hover:border-gold/25 hover:shadow-[0_0_40px_rgba(212,160,23,0.1)] transition-all duration-500 group"
           style={{
-            backgroundImage: "linear-gradient(to right, rgba(14, 10, 4, 0.96) 50%, rgba(14, 10, 4, 0.4) 100%), url('/images/category-banners/Coach.jpg')",
+            backgroundImage: "linear-gradient(to right, rgba(14, 10, 4, 0.96) 35%, rgba(14, 10, 4, 0) 80%), url('/images/category-banners/Coach.jpg')",
             backgroundSize: "cover",
-            backgroundPosition: "right center",
+            backgroundPosition: "center",
             backgroundRepeat: "no-repeat"
           }}
         >
@@ -517,7 +518,7 @@ function PromotionBanners() {
               Become a Coach <ArrowRight className="size-3.5" />
             </Link>
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <div className="flex -space-x-2.5 overflow-hidden">
                 {[
                   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop",
@@ -532,6 +533,7 @@ function PromotionBanners() {
                   />
                 ))}
               </div>
+              <span className="text-[11px] font-bold text-gold">500+ Verified Coaches</span>
             </div>
           </div>
         </div>
