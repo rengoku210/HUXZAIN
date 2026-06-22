@@ -56,7 +56,7 @@ describe("fraudScoringService", () => {
     // Mock orders query to return correct order amount and date matching inputs
     const nowStr = new Date().toISOString();
     mockOrdersQuery.single.mockResolvedValue({
-      data: { amount_total: 100, created_at: nowStr },
+      data: { amount_total: 100, amount_inr: 100, created_at: nowStr },
       error: null,
     });
 
@@ -105,7 +105,7 @@ describe("fraudScoringService", () => {
 
   it("should detect amount mismatch", async () => {
     // Mock order amount to return 100
-    mockOrdersQuery.single.mockResolvedValue({ data: { amount_total: 100 }, error: null });
+    mockOrdersQuery.single.mockResolvedValue({ data: { amount_total: 100, amount_inr: 100 }, error: null });
 
     const result = await calculateFraudScore({
       userId: "user-1",

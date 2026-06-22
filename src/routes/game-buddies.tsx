@@ -4,6 +4,7 @@ import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { getSupabase } from "@/lib/supabase-client";
 import { GAMES, GAME_MODES, PLAY_STYLES } from "@/lib/buddy-coach";
+import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 import {
   ArrowRight,
   BadgeCheck,
@@ -473,17 +474,14 @@ function Page() {
                   >
                     <div className="flex items-center gap-4">
                       <div className="size-14 rounded-2xl border border-border bg-background/40 overflow-hidden shrink-0">
-                        {b.avatar_url ? (
-                          <img
-                            src={b.avatar_url}
-                            alt={b.display_name}
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <div className="size-full grid place-items-center text-xs font-bold text-gold">
-                            {b.display_name.slice(0, 2).toUpperCase()}
-                          </div>
-                        )}
+                        <img
+                          src={getUserAvatar(b.avatar_url)}
+                          alt={b.display_name}
+                          className="size-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_AVATAR_URL;
+                          }}
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">

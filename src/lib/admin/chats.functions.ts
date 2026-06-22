@@ -3,6 +3,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getAdminClient } from "@/server/supabase-admin";
 
+// buyer_id/seller_id/user_id reference auth.users, so PostgREST cannot embed
+// public.profiles through them. Batch-fetch profiles by id and stitch in JS.
+async function hydrateProfiles(supabase: any, ids: (string | null | undefined)[]) {
+  const unique = Array.from(new Set(ids.filter(Boolean) as string[]));
+  if (unique.length === 0) return new Map<string, any>();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, display_name, username, email")
+    .in("id", unique);
+  return new Map<string, any>((data ?? []).map((p: any) => [p.id, p]));
+}
+
 /**
  * Fetch all flagged chats with buyer/seller profile info.
  */
@@ -13,17 +25,7 @@ export const getFlaggedChats = createServerFn({ method: "GET" })
 
     const { data, error } = await supabase
       .from("flagged_chats")
-      .select(`
-        *,
-        buyer:buyer_id (
-          display_name,
-          email
-        ),
-        seller:seller_id (
-          display_name,
-          email
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -31,7 +33,13 @@ export const getFlaggedChats = createServerFn({ method: "GET" })
       throw new Error("Failed to fetch flagged chats.");
     }
 
-    return data;
+    const rows = data ?? [];
+    const profiles = await hydrateProfiles(supabase, rows.flatMap((c: any) => [c.buyer_id, c.seller_id]));
+    return rows.map((c: any) => ({
+      ...c,
+      buyer: profiles.get(c.buyer_id) ?? null,
+      seller: profiles.get(c.seller_id) ?? null,
+    }));
   });
 
 /**
@@ -45,19 +53,7 @@ export const reviewFlaggedChat = createServerFn({ method: "POST" })
 
     const { data: chat, error } = await supabase
       .from("flagged_chats")
-      .select(`
-        *,
-        buyer:buyer_id (
-          display_name,
-          email,
-          username
-        ),
-        seller:seller_id (
-          display_name,
-          email,
-          username
-        )
-      `)
+      .select("*")
       .eq("id", data.id)
       .single();
 
@@ -66,7 +62,12 @@ export const reviewFlaggedChat = createServerFn({ method: "POST" })
       throw new Error("Flagged chat not found.");
     }
 
-    return chat;
+    const profiles = await hydrateProfiles(supabase, [chat.buyer_id, chat.seller_id]);
+    return {
+      ...chat,
+      buyer: profiles.get(chat.buyer_id) ?? null,
+      seller: profiles.get(chat.seller_id) ?? null,
+    };
   });
 
 /**
@@ -113,14 +114,7 @@ export const getSecurityIncidents = createServerFn({ method: "GET" })
 
     const { data, error } = await supabase
       .from("security_incidents")
-      .select(`
-        *,
-        profiles:user_id (
-          display_name,
-          email,
-          username
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -129,7 +123,9 @@ export const getSecurityIncidents = createServerFn({ method: "GET" })
       throw new Error("Failed to fetch security incidents.");
     }
 
-    return data;
+    const rows = data ?? [];
+    const profiles = await hydrateProfiles(supabase, rows.map((r: any) => r.user_id));
+    return rows.map((r: any) => ({ ...r, profiles: profiles.get(r.user_id) ?? null }));
   });
 
 /**

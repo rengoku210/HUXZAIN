@@ -15,6 +15,8 @@ type SellerOrder = {
   buyer_id: string;
   amount_total?: number;
   amount_inr?: number;
+  commission_inr?: number;
+  seller_payout_inr?: number;
   status: string;
   created_at: string;
   listings?: { title?: string | null } | null;
@@ -40,9 +42,9 @@ function statusLabel(status: string) {
 
 function InvoiceModal({ order, onClose }: { order: SellerOrder; onClose: () => void }) {
   const basePrice = Number(order.amount_inr || order.amount_total || 0);
-  const platformFee = basePrice * 0.08;
-  const gst = platformFee * 0.18; // 18% GST on platform fee
-  const netEarnings = basePrice - platformFee - gst;
+  const platformFee = Number(order.commission_inr || 0);
+  const gst = 0;
+  const netEarnings = Number(order.seller_payout_inr || (basePrice - platformFee));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0 print:z-auto print:static">
@@ -123,19 +125,22 @@ function InvoiceModal({ order, onClose }: { order: SellerOrder; onClose: () => v
 
           {/* Totals */}
           <div className="flex justify-end">
-            <div className="w-64 space-y-3">
+            <div className="w-80 space-y-3">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Subtotal</span>
                 <span>₹{basePrice.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Platform Fee (8%)</span>
+                <span>Platform Fee</span>
                 <span>-₹{platformFee.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>GST (18% on fee)</span>
-                <span>-₹{gst.toFixed(2)}</span>
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>GST</span>
+                <span>₹0.00</span>
               </div>
+              <p className="text-[10px] text-gray-400 italic text-right">
+                GST included within platform fee. No additional GST charged.
+              </p>
               <div className="border-t-2 border-gray-800 pt-3 flex justify-between font-bold text-lg text-gray-900">
                 <span>Net Earnings</span>
                 <span>₹{netEarnings.toFixed(2)}</span>

@@ -177,11 +177,48 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
 
     const { sellerId, govtIdUrl, selfieUrl, addressProofUrl, payoutDetails } = data;
 
+    // Fetch existing verification record to maintain already approved documents
+    const { data: existing } = await supabase
+      .from("verifications")
+      .select("*")
+      .eq("id", sellerId)
+      .maybeSingle();
+
+    let governmentIdStatus = existing?.government_id_status || "NOT_STARTED";
+    if (govtIdUrl) {
+      if (govtIdUrl !== existing?.government_id_url || governmentIdStatus === "NOT_STARTED" || governmentIdStatus === "REJECTED") {
+        governmentIdStatus = "UNDER_REVIEW";
+      }
+    } else {
+      governmentIdStatus = "NOT_STARTED";
+    }
+
+    let selfieStatus = existing?.selfie_status || "NOT_STARTED";
+    if (selfieUrl) {
+      if (selfieUrl !== existing?.selfie_url || selfieStatus === "NOT_STARTED" || selfieStatus === "REJECTED") {
+        selfieStatus = "UNDER_REVIEW";
+      }
+    } else {
+      selfieStatus = "NOT_STARTED";
+    }
+
+    let addressProofStatus = existing?.address_proof_status || "NOT_STARTED";
+    if (addressProofUrl) {
+      if (addressProofUrl !== existing?.address_proof_url || addressProofStatus === "NOT_STARTED" || addressProofStatus === "REJECTED") {
+        addressProofStatus = "UNDER_REVIEW";
+      }
+    } else {
+      addressProofStatus = "NOT_STARTED";
+    }
+
     const payload = {
       id: sellerId,
       government_id_url: govtIdUrl || null,
       selfie_url: selfieUrl || null,
       address_proof_url: addressProofUrl || null,
+      government_id_status: governmentIdStatus,
+      selfie_status: selfieStatus,
+      address_proof_status: addressProofStatus,
       payout_details: payoutDetails,
       status: "pending",
       updated_at: new Date().toISOString()
@@ -241,7 +278,56 @@ export const activateBoostWithToken = createServerFn({ method: "POST" })
       throw new Error("Failed to deduct boost token: " + subUpdErr.message);
     }
 
-    // 3. Insert active boost record in listing_boosts
+    // 3. Create approved payment proof
+    const { data: proof, error: pErr } = await supabase
+      .from("payment_proofs")
+      .insert({
+        user_id: sellerId,
+        buyer_id: sellerId,
+        listing_id: listingId,
+        amount: 0,
+        screenshot_url: "token_payment",
+        status: "approved",
+        payment_type: "boost",
+        payment_reference: `boost:${boostType}:${listingId}`
+      })
+      .select("*")
+      .single();
+
+    if (pErr) {
+      // Rollback token count
+      await supabase
+        .from("seller_subscriptions")
+        .update({ boost_tokens_remaining: sub.boost_tokens_remaining })
+        .eq("seller_id", sellerId);
+      throw new Error("Failed to create token payment proof: " + pErr.message);
+    }
+
+    // 4. Create approved boost request
+    const { data: bReq, error: bErr } = await supabase
+      .from("boost_requests")
+      .insert({
+        user_id: sellerId,
+        listing_id: listingId,
+        payment_proof_id: proof.id,
+        boost_type: boostType,
+        amount: 0,
+        duration_days: durationDays,
+        status: "approved"
+      })
+      .select("*")
+      .single();
+
+    if (bErr) {
+      // Rollback token count
+      await supabase
+        .from("seller_subscriptions")
+        .update({ boost_tokens_remaining: sub.boost_tokens_remaining })
+        .eq("seller_id", sellerId);
+      throw new Error("Failed to create boost request: " + bErr.message);
+    }
+
+    // 5. Insert active boost record in listing_boosts
     const now = new Date();
     const expiry = new Date();
     expiry.setDate(now.getDate() + durationDays);
@@ -266,8 +352,24 @@ export const activateBoostWithToken = createServerFn({ method: "POST" })
         .update({ boost_tokens_remaining: sub.boost_tokens_remaining })
         .eq("seller_id", sellerId);
 
+      // Cleanup proof and request
+      await supabase.from("boost_requests").delete().eq("id", bReq.id);
+      await supabase.from("payment_proofs").delete().eq("id", proof.id);
+
       throw new Error("Failed to activate boost: " + boostErr.message);
     }
+
+    // 6. Log staff action (system/self action)
+    try {
+      await supabase.from("staff_action_logs").insert({
+        staff_id: sellerId,
+        action: "token_boost_purchase",
+        target_type: "boost_request",
+        target_id: bReq.id,
+        previous_value: "none",
+        new_value: "approved"
+      });
+    } catch (e) { console.error("Staff log failed:", e); }
 
     return { success: true, remainingTokens: newTokensCount };
   });

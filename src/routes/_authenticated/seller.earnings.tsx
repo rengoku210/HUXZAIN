@@ -4,7 +4,7 @@ import { DollarSign, TrendingUp, Percent, Wallet, Download, RefreshCw, BarChart2
 import { PanelCard, StatCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
-import { getOrCreateWallet } from "@/lib/wallet.functions";
+import { getOrCreateWallet, syncAndGetWallet } from "@/lib/wallet.functions";
 import { useSellerTier } from "@/lib/seller/tier-context";
 import { toast } from "sonner";
 
@@ -18,30 +18,65 @@ function Page() {
   const { tier } = useSellerTier();
   const [wallet, setWallet] = useState<any>(null);
   const [monthlySales, setMonthlySales] = useState(0);
+  const [grossSales30, setGrossSales30] = useState(0);
+  const [feesDeducted30, setFeesDeducted30] = useState(0);
+  const [netCredited30, setNetCredited30] = useState(0);
+  const [heldAmount, setHeldAmount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   async function loadData() {
     if (!user) return;
     try {
       setLoading(true);
-      const w = await getOrCreateWallet(user.id);
+      const w = await syncAndGetWallet(user.id);
       setWallet(w);
 
       const supabase = getSupabase();
       if (supabase) {
-        // Sum up completed sale transactions this month
         const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        
+        // Sum up completed order payouts this month
         const { data: sales } = await supabase
-          .from("wallet_transactions")
-          .select("amount")
-          .eq("wallet_id", user.id)
-          .eq("type", "sale")
+          .from("orders")
+          .select("seller_payout_inr")
+          .eq("seller_id", user.id)
           .eq("status", "completed")
-          .gte("created_at", firstDayOfMonth);
+          .gte("completed_at", firstDayOfMonth);
 
         if (sales) {
-          const sum = sales.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+          const sum = sales.reduce((acc, curr) => acc + Number(curr.seller_payout_inr || 0), 0);
           setMonthlySales(sum);
+        }
+
+        // Sum up completed orders in the last 30 days
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: orders30 } = await supabase
+          .from("orders")
+          .select("amount_inr, commission_inr, seller_payout_inr")
+          .eq("seller_id", user.id)
+          .eq("status", "completed")
+          .gte("completed_at", thirtyDaysAgo);
+
+        if (orders30) {
+          const gross = orders30.reduce((acc, curr) => acc + Number(curr.amount_inr || 0), 0);
+          const fees = orders30.reduce((acc, curr) => acc + Number(curr.commission_inr || 0), 0);
+          const net = orders30.reduce((acc, curr) => acc + Number(curr.seller_payout_inr || 0), 0);
+          setGrossSales30(gross);
+          setFeesDeducted30(fees);
+          setNetCredited30(net);
+        }
+
+        // Sum up held escrows
+        const { data: heldOrders } = await supabase
+          .from("orders")
+          .select("seller_payout_inr")
+          .eq("seller_id", user.id)
+          .eq("status", "completed")
+          .in("payout_status", ["pending_cooling", "dormant"]);
+
+        if (heldOrders) {
+          const sumHeld = heldOrders.reduce((acc, curr) => acc + Number(curr.seller_payout_inr || 0), 0);
+          setHeldAmount(sumHeld);
         }
       }
     } catch (e: any) {
@@ -113,7 +148,13 @@ function Page() {
               icon={Percent}
               positive={tier !== "standard"}
             />
-            <StatCard label="Available to withdraw" value={fmt(wallet?.available_balance)} icon={Wallet} />
+            <StatCard 
+              label="Available to withdraw" 
+              value={fmt(wallet?.available_balance)} 
+              delta={wallet?.available_balance === 0 && heldAmount > 0 ? `${fmt(heldAmount)} currently held in escrow/cooling` : undefined}
+              positive={wallet?.available_balance > 0}
+              icon={Wallet} 
+            />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
@@ -130,15 +171,15 @@ function Page() {
               <div className="py-12 text-center text-muted-foreground text-sm">
                 <div className="flex justify-between items-center py-2 border-b border-border/40 text-xs">
                   <span>Gross Sales Volume</span>
-                  <span className="font-mono font-bold text-foreground">{fmt(wallet?.total_earnings * 1.02 || 0)}</span>
+                  <span className="font-mono font-bold text-foreground">{fmt(grossSales30)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-border/40 text-xs text-destructive">
                   <span>Platform Fees Deducted</span>
-                  <span className="font-mono font-bold">- {fmt(wallet?.total_earnings * 0.02 || 0)}</span>
+                  <span className="font-mono font-bold">- {fmt(feesDeducted30)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-border/40 text-xs text-emerald-400 font-bold">
                   <span>Net Ledger Credited</span>
-                  <span className="font-mono font-bold">{fmt(wallet?.total_earnings || 0)}</span>
+                  <span className="font-mono font-bold">{fmt(netCredited30)}</span>
                 </div>
               </div>
             </PanelCard>

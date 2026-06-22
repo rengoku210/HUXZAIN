@@ -4,6 +4,51 @@ import { createServerFn } from "@tanstack/react-start";
 import { getAdminClient } from "@/server/supabase-admin";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RELATIONSHIP HYDRATION HELPERS
+// conversations.buyer_id/seller_id, chat_reports/fraud_events/flagged_chats.*_id
+// and orders all reference auth.users, so PostgREST cannot embed public.profiles
+// or public.orders through them (it returns PGRST200 "no relationship", which
+// fails the whole query). We batch-fetch each related table by id and stitch the
+// rows together in JS — the exact approach the user-facing /messages inbox uses.
+// ─────────────────────────────────────────────────────────────────────────────
+async function hydrateProfiles(supabase: any, ids: (string | null | undefined)[]) {
+  const unique = Array.from(new Set(ids.filter(Boolean) as string[]));
+  if (unique.length === 0) return new Map<string, any>();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, display_name, username, email, strikes_count, suspended_at")
+    .in("id", unique);
+  return new Map<string, any>((data ?? []).map((p: any) => [p.id, p]));
+}
+
+async function hydrateOrders(supabase: any, ids: (string | null | undefined)[]) {
+  const unique = Array.from(new Set(ids.filter(Boolean) as string[]));
+  if (unique.length === 0) return new Map<string, any>();
+  const { data } = await supabase
+    .from("orders")
+    .select("id, order_number, status, amount_inr")
+    .in("id", unique);
+  return new Map<string, any>((data ?? []).map((o: any) => [o.id, o]));
+}
+
+async function hydrateConversations(supabase: any, ids: (string | null | undefined)[]) {
+  const unique = Array.from(new Set(ids.filter(Boolean) as string[]));
+  if (unique.length === 0) return new Map<string, any>();
+  const { data } = await supabase
+    .from("conversations")
+    .select("id, chat_number, order_id, buyer_id, seller_id, risk_score, risk_level, subject")
+    .in("id", unique);
+  const rows = data ?? [];
+  const profiles = await hydrateProfiles(supabase, rows.flatMap((c: any) => [c.buyer_id, c.seller_id]));
+  return new Map<string, any>(
+    rows.map((c: any) => [
+      c.id,
+      { ...c, buyer: profiles.get(c.buyer_id) ?? null, seller: profiles.get(c.seller_id) ?? null },
+    ])
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LIVE MONITORING — all conversations with risk scores for admin view
 // ─────────────────────────────────────────────────────────────────────────────
 export const getConversationsMonitor = createServerFn({ method: "GET" })
@@ -27,10 +72,7 @@ export const getConversationsMonitor = createServerFn({ method: "GET" })
         risk_level,
         is_flagged,
         is_reported,
-        created_at,
-        buyer:buyer_id (display_name, username, email),
-        seller:seller_id (display_name, username, email),
-        order:order_id (order_number, status, amount_inr, amount_total)
+        created_at
       `)
       .order("last_message_at", { ascending: false })
       .limit(200);
@@ -40,7 +82,16 @@ export const getConversationsMonitor = createServerFn({ method: "GET" })
       throw new Error("Failed to load monitoring data.");
     }
 
-    return data ?? [];
+    const rows = data ?? [];
+    const profiles = await hydrateProfiles(supabase, rows.flatMap((c: any) => [c.buyer_id, c.seller_id]));
+    const orders = await hydrateOrders(supabase, rows.map((c: any) => c.order_id));
+
+    return rows.map((c: any) => ({
+      ...c,
+      buyer: profiles.get(c.buyer_id) ?? null,
+      seller: profiles.get(c.seller_id) ?? null,
+      order: c.order_id ? orders.get(c.order_id) ?? null : null,
+    }));
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,18 +102,10 @@ export const getReviewQueue = createServerFn({ method: "GET" })
     const supabase = getAdminClient();
     if (!supabase) throw new Error("Database service is offline.");
 
-    // Fetch reported conversations
-    const { data: reports, error: rErr } = await supabase
+    // Fetch reported conversations (manual hydration — *_id cols reference auth.users)
+    const { data: reportRows, error: rErr } = await supabase
       .from("chat_reports")
-      .select(`
-        *,
-        conversation:conversation_id (
-          id, chat_number, order_id, risk_score, risk_level,
-          buyer:buyer_id (id, display_name, username, email),
-          seller:seller_id (id, display_name, username, email)
-        ),
-        reporter:reporter_id (display_name, email)
-      `)
+      .select("*")
       .in("status", ["open", "under_review"])
       .order("created_at", { ascending: false });
 
@@ -71,14 +114,19 @@ export const getReviewQueue = createServerFn({ method: "GET" })
       throw new Error("Failed to load review queue.");
     }
 
+    const reportList = reportRows ?? [];
+    const convMap = await hydrateConversations(supabase, reportList.map((r: any) => r.conversation_id));
+    const reporterMap = await hydrateProfiles(supabase, reportList.map((r: any) => r.reporter_id));
+    const reports = reportList.map((r: any) => ({
+      ...r,
+      conversation: convMap.get(r.conversation_id) ?? null,
+      reporter: reporterMap.get(r.reporter_id) ?? null,
+    }));
+
     // Fetch flagged chats (existing table)
-    const { data: flagged, error: fErr } = await supabase
+    const { data: flaggedRows, error: fErr } = await supabase
       .from("flagged_chats")
-      .select(`
-        *,
-        buyer:buyer_id (id, display_name, email),
-        seller:seller_id (id, display_name, email)
-      `)
+      .select("*")
       .eq("status", "pending_review")
       .order("created_at", { ascending: false });
 
@@ -86,9 +134,20 @@ export const getReviewQueue = createServerFn({ method: "GET" })
       console.error("[Queue] getReviewQueue flagged error:", fErr.message);
     }
 
+    const flaggedList = flaggedRows ?? [];
+    const flaggedProfiles = await hydrateProfiles(
+      supabase,
+      flaggedList.flatMap((f: any) => [f.buyer_id, f.seller_id])
+    );
+    const flagged = flaggedList.map((f: any) => ({
+      ...f,
+      buyer: flaggedProfiles.get(f.buyer_id) ?? null,
+      seller: flaggedProfiles.get(f.seller_id) ?? null,
+    }));
+
     return {
-      reports: reports ?? [],
-      flagged: flagged ?? [],
+      reports,
+      flagged,
     };
   });
 
@@ -159,13 +218,9 @@ export const getFraudEvents = createServerFn({ method: "POST" })
     const limit = data.limit ?? 50;
     const from = page * limit;
 
-    const { data: events, error } = await supabase
+    const { data: eventRows, error } = await supabase
       .from("fraud_events")
-      .select(`
-        *,
-        user:user_id (display_name, username, email),
-        conversation:conversation_id (chat_number, order_id)
-      `)
+      .select("*")
       .order("created_at", { ascending: false })
       .range(from, from + limit - 1);
 
@@ -174,7 +229,46 @@ export const getFraudEvents = createServerFn({ method: "POST" })
       throw new Error("Failed to load fraud events.");
     }
 
-    return events ?? [];
+    const events = eventRows ?? [];
+    const userMap = await hydrateProfiles(supabase, events.map((e: any) => e.user_id));
+    const convMap = await hydrateConversations(supabase, events.map((e: any) => e.conversation_id));
+
+    const fraudFeed = events.map((e: any) => ({
+      ...e,
+      user: userMap.get(e.user_id) ?? null,
+      conversation: convMap.get(e.conversation_id) ?? null,
+    }));
+
+    // The feed shows automated fraud detections AND user-submitted chat reports.
+    // Reports are only merged on the first page to avoid duplication across pages.
+    if (page !== 0) return fraudFeed;
+
+    const { data: reportRows } = await supabase
+      .from("chat_reports")
+      .select("*")
+      .order("created_at", { ascending: false });
+    const reports = reportRows ?? [];
+    const reporterMap = await hydrateProfiles(supabase, reports.map((r: any) => r.reporter_id));
+    const reportConvMap = await hydrateConversations(supabase, reports.map((r: any) => r.conversation_id));
+
+    const reportEvents = reports.map((r: any) => ({
+      id: `report-${r.id}`,
+      conversation_id: r.conversation_id,
+      chat_number: r.chat_number,
+      conversation: reportConvMap.get(r.conversation_id) ?? null,
+      user: reporterMap.get(r.reporter_id) ?? null,
+      detection_type: "user_report",
+      matched_pattern: r.reason,
+      message_preview: r.additional_notes || r.reason,
+      risk_tier: ["open", "under_review"].includes(r.status) ? "high" : "warning",
+      confidence_score: 100,
+      created_at: r.created_at,
+      _source: "report",
+    }));
+
+    return [...fraudFeed, ...reportEvents].sort(
+      (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,15 +282,10 @@ export const getLiveConversation = createServerFn({ method: "POST" })
 
     const [convRes, messagesRes, fraudRes, strikesRes, reportsRes] =
       await Promise.all([
-        // Conversation with parties
+        // Conversation (parties hydrated separately — buyer_id/seller_id -> auth.users)
         supabase
           .from("conversations")
-          .select(`
-            *,
-            buyer:buyer_id (id, display_name, username, email, strikes_count, suspended_at),
-            seller:seller_id (id, display_name, username, email, strikes_count, suspended_at),
-            order:order_id (id, order_number, status, amount_inr, amount_total)
-          `)
+          .select("*")
           .eq("id", data.conversation_id)
           .single(),
 
@@ -224,7 +313,7 @@ export const getLiveConversation = createServerFn({ method: "POST" })
         // Reports for this conversation
         supabase
           .from("chat_reports")
-          .select("*, reporter:reporter_id (display_name, email)")
+          .select("*")
           .eq("conversation_id", data.conversation_id)
           .order("created_at", { ascending: false }),
       ]);
@@ -232,12 +321,33 @@ export const getLiveConversation = createServerFn({ method: "POST" })
     if (convRes.error || !convRes.data)
       throw new Error("Conversation not found.");
 
+    const conv = convRes.data;
+
+    // Hydrate parties, order and report reporters
+    const [profiles, orders, reporterMap] = await Promise.all([
+      hydrateProfiles(supabase, [conv.buyer_id, conv.seller_id]),
+      hydrateOrders(supabase, [conv.order_id]),
+      hydrateProfiles(supabase, (reportsRes.data ?? []).map((r: any) => r.reporter_id)),
+    ]);
+
+    const conversation = {
+      ...conv,
+      buyer: profiles.get(conv.buyer_id) ?? null,
+      seller: profiles.get(conv.seller_id) ?? null,
+      order: conv.order_id ? orders.get(conv.order_id) ?? null : null,
+    };
+
+    const reports = (reportsRes.data ?? []).map((r: any) => ({
+      ...r,
+      reporter: reporterMap.get(r.reporter_id) ?? null,
+    }));
+
     return {
-      conversation: convRes.data,
+      conversation,
       messages: messagesRes.data ?? [],
       fraud_events: fraudRes.data ?? [],
       strikes: strikesRes.data ?? [],
-      reports: reportsRes.data ?? [],
+      reports,
     };
   });
 
@@ -366,13 +476,9 @@ export const getStrikeHistory = createServerFn({ method: "POST" })
     const supabase = getAdminClient();
     if (!supabase) throw new Error("Database service is offline.");
 
-    const { data: strikes, error } = await supabase
+    const { data: strikeRows, error } = await supabase
       .from("user_strikes")
-      .select(`
-        *,
-        moderator:moderator_id (display_name, email),
-        conversation:conversation_id (chat_number, subject)
-      `)
+      .select("*")
       .eq("user_id", data.user_id)
       .order("created_at", { ascending: false });
 
@@ -381,7 +487,15 @@ export const getStrikeHistory = createServerFn({ method: "POST" })
       throw new Error("Failed to load strike history.");
     }
 
-    return strikes ?? [];
+    const strikes = strikeRows ?? [];
+    const moderatorMap = await hydrateProfiles(supabase, strikes.map((s: any) => s.moderator_id));
+    const convMap = await hydrateConversations(supabase, strikes.map((s: any) => s.conversation_id));
+
+    return strikes.map((s: any) => ({
+      ...s,
+      moderator: moderatorMap.get(s.moderator_id) ?? null,
+      conversation: convMap.get(s.conversation_id) ?? null,
+    }));
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -561,6 +675,8 @@ export const getPlatformHealthFull = createServerFn({ method: "GET" })
       activeOrdersRes,
       activeChatsRes,
       restrictedRes,
+      totalChatsRes,
+      flaggedConvRes,
     ] = await Promise.all([
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "disputed"),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("is_seller", true).eq("is_verified", false),
@@ -580,7 +696,12 @@ export const getPlatformHealthFull = createServerFn({ method: "GET" })
       supabase.from("orders").select("id", { count: "exact", head: true }).in("status", ["paid", "delivered", "in_progress"]),
       supabase.from("conversations").select("id", { count: "exact", head: true }).gte("last_message_at", last1h),
       supabase.from("profiles").select("id", { count: "exact", head: true }).not("restricted_until", "is", null).gt("restricted_until", now.toISOString()),
+      supabase.from("conversations").select("id", { count: "exact", head: true }),
+      supabase.from("conversations").select("id", { count: "exact", head: true }).eq("is_flagged", true),
     ]);
+
+    // Moderation backlog = open chat reports awaiting review + flagged chats pending review
+    const moderation_backlog = (reportedChatsRes.count ?? 0) + (flaggedChatsRes.count ?? 0);
 
     return {
       // Core
@@ -595,10 +716,13 @@ export const getPlatformHealthFull = createServerFn({ method: "GET" })
       banned_users: bannedRes.count ?? 0,
       account_restrictions: restrictedRes.count ?? 0,
       // Chat
+      total_chats: totalChatsRes.count ?? 0,
       active_chats: activeChatsRes.count ?? 0,
       active_orders: activeOrdersRes.count ?? 0,
+      flagged_chats: flaggedConvRes.count ?? 0,
       pending_flagged_chats: flaggedChatsRes.count ?? 0,
       reported_chats: reportedChatsRes.count ?? 0,
+      moderation_backlog,
       high_risk_chats: highRiskChatsRes.count ?? 0,
       // Fraud today
       fraud_attempts_today: fraudToday.count ?? 0,

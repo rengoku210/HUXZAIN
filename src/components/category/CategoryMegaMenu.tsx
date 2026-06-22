@@ -46,7 +46,7 @@ const categoryShortcuts: Record<string, { name: string, brandKey?: string }[]> =
     { name: "League of Legends", brandKey: "league-of-legends" },
     { name: "Roblox", brandKey: "roblox" },
   ],
-  "boosting": [
+  "boosting-services": [
     { name: "Valorant Boosting", brandKey: "valorant" },
     { name: "League of Legends", brandKey: "league-of-legends" },
   ],
@@ -60,7 +60,7 @@ const categoryShortcuts: Record<string, { name: string, brandKey?: string }[]> =
     { name: "Spotify Premium", brandKey: "spotify" },
     { name: "Discord Nitro", brandKey: "discord" },
   ],
-  "game-accounts": [
+  "gaming-accounts": [
     { name: "Valorant Accounts", brandKey: "valorant" },
     { name: "League of Legends", brandKey: "league-of-legends" },
     { name: "Steam Accounts", brandKey: "steam" },

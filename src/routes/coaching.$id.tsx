@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { getSupabase } from "@/lib/supabase-client";
+import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -102,13 +103,14 @@ function Page() {
                 <div className="rounded-2xl border border-border bg-surface/40 p-6">
                   <div className="flex items-start gap-5">
                     <div className="size-20 rounded-2xl border border-border bg-background/40 overflow-hidden shrink-0">
-                      {coach.avatar_url ? (
-                        <img src={coach.avatar_url} alt={coach.display_name} className="size-full object-cover" />
-                      ) : (
-                        <div className="size-full grid place-items-center text-xl font-bold text-gold">
-                          {coach.display_name.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                      <img
+                        src={getUserAvatar(coach.avatar_url)}
+                        alt={coach.display_name}
+                        className="size-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = DEFAULT_AVATAR_URL;
+                        }}
+                      />
                     </div>
 
                     <div className="min-w-0 flex-1">

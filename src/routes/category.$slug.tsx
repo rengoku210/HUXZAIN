@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { ListingCard } from "@/components/site/ListingCard";
-import { primaryCategories } from "@/lib/marketplace-data";
+import { primaryCategories, getDbSlugFromUiSlug, getUiSlugFromDbSlug } from "@/lib/marketplace-data";
 import { ChevronRight, PackageOpen, ShoppingBag } from "lucide-react";
 import type { Category } from "@/lib/marketplace/categoryService";
 import type { ListingLike } from "@/lib/marketplace/listing-adapter";
@@ -95,7 +95,8 @@ function CategoryPage() {
         .order("sort_order")
         .order("name");
       const categories = (allCats ?? []) as Category[];
-      const dbCat = categories.find((c) => c.slug === slug) ?? null;
+      const dbSlug = getDbSlugFromUiSlug(slug);
+      const dbCat = categories.find((c) => c.slug === dbSlug) ?? null;
       const resolved = dbCat ?? (staticMeta ? { id: slug, name: staticMeta.title, slug } : null);
 
       if (!active) return;
@@ -122,6 +123,7 @@ function CategoryPage() {
 
       if (dbCat) query = query.eq("category_id", dbCat.id);
       else query = query.limit(0);
+
 
       const { data: listData } = await query;
       if (!active) return;
@@ -231,7 +233,7 @@ function CategoryPage() {
                 <li
                   key={c.id}
                   className="border border-border rounded-xl p-4 hover:bg-surface/60 hover:border-gold/30 cursor-pointer"
-                  onClick={() => navigate({ to: "/category/$slug", params: { slug: c.slug } })}
+                  onClick={() => navigate({ to: "/category/$slug", params: { slug: getUiSlugFromDbSlug(c.slug) } })}
                 >
                   <p className="font-medium text-gold">{c.name}</p>
                 </li>

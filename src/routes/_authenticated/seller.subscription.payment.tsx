@@ -119,8 +119,26 @@ function CheckoutPage() {
             console.warn("[Subscription Checkout] OCR extraction failed non-fatally:", err);
           }
 
-          // 2. Insert record into subscription_payment_proofs
-          const payload = {
+          // 2. Insert into unified payment_proofs table (Admin → Payments reads this)
+          const unifiedPayload = {
+            buyer_id: user.id,
+            user_id: user.id,
+            order_id: null,
+            listing_id: null,
+            payment_type: "subscription" as const,
+            amount: planMeta.monthly,
+            utr_reference: "",
+            screenshot_url: screenshotUrl,
+            payment_reference: `subscription:${selectedPlanId}`,
+            status: "pending",
+            ai_reason: ocrDataString,
+          };
+
+          const { error: proofErr } = await supabase.from("payment_proofs").insert(unifiedPayload);
+          if (proofErr) console.warn("[Subscription Checkout] Error saving to unified payment_proofs table:", proofErr.message);
+
+          // 3. Dual-write to subscription_payment_proofs for backwards compatibility
+          const legacyPayload = {
             user_id: user.id,
             selected_plan: planMeta.label,
             amount: planMeta.monthly,
@@ -129,8 +147,8 @@ function CheckoutPage() {
             ai_reason: ocrDataString,
           };
 
-          const { error: insertErr } = await supabase.from("subscription_payment_proofs").insert(payload);
-          if (insertErr) console.warn("[Subscription Checkout] Background insert failed:", insertErr);
+          const { error: insertErr } = await supabase.from("subscription_payment_proofs").insert(legacyPayload);
+          if (insertErr) console.warn("[Subscription Checkout] Legacy insert failed:", insertErr);
         } catch (bgErr) {
           console.warn("[Subscription Checkout] Background sync failed:", bgErr);
         }

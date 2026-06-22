@@ -5,6 +5,7 @@ import { Footer } from "@/components/site/Footer";
 import { LayoutGrid, ArrowRight, PackageOpen } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { getSupabase } from "@/lib/supabase-client";
+import { getUiSlugFromDbSlug } from "@/lib/marketplace-data";
 
 export const Route = createFileRoute("/categories")({
   head: () => ({
@@ -188,7 +189,7 @@ function CategoriesPage() {
                   <Link
                     key={cat.slug}
                     to="/category/$slug"
-                    params={{ slug: cat.slug }}
+                    params={{ slug: getUiSlugFromDbSlug(cat.slug) }}
                     className="group relative rounded-2xl border border-border bg-surface/40 p-6 hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col gap-4 overflow-hidden"
                   >
                     {cat.banner_image_url && (
@@ -240,7 +241,7 @@ function CategoriesPage() {
                     <Link
                       key={cat.slug}
                       to="/category/$slug"
-                      params={{ slug: cat.slug }}
+                      params={{ slug: getUiSlugFromDbSlug(cat.slug) }}
                       className="group relative rounded-2xl border border-border bg-surface/40 p-5 text-center hover:border-gold/40 hover:bg-surface-elevated transition-all flex flex-col items-center gap-3 overflow-hidden"
                     >
                       {cat.banner_image_url && (

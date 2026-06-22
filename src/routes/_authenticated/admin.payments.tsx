@@ -19,6 +19,7 @@ import {
   AlertCircle,
   ShoppingBag,
   Sparkles,
+  Rocket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -32,7 +33,7 @@ interface UnifiedProofRow {
   id: string;
   user_id: string;
   listing_id: string | null;
-  payment_type: "listing" | "subscription" | "badge";
+  payment_type: "listing" | "subscription" | "badge" | "boost";
   amount: number;
   screenshot_url: string;
   payment_reference: string | null;
@@ -76,7 +77,7 @@ function AdminPayments() {
   const [reuploadReason, setReuploadReason] = useState("");
   const [actioning, setActioning] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
-  const [typeFilter, setTypeFilter] = useState<"all" | "listing" | "subscription">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "listing" | "subscription" | "badge" | "boost">("all");
   const [search, setSearch] = useState("");
   const [ocrData, setOcrData] = useState<any | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -553,8 +554,81 @@ function AdminPayments() {
         }
       }
 
+      // 4.5 For boost purchases — activate boost and update boost_request
+      if (activeProof.payment_type === "boost" && activeProof.payment_reference) {
+        const parts = activeProof.payment_reference.split(":");
+        if (parts[0] === "boost") {
+          const boostType = parts[1];
+          const listingId = parts[2];
+
+          if (boostType && listingId) {
+            // Update boost request
+            const { data: bReq, error: bReqErr } = await supabase
+              .from("boost_requests")
+              .update({ status: "approved" })
+              .eq("payment_proof_id", activeProof.id)
+              .select("*")
+              .maybeSingle();
+
+            if (bReqErr) {
+              console.error("[AdminPayments] Error updating boost_requests status:", bReqErr);
+            }
+
+            const startsAt = new Date().toISOString();
+            const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+            // Insert listing boost
+            const { error: bErr } = await supabase
+              .from("listing_boosts")
+              .insert({
+                listing_id: listingId,
+                seller_id: activeProof.user_id,
+                boost_type: boostType as any,
+                amount_inr: activeProof.amount,
+                duration_days: 7,
+                starts_at: startsAt,
+                ends_at: endsAt,
+                status: "active" as any
+              });
+
+            if (bErr) {
+              console.error("[AdminPayments] Error inserting listing_boosts:", bErr);
+            } else {
+              // Create staff action log
+              try {
+                await supabase.from("staff_action_logs").insert({
+                  staff_id: user?.id || activeProof.user_id,
+                  action: "approve_boost_payment",
+                  target_type: "boost_request",
+                  target_id: bReq?.id || activeProof.id,
+                  previous_value: "pending",
+                  new_value: "approved",
+                  notes: `Approved manual boost payment of ₹${activeProof.amount}`
+                });
+              } catch (e) { console.error("Staff log failed:", e); }
+
+              // Notify user
+              await supabase.from("notifications").insert({
+                user_id: activeProof.user_id,
+                kind: "boost.active",
+                title: "Listing Boost Activated!",
+                body: `Your payment of ₹${activeProof.amount} was verified and your listing boost "${boostType.replace(/_/g, ' ').toUpperCase()}" is now active!`
+              });
+            }
+          }
+        }
+      }
+
       toast.success(
-        `Payment ${activeProof.payment_type === "listing" ? "order" : activeProof.payment_type === "subscription" ? "subscription" : "badge"} approved successfully!`,
+        `Payment ${
+          activeProof.payment_type === "listing"
+            ? "order"
+            : activeProof.payment_type === "subscription"
+              ? "subscription"
+              : activeProof.payment_type === "badge"
+                ? "badge"
+                : "boost"
+        } approved successfully!`,
       );
 
       // OPTIMISTIC STATE UPDATE
@@ -810,6 +884,29 @@ function AdminPayments() {
         }
       }
 
+      // For boost type — update boost request status
+      if (activeProof.payment_type === "boost") {
+        const { data: bReq } = await supabase
+          .from("boost_requests")
+          .update({ status: "rejected", rejection_reason: trimmedReason })
+          .eq("payment_proof_id", activeProof.id)
+          .select("id")
+          .maybeSingle();
+
+        // Create staff action log
+        try {
+          await supabase.from("staff_action_logs").insert({
+            staff_id: user?.id || activeProof.user_id,
+            action: "reject_boost_payment",
+            target_type: "boost_request",
+            target_id: bReq?.id || activeProof.id,
+            previous_value: "pending",
+            new_value: "rejected",
+            notes: `Rejected boost payment: ${trimmedReason}`
+          });
+        } catch (e) { console.error("Staff log failed:", e); }
+      }
+
       // Notify buyer
       await supabase.from("notifications").insert({
         user_id: activeProof.user_id,
@@ -983,6 +1080,8 @@ function AdminPayments() {
   const getTypeIcon = (type: string) => {
     return type === "subscription" ? (
       <Sparkles className="size-3.5 text-gold" />
+    ) : type === "boost" ? (
+      <Rocket className="size-3.5 text-purple-400" />
     ) : (
       <ShoppingBag className="size-3.5 text-blue-400" />
     );
@@ -994,6 +1093,7 @@ function AdminPayments() {
   const rejectedCount = proofs.filter((p) => p.status === "rejected").length;
   const listingCount = proofs.filter((p) => p.payment_type === "listing").length;
   const subscriptionCount = proofs.filter((p) => p.payment_type === "subscription").length;
+  const boostCount = proofs.filter((p) => p.payment_type === "boost").length;
 
   return (
     <div className="space-y-6">
@@ -1017,13 +1117,14 @@ function AdminPayments() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         {[
           { label: "Total", value: proofs.length, color: "text-foreground" },
           { label: "Pending", value: pendingCount, color: "text-amber-400" },
           { label: "Approved", value: approvedCount, color: "text-emerald-400" },
           { label: "Listings", value: listingCount, color: "text-blue-400" },
           { label: "Subscriptions", value: subscriptionCount, color: "text-gold" },
+          { label: "Boosts", value: boostCount, color: "text-purple-400" },
         ].map((s) => (
           <div
             key={s.label}
@@ -1054,7 +1155,7 @@ function AdminPayments() {
             </button>
           ))}
           <div className="w-px bg-border/60 mx-1 hidden sm:block" />
-          {(["all", "listing", "subscription"] as const).map((f) => (
+          {(["all", "listing", "subscription", "badge", "boost"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setTypeFilter(f)}

@@ -62,6 +62,19 @@ export async function completeOrderAndCreditSeller(orderId: string, opts?: { byp
     return order;
   }
 
+  // Prevent double-crediting
+  const { data: existingTxn } = await supabase
+    .from("wallet_transactions")
+    .select("id")
+    .eq("reference_id", orderId)
+    .eq("type", "sale")
+    .maybeSingle();
+
+  if (existingTxn) {
+    console.log("[WalletFunctions] Sale transaction already logged for order:", orderId);
+    return order;
+  }
+
   // Defense-in-depth: never auto-credit a seller while the order is disputed.
   // The admin mediation flow passes bypassDisputeCheck to settle the payout as
   // part of resolving the dispute itself.
@@ -728,11 +741,46 @@ export async function purchaseBoost(userId: string, listingId: string, type: str
       description: `Purchased listing boost: "${type.replace(/_/g, ' ').toUpperCase()}"`
     });
 
-    // 4. Create active boost record in listing_boosts
+    // 4. Create approved payment proof
+    const { data: proof, error: pErr } = await supabase
+      .from("payment_proofs")
+      .insert({
+        user_id: userId,
+        buyer_id: userId,
+        listing_id: listingId,
+        amount: price,
+        screenshot_url: "wallet_payment",
+        status: "approved",
+        payment_type: "boost",
+        payment_reference: `boost:${type}:${listingId}`
+      })
+      .select("*")
+      .single();
+
+    if (pErr) throw pErr;
+
+    // 5. Create approved boost request
+    const { data: bReq, error: bErr } = await supabase
+      .from("boost_requests")
+      .insert({
+        user_id: userId,
+        listing_id: listingId,
+        payment_proof_id: proof.id,
+        boost_type: type,
+        amount: price,
+        duration_days: 7,
+        status: "approved"
+      })
+      .select("*")
+      .single();
+
+    if (bErr) throw bErr;
+
+    // 6. Create active boost record in listing_boosts
     const startsAt = new Date().toISOString();
     const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days default duration
 
-    const { error: bErr } = await supabase
+    const { error: lbErr } = await supabase
       .from("listing_boosts")
       .insert({
         listing_id: listingId,
@@ -745,9 +793,21 @@ export async function purchaseBoost(userId: string, listingId: string, type: str
         status: "active" as any
       });
 
-    if (bErr) throw bErr;
+    if (lbErr) throw lbErr;
 
-    // 5. Notify user
+    // 7. Create audit log entry
+    try {
+      await supabase.from("staff_action_logs").insert({
+        staff_id: userId,
+        action: "wallet_boost_purchase",
+        target_type: "boost_request",
+        target_id: bReq.id,
+        previous_value: "none",
+        new_value: "approved"
+      });
+    } catch (e) { console.error("Staff log failed:", e); }
+
+    // 8. Notify user
     try {
       await supabase.from("notifications").insert({
         user_id: userId,
@@ -757,10 +817,12 @@ export async function purchaseBoost(userId: string, listingId: string, type: str
       });
     } catch (e) { console.error("Notification error:", e); }
 
+    return bReq;
+
   } else if (payMethod === "manual") {
     if (!screenshotUrl) throw new Error("Screenshot url is required for manual QR code payment");
 
-    // Create a pending top-up/boost payment proof in unified payment_proofs
+    // 1. Create a pending top-up/boost payment proof in unified payment_proofs
     const { data: proof, error: pErr } = await supabase
       .from("payment_proofs")
       .insert({
@@ -770,7 +832,7 @@ export async function purchaseBoost(userId: string, listingId: string, type: str
         amount: price,
         screenshot_url: screenshotUrl,
         status: "pending",
-        payment_type: "listing", // Use listing so it maps in the inspection view cleanly
+        payment_type: "boost",
         payment_reference: `boost:${type}:${listingId}`
       })
       .select("*")
@@ -778,7 +840,24 @@ export async function purchaseBoost(userId: string, listingId: string, type: str
 
     if (pErr) throw pErr;
 
-    // Create support ticket automatically
+    // 2. Create pending boost request linked to payment proof
+    const { data: bReq, error: bErr } = await supabase
+      .from("boost_requests")
+      .insert({
+        user_id: userId,
+        listing_id: listingId,
+        payment_proof_id: proof.id,
+        boost_type: type,
+        amount: price,
+        duration_days: 7,
+        status: "pending"
+      })
+      .select("*")
+      .single();
+
+    if (bErr) throw bErr;
+
+    // 3. Create support ticket automatically
     try {
       await supabase.from("support_tickets").insert({
         user_id: userId,
@@ -788,6 +867,83 @@ export async function purchaseBoost(userId: string, listingId: string, type: str
       });
     } catch (e) { console.error("Auto ticket creation failed:", e); }
 
-    return proof;
+    return bReq;
   }
+}
+
+// Recalculate and synchronize all wallet balances from real database records
+export async function syncAndGetWallet(userId: string) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  // 1. Fetch or create wallet
+  let wallet = await getOrCreateWallet(userId);
+
+  // 2. Query completed orders
+  const { data: comOrders, error: orderErr } = await supabase
+    .from("orders")
+    .select("seller_payout_inr, payout_status")
+    .eq("seller_id", userId)
+    .eq("status", "completed");
+
+  if (orderErr) {
+    console.error("[syncAndGetWallet] Error loading orders:", orderErr);
+    return wallet;
+  }
+
+  // 3. Query non-rejected withdrawals
+  const { data: withdrawals, error: wdErr } = await supabase
+    .from("withdrawals")
+    .select("amount, status")
+    .eq("user_id", userId)
+    .not("status", "eq", "rejected");
+
+  if (wdErr) {
+    console.error("[syncAndGetWallet] Error loading withdrawals:", wdErr);
+    return wallet;
+  }
+
+  // 4. Query reactivation fees
+  const { data: reactTxns, error: txErr } = await supabase
+    .from("wallet_transactions")
+    .select("amount")
+    .eq("wallet_id", userId)
+    .eq("type", "withdrawal")
+    .like("description", "%Reactivation Fee%");
+
+  if (txErr) {
+    console.error("[syncAndGetWallet] Error loading reactivation fees:", txErr);
+    return wallet;
+  }
+
+  // Calculate sums
+  const total_earnings = (comOrders ?? []).reduce((sum, o) => sum + Number(o.seller_payout_inr || 0), 0);
+  const withdrawn_amount = (withdrawals ?? []).filter(w => w.status === 'completed').reduce((sum, w) => sum + Number(w.amount), 0);
+  const pending_withdrawals = (withdrawals ?? []).filter(w => w.status === 'pending').reduce((sum, w) => sum + Number(w.amount), 0);
+  const reactivation_fees = (reactTxns ?? []).reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+  const held_escrow = (comOrders ?? []).filter(o => ['pending_cooling', 'dormant'].includes(o.payout_status)).reduce((sum, o) => sum + Number(o.seller_payout_inr || 0), 0);
+
+  const pending_balance = held_escrow + pending_withdrawals;
+  const available_balance = Math.max(0, total_earnings - (withdrawn_amount + pending_withdrawals + reactivation_fees) - held_escrow);
+
+  // Update wallet record in database
+  const { data: updatedWallet, error: updErr } = await supabase
+    .from("wallets")
+    .update({
+      total_earnings,
+      withdrawn_amount,
+      pending_balance,
+      available_balance,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (updErr) {
+    console.error("[syncAndGetWallet] Error updating wallet:", updErr);
+    return wallet;
+  }
+
+  return updatedWallet;
 }

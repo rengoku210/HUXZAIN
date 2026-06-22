@@ -26,6 +26,8 @@ import {
   Users,
 } from "lucide-react";
 
+import defaultAvatar from "@/assets/default-avatar.png";
+
 export const primaryCategories = [
   {
     slug: "gaming-accounts",
@@ -298,3 +300,61 @@ export const protectionPillars = [
   { title: "Quality Services", desc: "Only the best sellers" },
   { title: "Dispute Resolution", desc: "Fair and transparent process" },
 ];
+
+export function getDbSlugFromUiSlug(uiSlug: string): string {
+  const map: Record<string, string> = {
+    "gaming-accounts": "accounts",
+    "in-game-currency": "currency",
+    "boosting-services": "boosting",
+    "coaching-services": "coaching",
+    "gift-cards": "gift-cards",
+    "subscriptions": "subscriptions",
+    "software-tools": "digital-products",
+    "digital-marketplace": "digital-products",
+    "freelance-services": "services",
+    "editing-design": "design",
+    "advertising-services": "marketing",
+    "game-buddies": "more",
+  };
+  return map[uiSlug] ?? uiSlug;
+}
+
+export function getUiSlugFromDbSlug(dbSlug: string): string {
+  const map: Record<string, string> = {
+    "accounts": "gaming-accounts",
+    "currency": "in-game-currency",
+    "boosting": "boosting-services",
+    "coaching": "coaching-services",
+    "gift-cards": "gift-cards",
+    "subscriptions": "subscriptions",
+    "digital-products": "software-tools",
+    "services": "freelance-services",
+    "design": "editing-design",
+    "marketing": "advertising-services",
+    "more": "game-buddies",
+  };
+  return map[dbSlug] ?? dbSlug;
+}
+
+export const DEFAULT_AVATAR_URL = defaultAvatar;
+
+export function getUserAvatar(
+  input:
+    | string
+    | { avatar_url?: string | null }
+    | null
+    | undefined
+): string {
+  const avatar =
+    typeof input === "string"
+      ? input
+      : input?.avatar_url;
+
+  if (!avatar?.trim()) {
+    return DEFAULT_AVATAR_URL;
+  }
+
+  return avatar;
+}
+
+

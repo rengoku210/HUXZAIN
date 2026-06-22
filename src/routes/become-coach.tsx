@@ -11,6 +11,7 @@ import {
   SESSION_DURATIONS,
 } from "@/lib/buddy-coach";
 import { toast } from "sonner";
+import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 import {
   BadgeCheck,
   CheckCircle2,
@@ -579,13 +580,14 @@ function Page() {
               <div className="mt-3 rounded-2xl border border-border bg-background/30 p-4">
                 <div className="flex items-center gap-3">
                   <div className="size-12 rounded-2xl border border-border bg-surface/40 overflow-hidden">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt="" className="size-full object-cover" />
-                    ) : (
-                      <div className="size-full grid place-items-center text-xs font-bold text-gold">
-                        {displayName ? displayName.slice(0, 2).toUpperCase() : "CO"}
-                      </div>
-                    )}
+                    <img
+                      src={getUserAvatar(avatarUrl)}
+                      alt=""
+                      className="size-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = DEFAULT_AVATAR_URL;
+                      }}
+                    />
                   </div>
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{displayName || "Your Name"}</div>

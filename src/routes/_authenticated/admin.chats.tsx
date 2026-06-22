@@ -808,12 +808,15 @@ function AntiFraudAndChatMonitor() {
               {/* Upgraded Anti-Fraud Widgets */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {[
+                  { label: "Total Chats", count: health.total_chats, alert: false },
+                  { label: "Active Live Chats", count: health.active_chats, alert: false },
+                  { label: "Reported Conversations", count: health.reported_chats, alert: health.reported_chats > 0 },
+                  { label: "Flagged Chats", count: health.flagged_chats, alert: health.flagged_chats > 0 },
+                  { label: "Moderation Backlog", count: health.moderation_backlog, alert: health.moderation_backlog > 0 },
                   { label: "Active Disputes", count: health.open_disputes, alert: health.open_disputes > 0 },
                   { label: "Unverified Sellers", count: health.pending_verifications, alert: health.pending_verifications > 15 },
                   { label: "Pending Withdrawals", count: health.pending_withdrawals, alert: health.pending_withdrawals > 0 },
                   { label: "Open Support Tickets", count: health.open_support_tickets, alert: health.open_support_tickets > 5 },
-                  { label: "Active Live Chats", count: health.active_chats, alert: false },
-                  { label: "Reported Conversations", count: health.reported_chats, alert: health.reported_chats > 0 },
                   { label: "High Risk Chats", count: health.high_risk_chats, alert: health.high_risk_chats > 0 },
                   { label: "Fraud Attempts Today", count: health.fraud_attempts_today, alert: health.fraud_attempts_today > 0 },
                   { label: "UPI Sharing Blocked", count: health.upi_sharing_today || 0, alert: false },

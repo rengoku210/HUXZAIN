@@ -33,6 +33,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 
 export const Route = createFileRoute("/account/")({
   validateSearch: (s: Record<string, unknown>): { intent?: string } => ({
@@ -604,12 +605,15 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                           <div className="size-20 rounded-full overflow-hidden border-2 border-gold/30 bg-surface flex items-center justify-center shrink-0">
                             {uploading ? (
                               <Loader2 className="size-8 text-gold animate-spin" />
-                            ) : avatarUrl ? (
-                              <img src={avatarUrl} alt="Avatar" className="size-full object-cover" />
                             ) : (
-                              <div className="size-full bg-gold/10 flex items-center justify-center text-xl font-bold text-gold">
-                                {initials}
-                              </div>
+                              <img
+                                src={getUserAvatar(avatarUrl)}
+                                alt="Avatar"
+                                className="size-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = DEFAULT_AVATAR_URL;
+                                }}
+                              />
                             )}
                           </div>
                           <button

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { PanelCard, StatusPill } from "@/components/seller/SellerShell";
 import { BadgeCheck, Upload, Shield, Mail, Phone, FileText, UserSquare2, Wallet, RefreshCw, Clock, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -40,6 +40,8 @@ function Page() {
   const [badgePreviewUrl, setBadgePreviewUrl] = useState<string | null>(null);
   const [badgeUtr, setBadgeUtr] = useState("");
   const [badgeUploading, setBadgeUploading] = useState(false);
+  const isSubmittingBadgeRef = useRef(false);
+  const isSubmittingKYCRef = useRef(false);
 
   async function loadData() {
     if (!user) return;
@@ -105,6 +107,19 @@ function Page() {
   }, [user]);
 
   async function handleFileRead(file: File, type: "govt" | "selfie" | "addr") {
+    if (!file) return;
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Unsupported file type. Please upload JPG, PNG, or PDF.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large. Max size is 5MB.");
+      return;
+    }
+
     try {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -120,6 +135,7 @@ function Page() {
   }
 
   async function handleSubmit() {
+    if (isSubmittingKYCRef.current) return;
     if (!user) return;
     if (!govtFile && !verification?.government_id_url) {
       toast.error("Please upload your government ID.");
@@ -143,6 +159,7 @@ function Page() {
     }
 
     try {
+      isSubmittingKYCRef.current = true;
       setSubmitting(true);
       
       await submitKYCVerification({
@@ -169,6 +186,7 @@ function Page() {
     } catch (err: any) {
       toast.error("Verification submission failed: " + err.message);
     } finally {
+      isSubmittingKYCRef.current = false;
       setSubmitting(false);
     }
   }
@@ -177,6 +195,13 @@ function Page() {
     const files = e.target.files;
     if (files && files.length > 0) {
       const selectedFile = files[0];
+      
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+      if (!allowedTypes.includes(selectedFile.type)) {
+        toast.error("Unsupported file type. Please upload JPG, PNG, or PDF.");
+        return;
+      }
+
       if (selectedFile.size > 5 * 1024 * 1024) {
         toast.error("File is too large. Max size is 5MB.");
         return;
@@ -187,6 +212,7 @@ function Page() {
   };
 
   const submitBadgeProof = async () => {
+    if (isSubmittingBadgeRef.current) return;
     if (!badgeFile) {
       toast.error("Please upload your payment screenshot first.");
       return;
@@ -203,6 +229,7 @@ function Page() {
     }
 
     try {
+      isSubmittingBadgeRef.current = true;
       setBadgeUploading(true);
 
       const ext = badgeFile.name.split(".").pop() ?? "png";
@@ -253,9 +280,42 @@ function Page() {
       console.error("[Badge Purchase] Error:", err);
       toast.error(`Submission failed: ${err.message ?? "Unknown database error"}`);
     } finally {
+      isSubmittingBadgeRef.current = false;
       setBadgeUploading(false);
     }
   };
+
+  function getDocStatus(
+    localFile: string, 
+    dbUrl: string | null | undefined, 
+    dbStatus: string | null | undefined
+  ): "NOT_STARTED" | "UPLOADED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" {
+    if (localFile) return "UPLOADED";
+    if (!dbUrl) return "NOT_STARTED";
+    if (dbStatus === "approved" || dbStatus === "APPROVED") return "APPROVED";
+    if (dbStatus === "rejected" || dbStatus === "REJECTED") return "REJECTED";
+    if (dbStatus === "under_review" || dbStatus === "UNDER_REVIEW" || dbStatus === "pending") return "UNDER_REVIEW";
+    return "UNDER_REVIEW";
+  }
+
+  const govtStatus = getDocStatus(govtFile, verification?.government_id_url, verification?.government_id_status);
+  const selfieStatus = getDocStatus(selfieFile, verification?.selfie_url, verification?.selfie_status);
+  const addrStatus = getDocStatus(addrFile, verification?.address_proof_url, verification?.address_proof_status);
+
+  let approvedCount = 0;
+  if (govtStatus === "APPROVED") approvedCount++;
+  if (selfieStatus === "APPROVED") approvedCount++;
+  if (addrStatus === "APPROVED") approvedCount++;
+
+  const progressPercent = verification?.status === "approved" ? 100 : (approvedCount === 1 ? 33 : approvedCount === 2 ? 66 : approvedCount === 3 ? 100 : 0);
+
+  function getDocPillStatus(status: string) {
+    if (status === "APPROVED") return "Completed";
+    if (status === "REJECTED") return "Rejected";
+    if (status === "UNDER_REVIEW") return "Under Review";
+    if (status === "UPLOADED") return "Uploaded";
+    return "Pending";
+  }
 
   const isEmailVerified = !!(profile?.email_verified || user?.email_confirmed_at);
   const isPhoneVerified = !!profile?.phone_verified;
@@ -294,7 +354,7 @@ function Page() {
           <div className="mt-3 h-2 rounded-full bg-background/60 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-gold to-gold/60 transition-all duration-500"
-              style={{ width: verification?.status === "approved" ? "100%" : isEmailVerified ? "50%" : "25%" }}
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
         </div>
@@ -317,7 +377,7 @@ function Page() {
                       <Upload className="size-5 text-gold mb-1" />
                       <p className="text-[11px] text-muted-foreground text-center px-4">Upload Passport, Driver License or National ID card</p>
                     </div>
-                    <input type="file" accept="image/*" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt")} className="hidden" />
+                    <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt")} className="hidden" />
                   </label>
                   {govtFile && (
                     <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
@@ -338,7 +398,7 @@ function Page() {
                       <Upload className="size-5 text-gold mb-1" />
                       <p className="text-[11px] text-muted-foreground text-center px-4">Upload a clear selfie holding your government ID next to your face</p>
                     </div>
-                    <input type="file" accept="image/*" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "selfie")} className="hidden" />
+                    <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "selfie")} className="hidden" />
                   </label>
                   {selfieFile && (
                     <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
@@ -359,7 +419,7 @@ function Page() {
                       <Upload className="size-5 text-gold mb-1" />
                       <p className="text-[11px] text-muted-foreground text-center px-4">Upload Utility Bill or Bank Statement (under 3 months old)</p>
                     </div>
-                    <input type="file" accept="image/*" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "addr")} className="hidden" />
+                    <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "addr")} className="hidden" />
                   </label>
                   {addrFile && (
                     <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
@@ -523,7 +583,24 @@ function Page() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {badgePayStep === "plans" && (
+                  {badgeProof && badgeProof.status === "rejected" && (
+                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-xs space-y-1">
+                      <div className="font-bold text-red-400">Previous Submission Rejected</div>
+                      <p className="text-muted-foreground">
+                        Reason: {badgeProof.rejection_reason || "Invalid transaction details or screenshot."}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground/80 mt-1">Please pay again or submit a correct screenshot with the valid UTR below.</p>
+                    </div>
+                  )}
+                  {badgeProof && badgeProof.status === "reupload_requested" && (
+                    <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl text-xs space-y-1">
+                      <div className="font-bold text-amber-400">Reupload Requested</div>
+                      <p className="text-muted-foreground">
+                        Notes: {badgeProof.rejection_reason || "Please upload a clearer screenshot of the payment."}
+                      </p>
+                    </div>
+                  )}
+                  {badgePlan && badgePayStep === "plans" && (
                     <div className="space-y-4">
                       <p className="text-xs text-muted-foreground">
                         Purchase the Verified Seller Badge separately to build unmatched credibility, unlock quick payout settlement times, and enable the hybrid escrow flow.
@@ -646,14 +723,18 @@ function Page() {
                               {badgeFile ? badgeFile.name : "Choose File..."}
                               <input
                                 type="file"
-                                accept="image/*"
+                                accept="image/jpeg, image/png, application/pdf"
                                 onChange={handleBadgeFileChange}
                                 className="hidden"
                               />
                             </label>
                             {badgePreviewUrl && (
-                              <div className="size-10 rounded border border-border overflow-hidden bg-surface">
-                                <img src={badgePreviewUrl} alt="Preview" className="size-full object-cover" />
+                              <div className="size-10 rounded border border-border overflow-hidden bg-surface flex items-center justify-center">
+                                {badgeFile?.type === "application/pdf" ? (
+                                  <FileText className="size-5 text-gold animate-in zoom-in-50" />
+                                ) : (
+                                  <img src={badgePreviewUrl} alt="Preview" className="size-full object-cover" />
+                                )}
                               </div>
                             )}
                           </div>
@@ -707,72 +788,83 @@ function Page() {
                     <FileText className="size-4 text-gold" />
                     <span>Government ID</span>
                   </div>
-                  <StatusPill status={govtFile || verification?.government_id_url ? "Completed" : "Pending"} />
+                  <StatusPill status={getDocPillStatus(govtStatus)} />
                 </li>
                 <li className="py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <UserSquare2 className="size-4 text-gold" />
                     <span>Verification Selfie</span>
                   </div>
-                  <StatusPill status={selfieFile || verification?.selfie_url ? "Completed" : "Pending"} />
+                  <StatusPill status={getDocPillStatus(selfieStatus)} />
                 </li>
                 <li className="py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Shield className="size-4 text-gold" />
                     <span>Address Proof</span>
                   </div>
-                  <StatusPill status={addrFile || verification?.address_proof_url ? "Completed" : "Pending"} />
+                  <StatusPill status={getDocPillStatus(addrStatus)} />
                 </li>
               </ul>
             </PanelCard>
 
-            {verification && (
-              <PanelCard title="Review Status">
-                <div className="text-center py-4 space-y-2">
-                  <div className="text-xs font-semibold">
-                    Current Review:{" "}
-                    <span
-                      className={`font-bold ${
-                        verification.status === "approved" 
+            <PanelCard title="Review Status">
+              <div className="text-center py-4 space-y-2">
+                <div className="text-xs font-semibold">
+                  Current Review:{" "}
+                  <span
+                    className={`font-bold ${
+                      !verification || ((govtStatus === "UPLOADED" || govtStatus === "NOT_STARTED") && (selfieStatus === "UPLOADED" || selfieStatus === "NOT_STARTED") && (addrStatus === "UPLOADED" || addrStatus === "NOT_STARTED") && verification?.status !== "pending" && verification?.status !== "approved" && verification?.status !== "rejected" && verification?.status !== "action_required")
+                        ? "text-zinc-400"
+                        : verification?.status === "approved" 
                           ? "text-emerald-400" 
-                          : verification.status === "rejected" 
+                          : verification?.status === "rejected" 
                             ? "text-rose-500" 
-                            : verification.status === "action_required"
+                            : verification?.status === "action_required"
                               ? "text-amber-500"
                               : "text-blue-400"
-                      }`}
-                    >
-                      {verification.status === "action_required" ? "ACTION REQUIRED" : verification.status.toUpperCase()}
-                    </span>
-                  </div>
-                  {verification.status === "pending" && (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Verification usually completed within 24–48 hours. Thank you for your patience!
-                    </p>
-                  )}
-                  {verification.status === "action_required" && (
-                    <div className="space-y-2 animate-in fade-in duration-200">
-                      <p className="text-[11px] text-amber-500 leading-relaxed font-bold bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg text-left">
-                        ⚠️ **Auditor notes:** {verification.admin_notes || "Please resubmit clear government ID scans and selfies."}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Please update and re-upload the missing details above.
-                      </p>
-                    </div>
-                  )}
-                  {verification.status === "rejected" && (
-                    <p className="text-[11px] text-rose-500 leading-relaxed font-bold">
-                      Your documents were rejected: {verification.admin_notes || "Please upload valid identification."}
-                    </p>
-                  )}
-                  {verification.status === "approved" && (
-                    <p className="text-[11px] text-emerald-400 leading-relaxed font-bold">
-                      ✓ Profile is verified. Verified badge will display next to listings.
-                    </p>
-                  )}
+                    }`}
+                  >
+                    {!verification || ((govtStatus === "UPLOADED" || govtStatus === "NOT_STARTED") && (selfieStatus === "UPLOADED" || selfieStatus === "NOT_STARTED") && (addrStatus === "UPLOADED" || addrStatus === "NOT_STARTED") && verification?.status !== "pending" && verification?.status !== "approved" && verification?.status !== "rejected" && verification?.status !== "action_required")
+                      ? "DRAFT"
+                      : verification.status === "pending"
+                        ? "PENDING REVIEW"
+                        : verification.status === "action_required"
+                          ? "ACTION REQUIRED"
+                          : verification.status.toUpperCase()}
+                  </span>
                 </div>
-              </PanelCard>
-            )}
+                {(!verification || ((govtStatus === "UPLOADED" || govtStatus === "NOT_STARTED") && (selfieStatus === "UPLOADED" || selfieStatus === "NOT_STARTED") && (addrStatus === "UPLOADED" || addrStatus === "NOT_STARTED") && verification?.status !== "pending" && verification?.status !== "approved" && verification?.status !== "rejected" && verification?.status !== "action_required")) && (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Please upload and submit your documents to start the verification process.
+                  </p>
+                )}
+                {verification?.status === "pending" && (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Verification usually completed within 24–48 hours. Thank you for your patience!
+                  </p>
+                )}
+                {verification?.status === "action_required" && (
+                  <div className="space-y-2 animate-in fade-in duration-200">
+                    <p className="text-[11px] text-amber-500 leading-relaxed font-bold bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg text-left">
+                      ⚠️ **Auditor notes:** {verification.admin_notes || "Please resubmit clear government ID scans and selfies."}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Please update and re-upload the missing details above.
+                    </p>
+                  </div>
+                )}
+                {verification?.status === "rejected" && (
+                  <p className="text-[11px] text-rose-500 leading-relaxed font-bold">
+                    Your documents were rejected: {verification.admin_notes || "Please upload valid identification."}
+                  </p>
+                )}
+                {verification?.status === "approved" && (
+                  <p className="text-[11px] text-emerald-400 leading-relaxed font-bold">
+                    ✓ Profile is verified. Verified badge will display next to listings.
+                  </p>
+                )}
+              </div>
+            </PanelCard>
           </div>
         </div>
       )}

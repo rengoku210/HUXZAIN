@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import {
   Search,
@@ -45,6 +45,9 @@ import {
   trustFeatures,
   howSteps,
   protectionPillars,
+  getUiSlugFromDbSlug,
+  getUserAvatar,
+  DEFAULT_AVATAR_URL,
 } from "@/lib/marketplace-data";
 
 export const Route = createFileRoute("/")({
@@ -70,6 +73,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { roles } = useAuth();
   const isSeller = roles.includes("seller");
+  const navigate = useNavigate();
 
   const [counts, setCounts] = useState({
     listings: 0,
@@ -89,17 +93,30 @@ function Home() {
           sb.from("listings").select("category_id", { count: "exact" }).eq("status", "active"),
           sb.from("profiles").select("id", { count: "exact" }),
           sb.from("orders").select("id", { count: "exact" }),
-          sb.from("categories").select("id, slug")
+          sb.from("categories").select("id, slug, parent_id")
         ]);
 
         const allListings = listingsRes.data ?? [];
-        const catMap = (catsRes.data ?? []) as { id: string; slug: string }[];
+        const catMap = (catsRes.data ?? []) as any[];
         
         const categoryCounts: Record<string, number> = {};
+        primaryCategories.forEach(c => {
+          categoryCounts[c.slug] = 0;
+        });
+
         allListings.forEach((item: any) => {
           const cat = catMap.find(c => c.id === item.category_id);
           if (cat) {
-            categoryCounts[cat.slug] = (categoryCounts[cat.slug] ?? 0) + 1;
+            const uiSlug = getUiSlugFromDbSlug(cat.slug);
+            categoryCounts[uiSlug] = (categoryCounts[uiSlug] ?? 0) + 1;
+
+            if (cat.parent_id) {
+              const parentCat = catMap.find(p => p.id === cat.parent_id);
+              if (parentCat) {
+                const parentUiSlug = getUiSlugFromDbSlug(parentCat.slug);
+                categoryCounts[parentUiSlug] = (categoryCounts[parentUiSlug] ?? 0) + 1;
+              }
+            }
           }
         });
 
@@ -137,12 +154,19 @@ function Home() {
 }
 
 function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void }) {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSearch(searchQuery);
+    navigate({
+      to: "/search",
+      search: {
+        q: searchQuery || undefined,
+        category: selectedCategory === "all" ? undefined : selectedCategory,
+      },
+    });
   };
 
   const benefits = [
@@ -665,8 +689,10 @@ function PopularCategories({ counts }: { counts: any }) {
                 <Icon className={`size-5 transition-colors duration-300 ${c.color}`} />
               </div>
               <div className="text-xs font-bold text-foreground truncate">{c.title}</div>
-              <div className="text-[10px] text-muted-foreground mt-1 truncate leading-snug">
-                {c.subtitle}
+              <div className="text-[10px] text-gold mt-1 truncate leading-snug font-semibold">
+                {counts.categoryCounts[c.slug] !== undefined 
+                  ? `${counts.categoryCounts[c.slug].toLocaleString()} ${counts.categoryCounts[c.slug] === 1 ? 'Listing' : 'Listings'}`
+                  : c.subtitle}
               </div>
             </Link>
           );
@@ -862,7 +888,7 @@ function TopRatedSellers() {
           const fallback = mockTopRatedSellers[idx % mockTopRatedSellers.length];
           return {
             name: p.display_name || p.username || `Seller_${p.id.slice(0, 4)}`,
-            avatar: p.avatar_url || fallback.avatar,
+            avatar: getUserAvatar(p.avatar_url),
             rating: p.rating_avg || 5.0,
             reviews: p.rating_count || Math.floor(Math.random() * 200) + 10,
             orders: `${Math.floor(Math.random() * 300) + 50}+`,
@@ -941,6 +967,9 @@ function TopRatedSellers() {
                     src={s.avatar} 
                     alt={s.name} 
                     className="w-full h-full rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = DEFAULT_AVATAR_URL;
+                    }}
                   />
                 </div>
                 <span className="absolute bottom-0 right-0 size-4 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center shadow-lg" title="Online">

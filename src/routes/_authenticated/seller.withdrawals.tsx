@@ -5,7 +5,7 @@ import { ArrowUpFromLine, Clock, Wallet, Inbox, Landmark, CheckCircle, RefreshCw
 import { useAuth } from "@/lib/auth/auth-context";
 import { useSellerTier } from "@/lib/seller/tier-context";
 import { getSupabase } from "@/lib/supabase-client";
-import { getOrCreateWallet, requestWithdrawal, checkAndReleaseEscrows } from "@/lib/wallet.functions";
+import { getOrCreateWallet, requestWithdrawal, checkAndReleaseEscrows, syncAndGetWallet } from "@/lib/wallet.functions";
 import { parseWithdrawnOrderIds, getPayoutState, type OrderPayout } from "@/lib/payout-calculator";
 import { toast } from "sonner";
 
@@ -46,7 +46,7 @@ function Page() {
       } catch (err) {
         console.error("Failed to run checkAndReleaseEscrows:", err);
       }
-      const w = await getOrCreateWallet(user.id);
+      const w = await syncAndGetWallet(user.id);
       setWallet(w);
 
       const supabase = getSupabase();
@@ -167,7 +167,7 @@ function Page() {
       if (orderErr) throw orderErr;
 
       // 2. Sync wallet available balance: add netPayout and subtract feeAmount
-      const w = await getOrCreateWallet(user.id);
+      const w = await syncAndGetWallet(user.id);
       const { error: wallErr } = await supabase
         .from("wallets")
         .update({

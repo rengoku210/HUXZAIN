@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { PanelCard, StatusPill } from "@/components/seller/SellerShell";
 import { Rocket, TrendingUp, Inbox, QrCode, Upload, RefreshCw } from "lucide-react";
 import { useSellerTier, tierAtLeast } from "@/lib/seller/tier-context";
@@ -81,8 +81,11 @@ function Page() {
   const [selectedOption, setSelectedOption] = useState(boostOptions[0]);
   const [payMethod, setPayMethod] = useState<"token" | "wallet" | "manual">("wallet");
   const [screenshotUrl, setScreenshotUrl] = useState("");
+  const [paymentFile, setPaymentFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingBoostRef = useRef(false);
   const [spotlightCount, setSpotlightCount] = useState(0);
   const [spotlightLimit, setSpotlightLimit] = useState(5);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -163,19 +166,20 @@ function Page() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    try {
-      setUploading(true);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setScreenshotUrl(reader.result as string);
-        toast.success("Receipt screenshot proof loaded successfully!");
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (err: any) {
-      toast.error("File upload failed: " + err.message);
-      setUploading(false);
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Unsupported file type. Please upload JPG, PNG, or PDF.");
+      return;
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large. Max size is 5MB.");
+      return;
+    }
+
+    setPaymentFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    toast.success("Receipt screenshot proof loaded successfully!");
   }
 
   async function handleBoost(bypassConfirm = false) {
@@ -207,7 +211,15 @@ function Page() {
       return;
     }
 
+    if (payMethod === "manual" && !paymentFile) {
+      toast.error("Please upload your payment screenshot first.");
+      return;
+    }
+
+    if (isSubmittingBoostRef.current) return;
+
     try {
+      isSubmittingBoostRef.current = true;
       setSubmitting(true);
       const durationDays = selectedOption.id === "urgent_sale" ? 3 : selectedOption.id === "glow_highlight" ? 5 : 7;
 
@@ -222,29 +234,52 @@ function Page() {
         });
         toast.success("Listing boosted successfully using plan token! Live instantly.");
       } else {
+        let finalScreenshotUrl = "";
+        if (payMethod === "manual" && paymentFile) {
+          setUploading(true);
+          const supabaseClient = getSupabase();
+          if (!supabaseClient) throw new Error("Supabase client not initialized");
+
+          const ext = paymentFile.name.split(".").pop() ?? "png";
+          const filePath = `${user.id}/boost/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+
+          const { error: uploadErr } = await supabaseClient.storage
+            .from("payment-proofs")
+            .upload(filePath, paymentFile, { upsert: true, contentType: paymentFile.type });
+
+          if (uploadErr) {
+            throw new Error("Failed to upload payment proof. Please try again. (" + uploadErr.message + ")");
+          }
+          finalScreenshotUrl = filePath;
+          setUploading(false);
+        }
+
         await purchaseBoost(
           user.id,
           selectedListing,
           selectedOption.id,
           selectedOption.price,
           payMethod === "manual" ? "manual" : "wallet",
-          screenshotUrl || undefined
+          finalScreenshotUrl || undefined
         );
         toast.success(
           payMethod === "wallet"
             ? "Listing boosted successfully! Live instantly."
-            : "Manual verification proof submitted. Our administrators will confirm this within 24-48h!"
+            : "Boost request submitted successfully. Awaiting admin review."
         );
       }
 
-      setScreenshotUrl("");
+      setPaymentFile(null);
+      setPreviewUrl(null);
       setShowConfirmModal(false);
       await loadData();
       await refreshSubscription();
     } catch (err: any) {
       toast.error("Failed to purchase boost: " + err.message);
+      setUploading(false);
     } finally {
       setSubmitting(false);
+      isSubmittingBoostRef.current = false;
     }
   }
 
@@ -396,9 +431,14 @@ function Page() {
                         </div>
                         <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
                       </label>
-                      {screenshotUrl && (
-                        <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
-                          ✓ Screenshot Proof Loaded!
+                      {previewUrl && (
+                        <div className="mt-2 space-y-2">
+                          <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
+                            ✓ Screenshot Proof Loaded! ({paymentFile?.name})
+                          </div>
+                          {previewUrl.startsWith("blob:") ? (
+                            <img src={previewUrl} alt="Preview" className="max-h-32 rounded-lg border border-border object-contain mx-auto" />
+                          ) : null}
                         </div>
                       )}
                     </div>

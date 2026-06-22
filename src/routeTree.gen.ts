@@ -15,6 +15,7 @@ import { Route as TeamLoginRouteImport } from './routes/team-login'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SellerPanelRouteImport } from './routes/seller-panel'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -29,6 +30,7 @@ import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CoachingRouteImport } from './routes/coaching'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as CareersRouteImport } from './routes/careers'
+import { Route as BrowseRouteImport } from './routes/browse'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as BecomeGameBuddyRouteImport } from './routes/become-game-buddy'
 import { Route as BecomeCoachRouteImport } from './routes/become-coach'
@@ -95,6 +97,7 @@ import { Route as AuthenticatedAdminDisputesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminCommunicationRouteImport } from './routes/_authenticated/admin.communication'
 import { Route as AuthenticatedAdminChatsRouteImport } from './routes/_authenticated/admin.chats'
 import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin.categories'
+import { Route as AuthenticatedAdminBoostsRouteImport } from './routes/_authenticated/admin.boosts'
 import { Route as AuthenticatedAdminAuditLogsRouteImport } from './routes/_authenticated/admin.audit-logs'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
 import { Route as AuthenticatedSellerSubscriptionIndexRouteImport } from './routes/_authenticated/seller.subscription.index'
@@ -128,6 +131,11 @@ const SignupRoute = SignupRouteImport.update({
 const SellerPanelRoute = SellerPanelRouteImport.update({
   id: '/seller-panel',
   path: '/seller-panel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -198,6 +206,11 @@ const CategoriesRoute = CategoriesRouteImport.update({
 const CareersRoute = CareersRouteImport.update({
   id: '/careers',
   path: '/careers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrowseRoute = BrowseRouteImport.update({
+  id: '/browse',
+  path: '/browse',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogRoute = BlogRouteImport.update({
@@ -569,6 +582,12 @@ const AuthenticatedAdminCategoriesRoute =
     path: '/categories',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBoostsRoute =
+  AuthenticatedAdminBoostsRouteImport.update({
+    id: '/boosts',
+    path: '/boosts',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAuditLogsRoute =
   AuthenticatedAdminAuditLogsRouteImport.update({
     id: '/audit-logs',
@@ -600,6 +619,7 @@ export interface FileRoutesByFullPath {
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
+  '/browse': typeof BrowseRoute
   '/careers': typeof CareersRoute
   '/categories': typeof CategoriesRoute
   '/coaching': typeof CoachingRouteWithChildren
@@ -614,6 +634,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/search': typeof SearchRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -635,6 +656,7 @@ export interface FileRoutesByFullPath {
   '/account/': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
+  '/admin/boosts': typeof AuthenticatedAdminBoostsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/chats': typeof AuthenticatedAdminChatsRoute
   '/admin/communication': typeof AuthenticatedAdminCommunicationRoute
@@ -691,6 +713,7 @@ export interface FileRoutesByTo {
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
+  '/browse': typeof BrowseRoute
   '/careers': typeof CareersRoute
   '/categories': typeof CategoriesRoute
   '/coaching': typeof CoachingRouteWithChildren
@@ -705,6 +728,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/search': typeof SearchRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -724,6 +748,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountIndexRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
+  '/admin/boosts': typeof AuthenticatedAdminBoostsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/chats': typeof AuthenticatedAdminChatsRoute
   '/admin/communication': typeof AuthenticatedAdminCommunicationRoute
@@ -782,6 +807,7 @@ export interface FileRoutesById {
   '/become-coach': typeof BecomeCoachRoute
   '/become-game-buddy': typeof BecomeGameBuddyRoute
   '/blog': typeof BlogRoute
+  '/browse': typeof BrowseRoute
   '/careers': typeof CareersRoute
   '/categories': typeof CategoriesRoute
   '/coaching': typeof CoachingRouteWithChildren
@@ -796,6 +822,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/search': typeof SearchRoute
   '/seller-panel': typeof SellerPanelRoute
   '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -817,6 +844,7 @@ export interface FileRoutesById {
   '/account/': typeof AccountIndexRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
+  '/_authenticated/admin/boosts': typeof AuthenticatedAdminBoostsRoute
   '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/_authenticated/admin/chats': typeof AuthenticatedAdminChatsRoute
   '/_authenticated/admin/communication': typeof AuthenticatedAdminCommunicationRoute
@@ -875,6 +903,7 @@ export interface FileRouteTypes {
     | '/become-coach'
     | '/become-game-buddy'
     | '/blog'
+    | '/browse'
     | '/careers'
     | '/categories'
     | '/coaching'
@@ -889,6 +918,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/refund-policy'
     | '/reset-password'
+    | '/search'
     | '/seller-panel'
     | '/signup'
     | '/sitemap.xml'
@@ -910,6 +940,7 @@ export interface FileRouteTypes {
     | '/account/'
     | '/admin/analytics'
     | '/admin/audit-logs'
+    | '/admin/boosts'
     | '/admin/categories'
     | '/admin/chats'
     | '/admin/communication'
@@ -966,6 +997,7 @@ export interface FileRouteTypes {
     | '/become-coach'
     | '/become-game-buddy'
     | '/blog'
+    | '/browse'
     | '/careers'
     | '/categories'
     | '/coaching'
@@ -980,6 +1012,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/refund-policy'
     | '/reset-password'
+    | '/search'
     | '/seller-panel'
     | '/signup'
     | '/sitemap.xml'
@@ -999,6 +1032,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin/analytics'
     | '/admin/audit-logs'
+    | '/admin/boosts'
     | '/admin/categories'
     | '/admin/chats'
     | '/admin/communication'
@@ -1056,6 +1090,7 @@ export interface FileRouteTypes {
     | '/become-coach'
     | '/become-game-buddy'
     | '/blog'
+    | '/browse'
     | '/careers'
     | '/categories'
     | '/coaching'
@@ -1070,6 +1105,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/refund-policy'
     | '/reset-password'
+    | '/search'
     | '/seller-panel'
     | '/signup'
     | '/sitemap.xml'
@@ -1091,6 +1127,7 @@ export interface FileRouteTypes {
     | '/account/'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/audit-logs'
+    | '/_authenticated/admin/boosts'
     | '/_authenticated/admin/categories'
     | '/_authenticated/admin/chats'
     | '/_authenticated/admin/communication'
@@ -1149,6 +1186,7 @@ export interface RootRouteChildren {
   BecomeCoachRoute: typeof BecomeCoachRoute
   BecomeGameBuddyRoute: typeof BecomeGameBuddyRoute
   BlogRoute: typeof BlogRoute
+  BrowseRoute: typeof BrowseRoute
   CareersRoute: typeof CareersRoute
   CategoriesRoute: typeof CategoriesRoute
   CoachingRoute: typeof CoachingRouteWithChildren
@@ -1163,6 +1201,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SearchRoute: typeof SearchRoute
   SellerPanelRoute: typeof SellerPanelRoute
   SignupRoute: typeof SignupRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -1221,6 +1260,13 @@ declare module '@tanstack/react-router' {
       path: '/seller-panel'
       fullPath: '/seller-panel'
       preLoaderRoute: typeof SellerPanelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -1319,6 +1365,13 @@ declare module '@tanstack/react-router' {
       path: '/careers'
       fullPath: '/careers'
       preLoaderRoute: typeof CareersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/browse': {
+      id: '/browse'
+      path: '/browse'
+      fullPath: '/browse'
+      preLoaderRoute: typeof BrowseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog': {
@@ -1783,6 +1836,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCategoriesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/boosts': {
+      id: '/_authenticated/admin/boosts'
+      path: '/boosts'
+      fullPath: '/admin/boosts'
+      preLoaderRoute: typeof AuthenticatedAdminBoostsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/audit-logs': {
       id: '/_authenticated/admin/audit-logs'
       path: '/audit-logs'
@@ -1817,6 +1877,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminAuditLogsRoute: typeof AuthenticatedAdminAuditLogsRoute
+  AuthenticatedAdminBoostsRoute: typeof AuthenticatedAdminBoostsRoute
   AuthenticatedAdminCategoriesRoute: typeof AuthenticatedAdminCategoriesRoute
   AuthenticatedAdminChatsRoute: typeof AuthenticatedAdminChatsRoute
   AuthenticatedAdminCommunicationRoute: typeof AuthenticatedAdminCommunicationRoute
@@ -1846,6 +1907,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminAuditLogsRoute: AuthenticatedAdminAuditLogsRoute,
+  AuthenticatedAdminBoostsRoute: AuthenticatedAdminBoostsRoute,
   AuthenticatedAdminCategoriesRoute: AuthenticatedAdminCategoriesRoute,
   AuthenticatedAdminChatsRoute: AuthenticatedAdminChatsRoute,
   AuthenticatedAdminCommunicationRoute: AuthenticatedAdminCommunicationRoute,
@@ -1985,6 +2047,7 @@ const rootRouteChildren: RootRouteChildren = {
   BecomeCoachRoute: BecomeCoachRoute,
   BecomeGameBuddyRoute: BecomeGameBuddyRoute,
   BlogRoute: BlogRoute,
+  BrowseRoute: BrowseRoute,
   CareersRoute: CareersRoute,
   CategoriesRoute: CategoriesRoute,
   CoachingRoute: CoachingRouteWithChildren,
@@ -1999,6 +2062,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SearchRoute: SearchRoute,
   SellerPanelRoute: SellerPanelRoute,
   SignupRoute: SignupRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

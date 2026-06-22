@@ -6,7 +6,7 @@ import { TierBadge } from "@/components/seller/TierBadge";
 import { useSellerTier } from "@/lib/seller/tier-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
-import { getOrCreateWallet } from "@/lib/wallet.functions";
+import { getOrCreateWallet, syncAndGetWallet } from "@/lib/wallet.functions";
 
 
 export const Route = createFileRoute("/_authenticated/seller/")({
@@ -66,9 +66,7 @@ function Overview() {
 
   // Analytics states
   const [liveData, setLiveData] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
-  const [demoData] = useState<number[]>([2400, 1800, 4200, 3100, 5800, 4900, 7500]);
   const [chartLabels, setChartLabels] = useState<string[]>(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
-  const [isDemoData, setIsDemoData] = useState(true);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   // Store Customizations States
@@ -92,11 +90,12 @@ function Overview() {
             .from("orders")
             .select("id", { count: "exact", head: true })
             .eq("seller_id", user.id),
-          getOrCreateWallet(user.id),
+          syncAndGetWallet(user.id),
           supabase
             .from("listings")
             .select("id", { count: "exact", head: true })
-            .eq("seller_id", user.id),
+            .eq("seller_id", user.id)
+            .eq("status", "active"),
           supabase
             .from("orders")
             .select("*, listings:listing_id(title)")
@@ -104,12 +103,10 @@ function Overview() {
             .order("created_at", { ascending: false })
             .limit(5),
           supabase
-            .from("wallet_transactions")
-            .select("*")
-            .eq("wallet_id", user.id)
-            .eq("type", "sale")
-            .eq("status", "completed")
-            .order("created_at", { ascending: true }),
+            .from("orders")
+            .select("amount_inr, completed_at")
+            .eq("seller_id", user.id)
+            .eq("status", "completed"),
           supabase
             .from("seller_customizations")
             .select("*")
@@ -141,10 +138,12 @@ function Overview() {
 
         const txns = (txnsRes.data ?? []) as any[];
         txns.forEach((txn) => {
-          const txnDate = new Date(txn.created_at).toDateString();
-          const match = dates.find((d) => d.dateStr === txnDate);
-          if (match) {
-            match.amount += Number(txn.amount);
+          if (txn.completed_at) {
+            const txnDate = new Date(txn.completed_at).toDateString();
+            const match = dates.find((d) => d.dateStr === txnDate);
+            if (match) {
+              match.amount += Number(txn.amount_inr || 0);
+            }
           }
         });
 
@@ -153,13 +152,6 @@ function Overview() {
 
         setLiveData(liveAmounts);
         setChartLabels(liveLabels);
-
-        const hasLiveSales = liveAmounts.some((amt) => amt > 0);
-        if (hasLiveSales) {
-          setIsDemoData(false);
-        } else {
-          setIsDemoData(true);
-        }
 
         const fetchedOrders = (recentRes.data ?? []) as any[];
 
@@ -199,7 +191,7 @@ function Overview() {
     );
   }
 
-  const activeData = isDemoData ? demoData : liveData;
+  const activeData = liveData;
   const maxAmount = Math.max(...activeData, 1000); // minimum scale is 1000 INR
 
   const points = activeData.map((val, idx) => {
@@ -330,40 +322,7 @@ function Overview() {
       <PanelCard 
         title="Revenue & Sales Analytics"
         action={
-          <div className="flex items-center gap-3">
-            {/* Toggle capsules */}
-            <div className="inline-flex rounded-xl bg-surface/50 p-0.5 border border-border/80 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDemoData(false);
-                  setHoveredIdx(null);
-                }}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                  !isDemoData
-                    ? "bg-gold text-black shadow-md font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Live Sales
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDemoData(true);
-                  setHoveredIdx(null);
-                }}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  isDemoData
-                    ? "bg-gold text-black shadow-md font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span>Demo Mode</span>
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </button>
-            </div>
-          </div>
+          <span className="text-xs text-muted-foreground">Last 7 Days (Live)</span>
         }
       >
         <div className="space-y-4">
@@ -413,8 +372,15 @@ function Overview() {
 
           {/* SVG Chart Container */}
           <div className="relative w-full h-[200px] select-none mt-2">
+            {activeData.every(val => val === 0) && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/40 backdrop-blur-[1px] text-center p-4">
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  No sales recorded in the last 7 days. Start selling to see your revenue trend.
+                </p>
+              </div>
+            )}
             <svg 
-              className="w-full h-full overflow-visible" 
+              className={`w-full h-full overflow-visible ${activeData.every(val => val === 0) ? "opacity-20 pointer-events-none" : ""}`}
               viewBox="0 0 700 200" 
               preserveAspectRatio="none"
               onMouseLeave={() => setHoveredIdx(null)}
@@ -484,7 +450,7 @@ function Overview() {
               {/* Fill Area Under Trend Line */}
               {areaPath && (
                 <path 
-                  key={`area-${isDemoData}`}
+                  key="area-live"
                   d={areaPath} 
                   fill="url(#chartAreaGradient)" 
                   className="chart-area"
@@ -494,7 +460,7 @@ function Overview() {
               {/* Glow Behind Main Line */}
               {linePath && (
                 <path 
-                  key={`glow-${isDemoData}`}
+                  key="glow-live"
                   d={linePath} 
                   fill="none" 
                   stroke="rgba(212, 175, 55, 0.4)" 
@@ -507,7 +473,7 @@ function Overview() {
               {/* Foreground Trend Line */}
               {linePath && (
                 <path 
-                  key={`line-${isDemoData}`}
+                  key="line-live"
                   d={linePath} 
                   fill="none" 
                   stroke="oklch(0.82 0.13 82)" 

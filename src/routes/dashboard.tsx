@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PhoneVerificationModal } from "@/components/site/PhoneVerificationModal";
+import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Buyer Console Dashboard — HUXZAIN" }] }),
@@ -658,12 +659,15 @@ function DashboardPage() {
         <div className="w-full md:w-64 flex-shrink-0 space-y-4">
           <div className="p-5 rounded-2xl border border-border bg-surface/30 space-y-3">
             <div className="flex items-center gap-3">
-              <div className="size-12 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center font-display text-gold font-bold">
-                {profileAvatarUrl ? (
-                  <img src={profileAvatarUrl} alt="Avatar" className="size-full rounded-xl object-cover" />
-                ) : (
-                  profileName.substring(0, 2).toUpperCase() || "BY"
-                )}
+              <div className="size-12 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center font-display text-gold font-bold overflow-hidden shrink-0">
+                <img
+                  src={getUserAvatar(profileAvatarUrl)}
+                  alt="Avatar"
+                  className="size-full rounded-xl object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = DEFAULT_AVATAR_URL;
+                  }}
+                />
               </div>
               <div className="truncate">
                 <div className="font-bold text-sm text-foreground truncate">{profileName || "Huxzain User"}</div>

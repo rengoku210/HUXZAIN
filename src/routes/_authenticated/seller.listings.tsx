@@ -371,7 +371,11 @@ function ListingModal({
 
       if (riskScore > 100) riskScore = 100;
 
-      let finalStatus = isNew ? "active" : dbStatus;
+      // MOD-01 / LIST-25: listings are NOT instantly live. New listings enter
+      // the moderation queue as "pending" and only go live once an admin
+      // approves them (admin.listings.tsx). Edits to already-live listings keep
+      // their current status unless flagged below.
+      let finalStatus = isNew ? "pending" : dbStatus;
       let payloadRiskScore = null;
       let payloadKeywords = null;
       let payloadNotes = null;
@@ -399,6 +403,7 @@ function ListingModal({
         seo_title: seoTitle.trim() || null,
         seo_description: seoDescription.trim() || null,
         seo_keywords: seoKeywords.trim() || null,
+        tags: tags,
         risk_score: payloadRiskScore,
         suspicious_keywords: payloadKeywords,
         moderator_notes: payloadNotes
@@ -469,8 +474,10 @@ function ListingModal({
       // 4. Success behavior
       if (isFlagged) {
         toast.warning(`Listing submitted but flagged for manual review: ${notes}`);
+      } else if (isNew) {
+        toast.success("Listing submitted for review. It will go live once approved by our moderation team.");
       } else {
-        toast.success(isNew ? "Listing created successfully!" : "Listing updated successfully!");
+        toast.success("Listing updated successfully!");
       }
       onSaved(isNew);
       onClose();

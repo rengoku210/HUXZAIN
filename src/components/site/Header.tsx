@@ -32,7 +32,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import * as LucideIcons from "lucide-react";
 import { cartStore } from "@/lib/cart/cart-store";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
-import { primaryCategories } from "@/lib/marketplace-data";
+import { primaryCategories, getDbSlugFromUiSlug, getUiSlugFromDbSlug, getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 import { CategoryMegaMenu } from "../category/CategoryMegaMenu";
 
 
@@ -99,10 +99,55 @@ export function Header({ transparent }: { transparent?: boolean }) {
   const [megaSearch, setMegaSearch] = useState("");
   const [hoveredCatId, setHoveredCatId] = useState<string | null>(null);
 
+  const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const startCloseTimer = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setCatOpen(false);
+    }, 200);
+  };
+
+  const cancelCloseTimer = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        triggerRef.current && 
+        !triggerRef.current.contains(target) && 
+        panelRef.current && 
+        !panelRef.current.contains(target)
+      ) {
+        setCatOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCatOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
   const [navCategories, setNavCategories] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<any[]>([]);
   const [listingsCounts, setListingsCounts] = useState<Record<string, number>>({});
   const [cartItems, setCartItems] = useState(cartStore.getItems());
+  const [headerSearch, setHeaderSearch] = useState("");
 
   // Real-time Notifications & Sound (unlocked dynamically via user interaction)
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -311,15 +356,21 @@ export function Header({ transparent }: { transparent?: boolean }) {
           : cats.filter((c: any) => !["accounts", "currency", "gift-cards", "boosting", "coaching", "subscriptions", "game-accounts", "rank-boosting", "in-game-credits"].includes(c.slug));
 
         const slugCounts: Record<string, number> = {};
-        parents.forEach((p: any) => {
-          const children = hasParentId
-            ? cats.filter((c: any) => c.parent_id === p.id)
-            : (p.slug === "gaming-entertainment"
-                ? cats.filter((c: any) => ["accounts", "currency", "gift-cards", "boosting", "coaching", "subscriptions", "game-accounts", "rank-boosting", "in-game-credits"].includes(c.slug))
-                : []);
-          
-          const totalCount = (counts[p.id] ?? 0) + children.reduce((sum: number, child: any) => sum + (counts[child.id] ?? 0), 0);
-          slugCounts[p.slug] = totalCount;
+        cats.forEach((cat: any) => {
+          const uiSlug = getUiSlugFromDbSlug(cat.slug);
+          const directCount = counts[cat.id] ?? 0;
+          slugCounts[uiSlug] = (slugCounts[uiSlug] ?? 0) + directCount;
+        });
+        
+        cats.forEach((cat: any) => {
+          if (cat.parent_id) {
+            const parentCat = cats.find((p: any) => p.id === cat.parent_id);
+            if (parentCat) {
+              const parentUiSlug = getUiSlugFromDbSlug(parentCat.slug);
+              const childDirectCount = counts[cat.id] ?? 0;
+              slugCounts[parentUiSlug] = (slugCounts[parentUiSlug] ?? 0) + childDirectCount;
+            }
+          }
         });
 
         setAllCategories(cats);
@@ -468,15 +519,25 @@ export function Header({ transparent }: { transparent?: boolean }) {
           <div className="hidden md:flex flex-1 max-w-2xl items-stretch rounded-xl border border-border bg-surface/80 overflow-hidden focus-within:border-gold/60 transition-colors">
             <button
               onClick={() => setCatOpen((v) => !v)}
-              className="flex items-center gap-1.5 px-4 text-sm text-muted-foreground hover:text-foreground border-r border-border whitespace-nowrap"
+              className="flex items-center gap-1.5 px-4 text-sm text-muted-foreground hover:text-foreground border-r border-border whitespace-nowrap cursor-pointer"
             >
               All Categories <ChevronDown className="size-3.5" />
             </button>
             <input
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  navigate({ to: "/search", search: { q: headerSearch } });
+                }
+              }}
               placeholder="Search for digital products, services..."
               className="flex-1 bg-transparent outline-none text-sm px-4 placeholder:text-muted-foreground h-11"
             />
-            <button className="px-5 bg-gold text-primary-foreground hover:brightness-110 transition-all flex items-center justify-center">
+            <button 
+              onClick={() => navigate({ to: "/search", search: { q: headerSearch } })}
+              className="px-5 bg-gold text-primary-foreground hover:brightness-110 transition-all flex items-center justify-center cursor-pointer"
+            >
               <Search className="size-4" />
             </button>
           </div>
@@ -700,11 +761,14 @@ export function Header({ transparent }: { transparent?: boolean }) {
                   aria-label="User menu"
                 >
                   <div className="size-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center overflow-hidden shrink-0">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt={displayName} className="size-full object-cover" />
-                    ) : (
-                      <span className="text-[10px] font-bold text-gold">{initials}</span>
-                    )}
+                    <img
+                      src={getUserAvatar(avatarUrl)}
+                      alt={displayName}
+                      className="size-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = DEFAULT_AVATAR_URL;
+                      }}
+                    />
                   </div>
                   <span className="hidden sm:block text-sm font-medium max-w-[90px] truncate">
                     {displayName}
@@ -720,11 +784,14 @@ export function Header({ transparent }: { transparent?: boolean }) {
                     <div className="px-4 py-3 border-b border-border/60 bg-surface/30">
                       <div className="flex items-center gap-2.5 mb-1">
                         <div className="size-8 rounded-full bg-gold/20 border border-gold/30 overflow-hidden flex items-center justify-center shrink-0">
-                          {avatarUrl ? (
-                            <img src={avatarUrl} alt="" className="size-full object-cover" />
-                          ) : (
-                            <span className="text-[10px] font-bold text-gold">{initials}</span>
-                          )}
+                          <img
+                            src={getUserAvatar(avatarUrl)}
+                            alt=""
+                            className="size-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = DEFAULT_AVATAR_URL;
+                            }}
+                          />
                         </div>
                         <div className="min-w-0">
                           <div className="font-semibold text-sm truncate">{displayName}</div>
@@ -842,14 +909,22 @@ export function Header({ transparent }: { transparent?: boolean }) {
 
         {/* ── Sub nav ────────────────────────────────────────────── */}
         {/* ── Category Quick Access Ribbon ────────────────────────────── */}
-        <div className={`${transparent ? "border-t-0 border-transparent bg-transparent backdrop-blur-none shadow-none" : "border-t border-border/60 bg-[#101114]/85 backdrop-blur-md shadow-inner"} hidden md:block w-full overflow-hidden relative`} onMouseLeave={() => { setHoveredCatId(null); setCatOpen(false); }}>
+        <div className={`${transparent ? "border-t-0 border-transparent bg-transparent backdrop-blur-none shadow-none" : "border-t border-border/60 bg-[#101114]/85 backdrop-blur-md shadow-inner"} hidden md:block w-full overflow-hidden relative`} onMouseLeave={() => { setHoveredCatId(null); }}>
           <div className="container-page flex items-center justify-between h-12 gap-4">
             <div className="flex-1 min-w-0 flex items-center gap-6 overflow-x-auto scrollbar-none py-1">
               
               {/* Categories Dropdown Trigger */}
               <button 
-                onClick={() => setCatOpen((v) => !v)}
-                onMouseEnter={() => setCatOpen(true)}
+                ref={triggerRef}
+                onClick={() => {
+                  cancelCloseTimer();
+                  setCatOpen((v) => !v);
+                }}
+                onMouseEnter={() => {
+                  cancelCloseTimer();
+                  setCatOpen(true);
+                }}
+                onMouseLeave={startCloseTimer}
                 className="flex items-center gap-2 px-3 py-1.5 text-[13px] font-semibold text-gold bg-gold/5 hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-lg whitespace-nowrap transition-all shadow-sm cursor-pointer"
               >
                 <LayoutGrid className="size-3.5" /> Categories <ChevronDown className={`size-3 transition-transform duration-200 ${catOpen ? "rotate-180" : ""}`} />
@@ -936,7 +1011,8 @@ export function Header({ transparent }: { transparent?: boolean }) {
               isOpen={true}
               onClose={() => setHoveredCatId(null)}
               subcategories={(() => {
-                const dbCat = allCategories.find(c => c.slug === hoveredCatId);
+                const dbSlug = getDbSlugFromUiSlug(hoveredCatId);
+                const dbCat = allCategories.find(c => c.slug === dbSlug);
                 return dbCat ? allCategories.filter(c => c.parent_id === dbCat.id) : [];
               })()}
             />
@@ -946,8 +1022,10 @@ export function Header({ transparent }: { transparent?: boolean }) {
         {/* ── Category mega dropdown ───────────────────────────── */}
         {catOpen && (
           <div
+            ref={panelRef}
             className="absolute left-0 right-0 top-full border-b border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
-            onMouseLeave={() => setCatOpen(false)}
+            onMouseEnter={cancelCloseTimer}
+            onMouseLeave={startCloseTimer}
           >
             <div className="container-page py-6 grid grid-cols-1 md:grid-cols-12 gap-8 min-h-[400px]">
               {/* Left Side - Quick Lists */}

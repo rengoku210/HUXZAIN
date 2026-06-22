@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { Header } from "@/components/site/Header";
-import { Footer } from "@/components/site/Footer";
 import {
   MessageSquare,
   Send,
@@ -29,6 +29,7 @@ import { openDispute } from "@/lib/marketplace/disputeService";
 import { analyzeFraudRisk, buildFraudSystemMessage } from "@/lib/chat/fraud-detection";
 import { submitChatReport } from "@/lib/admin/moderation.functions";
 import { getCategoryTypeFromSlug } from "@/lib/marketplace/listing-attributes";
+import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({ meta: [{ title: "Messages — HUXZAIN" }] }),
@@ -144,6 +145,10 @@ function MessagesPage() {
   const [loadingChat, setLoadingChat] = useState(false);
   const [sending, setSending] = useState(false);
 
+  // Mobile/tablet panel navigation (WhatsApp-style): which single panel is
+  // visible below the lg breakpoint. Desktop (lg+) always shows all panels.
+  const [mobileView, setMobileView] = useState<"list" | "chat" | "order">("list");
+
   // Review states
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedRating, setSelectedRating] = useState(5);
@@ -187,7 +192,18 @@ function MessagesPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const convListRef = useRef<HTMLDivElement>(null);
   const soundEnabledRef = useRef(true);
+
+  // Virtualize the inbox so it stays responsive with 500+ conversations.
+  // Each row is a fixed compact height; only on-screen rows are rendered.
+  const CONV_ROW_HEIGHT = 64;
+  const convVirtualizer = useVirtualizer({
+    count: conversations.length,
+    getScrollElement: () => convListRef.current,
+    estimateSize: () => CONV_ROW_HEIGHT,
+    overscan: 8,
+  });
 
   // Track timer updates
   useEffect(() => {
@@ -341,58 +357,23 @@ function MessagesPage() {
       const targetOrderId = orderId as string;
       console.log("[Chat] Processing order chat intent for order ID:", targetOrderId);
       try {
-        // 1. Fetch order details
-        const { data: orderData, error: orderErr } = await supabase
-          .from("orders")
-          .select("*, listings:listing_id(title, seller_id)")
-          .eq("id", targetOrderId)
+        // Idempotently get-or-create the conversation for this order. Runs
+        // server-side (SECURITY DEFINER) so it works for the buyer or the seller,
+        // regardless of email-verification, and is race-safe against the
+        // approval-path / StrictMode double-fire.
+        const { data: conv, error } = await supabase
+          .rpc("get_or_create_order_conversation", { p_order_id: targetOrderId })
           .single();
 
-        if (orderErr || !orderData) {
-          toast.error("Could not load details for order chat intent.");
-          return;
-        }
+        if (error || !conv) throw error ?? new Error("Failed to open order conversation");
 
-        // 2. Check if a conversation already exists
-        const { data: existing } = await supabase
-          .from("conversations")
-          .select("id")
-          .eq("order_id", targetOrderId)
-          .maybeSingle();
-
-        if (existing) {
-          await loadConversations(existing.id);
-        } else {
-          // 3. Create new conversation
-          const { data: newConv, error: createErr } = await supabase
-            .from("conversations")
-            .insert({
-              order_id: targetOrderId,
-              buyer_id: orderData.buyer_id,
-              seller_id: orderData.seller_id,
-              listing_id: orderData.listing_id,
-              subject: orderData.listings?.title || `Escrow Order: ${targetOrderId.slice(0, 8)}`,
-              last_message_preview: "Escrow chat unlocked.",
-              last_message_at: new Date().toISOString(),
-            })
-            .select("id")
-            .single();
-
-          if (createErr || !newConv) throw createErr || new Error("Failed to create conversation");
-
-          // Insert system message
-          await supabase.from("messages").insert({
-            conversation_id: newConv.id,
-            sender_id: orderData.seller_id,
-            body: "Chat unlocked. Safe escrow communication channel opened.",
-            is_system: true,
-          });
-
-          toast.success("Safe escrow chat unlocked!");
-          await loadConversations(newConv.id);
-        }
+        await loadConversations((conv as { id: string }).id);
+        setMobileView("chat");
       } catch (err: any) {
         console.error("[Chat] Intent setup error:", err);
+        toast.error("Couldn't open this order's chat.");
+        // Always resolve the inbox so the spinner never hangs.
+        await loadConversations();
       }
     }
 
@@ -1071,11 +1052,11 @@ function MessagesPage() {
   const activeOtherInitials = activeOtherName.slice(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-screen overflow-hidden flex flex-col bg-background">
       <Header />
-      <main className="flex-1 container-page py-4 lg:py-8 max-w-6xl mx-auto flex flex-col h-[calc(100vh-120px)] lg:h-[calc(100vh-140px)] animate-fade-in">
+      <main className="flex-1 min-h-0 w-full px-2 sm:px-4 lg:px-6 py-3 flex flex-col animate-fade-in">
         {/* Page title */}
-        <div className="mb-4 flex items-center justify-between px-1">
+        <div className="mb-3 shrink-0 flex items-center justify-between px-1">
           <div>
             <h1 className="font-display text-xl lg:text-2xl font-bold flex items-center gap-2">
               <MessageSquare className="text-gold" /> Escrow Chat Panel
@@ -1092,10 +1073,12 @@ function MessagesPage() {
           </button>
         </div>
 
-        {/* Unified Chat Container Layout */}
-        <div className="flex-1 grid md:grid-cols-[260px_1fr] rounded-3xl border border-border/80 bg-surface/30 overflow-hidden shadow-2xl backdrop-blur-md">
-          {/* LEFT COLUMN: Conversations List */}
-          <aside className={`border-r border-border/80 flex-col h-full bg-surface/20 ${activeConv ? "hidden md:flex" : "flex"}`}>
+        {/* Unified Chat Container Layout — single responsive 3-panel grid.
+            Mobile: one panel at a time (mobileView). Tablet (md): list + messages.
+            Desktop (lg): chat list | messages | order info, all independent scroll. */}
+        <div className={`flex-1 min-h-0 grid grid-cols-1 ${activeConv?.order ? "md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)_340px]" : "md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)]"} rounded-3xl border border-border/80 bg-surface/30 overflow-hidden shadow-2xl backdrop-blur-md`}>
+          {/* PANEL 1: Conversations List */}
+          <aside className={`border-r border-border/80 flex-col h-full min-h-0 overflow-hidden bg-surface/20 ${mobileView === "list" ? "flex" : "hidden"} md:flex`}>
             <div className="p-4 border-b border-border/60">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
@@ -1106,7 +1089,7 @@ function MessagesPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-border/40 scrollbar-thin">
+            <div ref={convListRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
               {loadingList ? (
                 <div className="py-20 flex flex-col items-center justify-center gap-3">
                   <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gold"></div>
@@ -1121,78 +1104,92 @@ function MessagesPage() {
                   </p>
                 </div>
               ) : (
-                conversations.map((c) => {
-                  const active = activeConv?.id === c.id;
-                  const isBuyer = c.buyer_id === user?.id;
-                  const unread = isBuyer ? c.buyer_unread : c.seller_unread;
-                  const otherName = c.otherUser?.display_name || c.otherUser?.username || "Participant";
-                  const otherInitials = otherName.slice(0, 2).toUpperCase();
+                <div className="relative w-full" style={{ height: `${convVirtualizer.getTotalSize()}px` }}>
+                  {convVirtualizer.getVirtualItems().map((vi) => {
+                    const c = conversations[vi.index];
+                    const active = activeConv?.id === c.id;
+                    const isBuyer = c.buyer_id === user?.id;
+                    const unread = isBuyer ? c.buyer_unread : c.seller_unread;
+                    const otherName = c.otherUser?.display_name || c.otherUser?.username || "Participant";
+                    const otherInitials = otherName.slice(0, 2).toUpperCase();
 
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setActiveConv(c)}
-                      className={`w-full text-left p-4 hover:bg-surface/40 transition-all flex items-start gap-3 relative ${
-                        active ? "bg-gold/10 border-l-4 border-l-gold" : ""
-                      }`}
-                    >
-                      <div className="size-9 rounded-full bg-gold/10 border border-gold/20 overflow-hidden flex items-center justify-center shrink-0">
-                        {c.otherUser?.avatar_url ? (
-                          <img src={c.otherUser.avatar_url} alt="" className="size-full object-cover" />
-                        ) : (
-                          <span className="text-xs font-bold text-gold">{otherInitials}</span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="font-bold text-xs truncate text-foreground/90">{otherName}</span>
-                          <span className="text-[9px] text-muted-foreground shrink-0 font-mono">
-                            {new Date(c.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => { setActiveConv(c); setMobileView("chat"); }}
+                        className={`absolute left-0 top-0 w-full text-left px-3 flex items-center gap-3 border-b border-border/40 hover:bg-surface/40 transition-colors ${
+                          active ? "bg-gold/10 border-l-4 border-l-gold" : ""
+                        }`}
+                        style={{ height: `${vi.size}px`, transform: `translateY(${vi.start}px)` }}
+                      >
+                        <div className="size-10 rounded-full bg-gold/10 border border-gold/20 overflow-hidden flex items-center justify-center shrink-0">
+                          <img
+                            src={getUserAvatar(c.otherUser?.avatar_url)}
+                            alt=""
+                            className="size-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = DEFAULT_AVATAR_URL;
+                            }}
+                          />
                         </div>
-                        <div className="text-[10px] text-gold font-medium truncate mb-1 flex items-center justify-between gap-1">
-                          <span className="truncate">{c.subject}</span>
-                          {c.chat_number && (
-                            <span className="font-mono text-[8px] bg-gold/10 px-1 rounded text-gold shrink-0">{c.chat_number}</span>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-xs truncate text-foreground/90">{otherName}</span>
+                            <span className="text-[9px] text-muted-foreground font-mono shrink-0">
+                              {new Date(c.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <span className="text-[11px] text-muted-foreground truncate">
+                              {c.last_message_preview || "No messages yet"}
+                            </span>
+                            {unread > 0 && (
+                              <span className="shrink-0 size-4 rounded-full bg-gold text-primary-foreground text-[9px] font-extrabold flex items-center justify-center">
+                                {unread}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-muted-foreground truncate leading-relaxed">
-                          {c.last_message_preview || "No messages yet"}
-                        </div>
-                      </div>
-                      {unread > 0 && (
-                        <span className="absolute right-4 bottom-4 size-4 rounded-full bg-gold text-primary-foreground text-[9px] font-extrabold flex items-center justify-center">
-                          {unread}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </aside>
 
-          {/* RIGHT COLUMN: Chat Box + Split Order Room Layout */}
-          {activeConv ? (
-            <div className={`h-full relative grid grid-rows-[1fr_auto] md:grid-rows-none ${activeConv.order ? "md:grid-cols-[1fr_340px]" : "grid-cols-1"}`}>
-              {/* CHAT WINDOW INTERFACES */}
-              <section className="flex flex-col h-full bg-surface/10 border-r border-border/60 relative">
+          {/* PANEL 2: Messages */}
+          <section className={`${mobileView === "chat" ? "flex" : "hidden"} md:flex flex-col h-full min-h-0 overflow-hidden bg-surface/10 relative`}>
+            {!activeConv && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                <MessageCircle size={48} className="text-muted-foreground/40 mb-3 animate-pulse" />
+                <h3 className="font-semibold text-base">Select a conversation</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                  Click a conversation on the left list, or navigate from orders to chat.
+                </p>
+              </div>
+            )}
+            {activeConv && (
+              <>
                 {/* Chat Header */}
                 <div className="p-3 lg:p-4 border-b border-border/60 bg-surface/40 flex items-center justify-between gap-3 lg:gap-4 flex-wrap shadow-sm">
                   <div className="flex items-center gap-2 lg:gap-3">
                     <button
-                      onClick={() => setActiveConv(null)}
+                      onClick={() => setMobileView("list")}
                       className="md:hidden h-8 w-8 rounded-full border border-gold/20 bg-gold/10 hover:bg-gold/20 flex items-center justify-center text-gold transition-all shrink-0 font-bold active:scale-95"
                       title="Back to Inbox"
                     >
                       ←
                     </button>
                     <div className="size-9 lg:size-10 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
-                      {activeConv.otherUser?.avatar_url ? (
-                        <img src={activeConv.otherUser.avatar_url} alt="" className="size-full object-cover" />
-                      ) : (
-                        <span className="text-xs lg:text-sm font-bold text-gold">{activeOtherInitials}</span>
-                      )}
+                      <img
+                        src={getUserAvatar(activeConv.otherUser?.avatar_url)}
+                        alt=""
+                        className="size-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = DEFAULT_AVATAR_URL;
+                        }}
+                      />
                     </div>
                     <div>
                       <div className="font-bold text-xs lg:text-sm text-foreground/95 flex items-center gap-1.5">
@@ -1238,6 +1235,16 @@ function MessagesPage() {
                       </div>
                     )}
 
+                    {activeConv.order && (
+                      <button
+                        type="button"
+                        onClick={() => setMobileView("order")}
+                        className="lg:hidden h-7 px-3 rounded-lg border border-gold/30 bg-gold/10 text-gold font-bold text-[9px] uppercase tracking-wider hover:bg-gold/20 transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer"
+                      >
+                        Order Info
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setReportModalOpen(true)}
@@ -1251,7 +1258,7 @@ function MessagesPage() {
                 {/* Messages List */}
                 <div
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scroll-smooth"
+                  className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scroll-smooth"
                 >
                   {/* Protection Warning Alert */}
                   <div className="rounded-2xl border border-gold/20 bg-gold/5 p-4 text-xs leading-relaxed text-muted-foreground/90 max-w-lg mx-auto flex items-start gap-2.5">
@@ -1412,11 +1419,14 @@ function MessagesPage() {
                         >
                           {!isMe && (
                             <div className="size-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
-                              {activeConv.otherUser?.avatar_url ? (
-                                <img src={activeConv.otherUser.avatar_url} alt="" className="size-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] font-bold text-gold">{activeOtherInitials}</span>
-                              )}
+                              <img
+                                src={getUserAvatar(activeConv.otherUser?.avatar_url)}
+                                alt=""
+                                className="size-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = DEFAULT_AVATAR_URL;
+                                }}
+                              />
                             </div>
                           )}
 
@@ -1445,8 +1455,8 @@ function MessagesPage() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input area */}
-                <div className="border-t border-border/60 bg-surface/30 flex flex-col pt-2 pb-4 px-4">
+                {/* Input area — pinned to the bottom of the message panel */}
+                <div className="shrink-0 border-t border-border/60 bg-surface/30 flex flex-col pt-2 pb-4 px-4">
                   {policyWarningText && (
                     <div className="mb-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 flex items-start gap-2 animate-in slide-in-from-bottom-2">
                       <AlertCircle className="size-4 shrink-0 mt-0.5 text-rose-400" />
@@ -1473,11 +1483,20 @@ function MessagesPage() {
                     </button>
                   </form>
                 </div>
-              </section>
+              </>
+            )}
+          </section>
 
-              {/* ELDORADO ORDER ROOM SPLIT DETAIL COLUMN */}
-              {activeConv.order && (
-                <aside className="border-t md:border-t-0 md:border-l border-border/60 bg-surface/25 flex flex-col h-[480px] md:h-full overflow-y-auto scrollbar-thin p-4 space-y-4">
+          {/* PANEL 3: Order Info — third column on desktop, full-screen overlay on mobile/tablet */}
+          {activeConv?.order && (
+            <aside className={`${mobileView === "order" ? "flex" : "hidden"} lg:flex flex-col min-h-0 overflow-y-auto scrollbar-thin p-4 space-y-4 fixed inset-0 z-40 bg-background lg:static lg:inset-auto lg:z-auto lg:h-full lg:bg-surface/25 lg:border-l border-border/60`}>
+              <button
+                type="button"
+                onClick={() => setMobileView("chat")}
+                className="lg:hidden self-start mb-1 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gold/20 bg-gold/10 text-gold text-xs font-semibold cursor-pointer active:scale-95"
+              >
+                ← Back to chat
+              </button>
                   <div className="flex items-center gap-2 pb-2.5 border-b border-border/60">
                     <ShoppingBag className="text-gold size-4 shrink-0" />
                     <h3 className="font-display font-bold text-xs uppercase tracking-wider text-foreground">
@@ -2142,21 +2161,10 @@ function MessagesPage() {
                       </div>
                     </div>
                   )}
-                </aside>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-              <MessageCircle size={48} className="text-muted-foreground/40 mb-3 animate-pulse" />
-              <h3 className="font-semibold text-base">Select a conversation</h3>
-              <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                Click a conversation on the left list, or navigate from orders to chat.
-              </p>
-            </div>
+            </aside>
           )}
         </div>
       </main>
-      <Footer />
 
       {/* Dispute Modal */}
       {disputeOpen && activeConv && (

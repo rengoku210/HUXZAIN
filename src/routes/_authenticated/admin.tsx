@@ -21,6 +21,7 @@ import {
   Activity,
   ShieldAlert,
   Palette,
+  Rocket,
 } from "lucide-react";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -57,6 +58,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: "/admin/finances", label: "Financial Control", icon: Landmark },
       { to: "/admin/payments", label: "Payments", icon: CreditCard },
+      { to: "/admin/boosts", label: "Boost Requests", icon: Rocket },
       { to: "/admin/invoices", label: "Invoices", icon: FileText },
       { to: "/admin/invoice-templates", label: "Invoice Templates", icon: Palette },
       { to: "/admin/withdrawals", label: "Withdrawals", icon: CreditCard },
@@ -112,10 +114,10 @@ function AdminLayout() {
   const staffAllowedPaths = useMemo(() => {
     let paths: string[] = ["/admin/tasks"]; // All staff can see their tasks
     if (auth.hasRole("staff")) {
-      paths.push("/admin/payments", "/admin/subscriptions", "/admin/tickets");
+      paths.push("/admin/payments", "/admin/subscriptions", "/admin/tickets", "/admin/boosts");
     }
     if (isPaymentReviewer) {
-      paths.push("/admin/withdrawals", "/admin/earnings", "/admin/finances");
+      paths.push("/admin/withdrawals", "/admin/earnings", "/admin/finances", "/admin/boosts");
     }
     if (isVerificationOfficer) {
       paths.push("/admin/verifications");

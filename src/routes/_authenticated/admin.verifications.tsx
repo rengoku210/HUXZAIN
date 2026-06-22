@@ -26,8 +26,11 @@ export const Route = createFileRoute("/_authenticated/admin/verifications")({
 interface VerificationRecord {
   id: string;
   government_id_url: string | null;
+  government_id_status?: string;
   selfie_url: string | null;
+  selfie_status?: string;
   address_proof_url: string | null;
+  address_proof_status?: string;
   payout_details: {
     method?: "upi" | "bank_transfer";
     accountHolder?: string;
@@ -59,6 +62,9 @@ function KYCVerifications() {
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [notesDecision, setNotesDecision] = useState<"rejected" | "action_required">("rejected");
   const [adminNotes, setAdminNotes] = useState("");
+  const [govtDecision, setGovtDecision] = useState<"approved" | "rejected" | "under_review">("under_review");
+  const [selfieDecision, setSelfieDecision] = useState<"approved" | "rejected" | "under_review">("under_review");
+  const [addrDecision, setAddrDecision] = useState<"approved" | "rejected" | "under_review">("under_review");
 
   const supabase = getSupabase();
 
@@ -111,10 +117,44 @@ function KYCVerifications() {
     setSelectedRecordId(id);
     setNotesDecision(decision);
     setAdminNotes("");
+    
+    // Find the record to pre-populate current statuses
+    const existing = verifications.find(v => v.id === id);
+    setGovtDecision(
+      existing?.government_id_status === "APPROVED" 
+        ? "approved" 
+        : existing?.government_id_status === "REJECTED" 
+          ? "rejected" 
+          : "under_review"
+    );
+    setSelfieDecision(
+      existing?.selfie_status === "APPROVED" 
+        ? "approved" 
+        : existing?.selfie_status === "REJECTED" 
+          ? "rejected" 
+          : "under_review"
+    );
+    setAddrDecision(
+      existing?.address_proof_status === "APPROVED" 
+        ? "approved" 
+        : existing?.address_proof_status === "REJECTED" 
+          ? "rejected" 
+          : "under_review"
+    );
+    
     setShowNotesModal(true);
   };
 
-  const handleDecision = async (id: string, decision: "approved" | "rejected" | "action_required", notes = "") => {
+  const handleDecision = async (
+    id: string, 
+    decision: "approved" | "rejected" | "action_required", 
+    notes = "",
+    docResubmissions?: {
+      government_id?: "approved" | "rejected" | "under_review";
+      selfie?: "approved" | "rejected" | "under_review";
+      address_proof?: "approved" | "rejected" | "under_review";
+    }
+  ) => {
     if (!supabase) return;
     
     setActioningId(id);
@@ -122,12 +162,55 @@ function KYCVerifications() {
       const { data: authUser } = await supabase.auth.getUser();
       const staffId = authUser.user?.id;
 
+      const existing = verifications.find(v => v.id === id);
+      
+      let govtStatus = "APPROVED";
+      let selfieStatus = "APPROVED";
+      let addrStatus = "APPROVED";
+
+      if (decision === "approved") {
+        govtStatus = "APPROVED";
+        selfieStatus = "APPROVED";
+        addrStatus = "APPROVED";
+      } else if (decision === "rejected") {
+        govtStatus = "REJECTED";
+        selfieStatus = "REJECTED";
+        addrStatus = "REJECTED";
+      } else if (decision === "action_required" && docResubmissions) {
+        govtStatus = !existing?.government_id_url 
+          ? "NOT_STARTED" 
+          : (docResubmissions.government_id === "approved" ? "APPROVED" : docResubmissions.government_id === "rejected" ? "REJECTED" : "UNDER_REVIEW");
+          
+        selfieStatus = !existing?.selfie_url 
+          ? "NOT_STARTED" 
+          : (docResubmissions.selfie === "approved" ? "APPROVED" : docResubmissions.selfie === "rejected" ? "REJECTED" : "UNDER_REVIEW");
+          
+        addrStatus = !existing?.address_proof_url 
+          ? "NOT_STARTED" 
+          : (docResubmissions.address_proof === "approved" ? "APPROVED" : docResubmissions.address_proof === "rejected" ? "REJECTED" : "UNDER_REVIEW");
+      }
+
+      let overallStatus: "approved" | "rejected" | "action_required" | "pending" = decision;
+      if (decision === "action_required" && docResubmissions) {
+        const statuses = [govtStatus, selfieStatus, addrStatus];
+        if (statuses.includes("REJECTED")) {
+          overallStatus = "action_required";
+        } else if (statuses.every(s => s === "APPROVED" || s === "NOT_STARTED")) {
+          overallStatus = "approved";
+        } else {
+          overallStatus = "pending";
+        }
+      }
+
       // 1. Update verifications status and notes
       const { error: vErr } = await supabase
         .from("verifications")
         .update({ 
-          status: decision, 
+          status: overallStatus, 
           admin_notes: notes || null,
+          government_id_status: govtStatus,
+          selfie_status: selfieStatus,
+          address_proof_status: addrStatus,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString() 
         })
@@ -226,6 +309,8 @@ function KYCVerifications() {
     return matchesStatus && matchesSearch;
   });
 
+  const selectedRecord = verifications.find(v => v.id === selectedRecordId);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -309,36 +394,81 @@ function KYCVerifications() {
                     </td>
                     <td className="px-5 py-4">
                       {v.government_id_url ? (
-                        <button
-                          onClick={() => setViewingDocUrl(v.government_id_url)}
-                          className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
-                        >
-                          <Eye size={12} /> View Document
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => setViewingDocUrl(v.government_id_url)}
+                            className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
+                          >
+                            <Eye size={12} /> View Document
+                          </button>
+                          <div>
+                            <StatusPill 
+                              status={
+                                v.government_id_status === "APPROVED" 
+                                  ? "Completed" 
+                                  : v.government_id_status === "REJECTED" 
+                                    ? "Rejected" 
+                                    : v.government_id_status === "UNDER_REVIEW" 
+                                      ? "Review" 
+                                      : "Pending"
+                              } 
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/60">—</span>
                       )}
                     </td>
                     <td className="px-5 py-4">
                       {v.selfie_url ? (
-                        <button
-                          onClick={() => setViewingDocUrl(v.selfie_url)}
-                          className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
-                        >
-                          <Eye size={12} /> View Selfie
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => setViewingDocUrl(v.selfie_url)}
+                            className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
+                          >
+                            <Eye size={12} /> View Selfie
+                          </button>
+                          <div>
+                            <StatusPill 
+                              status={
+                                v.selfie_status === "APPROVED" 
+                                  ? "Completed" 
+                                  : v.selfie_status === "REJECTED" 
+                                    ? "Rejected" 
+                                    : v.selfie_status === "UNDER_REVIEW" 
+                                      ? "Review" 
+                                      : "Pending"
+                              } 
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/60">—</span>
                       )}
                     </td>
                     <td className="px-5 py-4">
                       {v.address_proof_url ? (
-                        <button
-                          onClick={() => setViewingDocUrl(v.address_proof_url)}
-                          className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer"
-                        >
-                          <Eye size={12} /> View Address
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => setViewingDocUrl(v.address_proof_url)}
+                            className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
+                          >
+                            <Eye size={12} /> View Address
+                          </button>
+                          <div>
+                            <StatusPill 
+                              status={
+                                v.address_proof_status === "APPROVED" 
+                                  ? "Completed" 
+                                  : v.address_proof_status === "REJECTED" 
+                                    ? "Rejected" 
+                                    : v.address_proof_status === "UNDER_REVIEW" 
+                                      ? "Review" 
+                                      : "Pending"
+                              } 
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/60">—</span>
                       )}
@@ -429,6 +559,56 @@ function KYCVerifications() {
               placeholder="e.g. Please upload a clearer selfie holding your passport. The ID image was blurry."
               className="w-full p-3 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-gold/50 resize-none"
             />
+            {notesDecision === "action_required" && selectedRecord && (
+              <div className="space-y-3 border-y border-border/50 py-3 text-left">
+                <div className="text-xs font-bold text-foreground">Set Document Audit Results:</div>
+                
+                {selectedRecord.government_id_url && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground block">Government ID Status</label>
+                    <select
+                      value={govtDecision}
+                      onChange={(e) => setGovtDecision(e.target.value as any)}
+                      className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:border-gold outline-none"
+                    >
+                      <option value="under_review">Under Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected (Needs Resubmit)</option>
+                    </select>
+                  </div>
+                )}
+
+                {selectedRecord.selfie_url && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground block">Verification Selfie Status</label>
+                    <select
+                      value={selfieDecision}
+                      onChange={(e) => setSelfieDecision(e.target.value as any)}
+                      className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:border-gold outline-none"
+                    >
+                      <option value="under_review">Under Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected (Needs Resubmit)</option>
+                    </select>
+                  </div>
+                )}
+
+                {selectedRecord.address_proof_url && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground block">Address Proof Status</label>
+                    <select
+                      value={addrDecision}
+                      onChange={(e) => setAddrDecision(e.target.value as any)}
+                      className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:border-gold outline-none"
+                    >
+                      <option value="under_review">Under Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected (Needs Resubmit)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
@@ -439,7 +619,7 @@ function KYCVerifications() {
               </button>
               <button
                 type="button"
-                onClick={() => handleDecision(selectedRecordId!, notesDecision, adminNotes)}
+                onClick={() => handleDecision(selectedRecordId!, notesDecision, adminNotes, { government_id: govtDecision, selfie: selfieDecision, address_proof: addrDecision })}
                 disabled={actioningId !== null || !adminNotes.trim()}
                 className="flex-1 h-10 rounded-xl bg-gold text-black text-xs font-bold hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-50"
               >
