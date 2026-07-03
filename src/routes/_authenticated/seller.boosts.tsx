@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { PremiumLockScreen } from "@/components/seller/PremiumLockScreen";
 
 export const Route = createFileRoute("/_authenticated/seller/boosts")({
-  head: () => ({ meta: [{ title: "Boosts — HUXZAIN Seller" }] }),
+  head: () => ({ meta: [{ title: "Promotion Center — HUXZAIN Seller" }] }),
   component: Page,
 });
 
@@ -46,9 +46,11 @@ const boostOptions = [
   },
   {
     id: "urgent_sale",
+    // Official spec (Category & huxzain features, Part 3): Urgent Sale is a flat
+    // ₹149 tag that stays active until the listing's own 30-day expiry.
     name: "Urgent Sale Badge",
-    desc: "Add a red urgent tag and custom styling to draw instant attention for 3 days.",
-    price: 79,
+    desc: "Add a red urgent tag to draw instant attention. Stays active until the listing expires.",
+    price: 149,
     min: "standard" as const,
   },
   {
@@ -108,10 +110,10 @@ function Page() {
 
       const supabase = getSupabase();
       if (supabase) {
-        // Load active seller listings
+        // Load active seller listings (expiry_date drives Urgent Sale duration)
         const { data: lst } = await supabase
           .from("listings")
-          .select("id, title")
+          .select("id, title, expiry_date")
           .eq("seller_id", user.id)
           .eq("status", "active");
         if (lst) {
@@ -221,7 +223,17 @@ function Page() {
     try {
       isSubmittingBoostRef.current = true;
       setSubmitting(true);
-      const durationDays = selectedOption.id === "urgent_sale" ? 3 : selectedOption.id === "glow_highlight" ? 5 : 7;
+      // Urgent Sale stays active until the listing's own expiry (spec); fall back
+      // to a full 30-day cycle if the expiry_date is not yet stamped.
+      const urgentDays = (() => {
+        const l = listings.find((x) => x.id === selectedListing);
+        if (l?.expiry_date) {
+          const d = Math.ceil((new Date(l.expiry_date).getTime() - Date.now()) / 86400000);
+          return d > 0 ? d : 30;
+        }
+        return 30;
+      })();
+      const durationDays = selectedOption.id === "urgent_sale" ? urgentDays : selectedOption.id === "glow_highlight" ? 5 : 7;
 
       if (payMethod === "token") {
         await activateBoostWithToken({
@@ -297,9 +309,9 @@ function Page() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Boosts & Advertising</h1>
+          <h1 className="font-display text-2xl font-bold">Promotion Center</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Activate premium placements to drive traffic and increase sales.
+            All your promotions in one place — Boost to Top, Homepage &amp; Category Featured, Urgent Sale, and Glow Highlight.
           </p>
         </div>
         <button
@@ -349,7 +361,7 @@ function Page() {
                       const active = selectedOption.id === opt.id;
                       const eligible = tierAtLeast(tier, opt.min);
                       const isSpotlightBooked = opt.id === "homepage_spotlight" && spotlightCount >= 5;
-                      const duration = opt.id === "urgent_sale" ? "3 days" : opt.id === "glow_highlight" ? "5 days" : "7 days";
+                      const duration = opt.id === "urgent_sale" ? "until listing expires" : opt.id === "glow_highlight" ? "5 days" : "7 days";
                       return (
                         <button
                           key={opt.id}

@@ -102,7 +102,8 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     id: "enterprise",
     label: "Enterprise",
     tagline: "White-glove infrastructure for large studios.",
-    monthly: 10000,
+    // Per official spec (Seller subscription plans full detail — Enterprise): ₹9,999/mo.
+    monthly: 9999,
     accent: "text-violet-300",
     ring: "ring-violet-400/40",
     badgeGradient: "linear-gradient(135deg, #c4b5fd, #7c3aed)",

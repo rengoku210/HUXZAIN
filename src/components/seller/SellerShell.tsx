@@ -17,7 +17,6 @@ import {
   Settings,
   LifeBuoy,
   CreditCard,
-  Megaphone,
   LogOut,
   AlertCircle,
   Bell,
@@ -34,6 +33,7 @@ import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { SellerTierProvider, useSellerTier, type SellerTier, tierAtLeast } from "@/lib/seller/tier-context";
+import { useNotifications } from "@/hooks/useNotifications";
 import { TierBadge } from "./TierBadge";
 import { UpgradeCelebration } from "./UpgradeCelebration";
 
@@ -72,15 +72,14 @@ const navGroups: NavGroup[] = [
     title: "Growth",
     items: [
       { to: "/seller/coupons", label: "Coupons", icon: Ticket, minTier: "pro" },
-      { to: "/seller/boosts", label: "Boosts", icon: Rocket, minTier: "pro" },
-      { to: "/seller/ads", label: "Advertise", icon: Megaphone, minTier: "enterprise" },
+      { to: "/seller/boosts", label: "Promotion Center", icon: Rocket, minTier: "pro" },
     ],
   },
   {
     title: "Account",
     items: [
       { to: "/seller/subscription", label: "Subscription", icon: CreditCard },
-      { to: "/seller/verification", label: "Verification", icon: BadgeCheck },
+      { to: "/seller/verification", label: "KYC Verification", icon: BadgeCheck },
       { to: "/seller/store", label: "Storefront Theme", icon: Palette, minTier: "elite" },
       { to: "/seller/security", label: "Security", icon: Lock },
       { to: "/seller/settings", label: "Settings", icon: Settings },
@@ -102,6 +101,7 @@ function SellerSidebar({
   const auth = useAuth();
   const { tier, meta } = useSellerTier();
   const supabase = getSupabase();
+  const { unreadCount, unreadOrderCount } = useNotifications();
 
   const requestAdminAccess = async () => {
     const sb = getSupabase();
@@ -167,6 +167,12 @@ function SellerSidebar({
                   ? location.pathname === n.to
                   : location.pathname.startsWith(n.to);
                 const isLocked = n.minTier ? !tierAtLeast(tier, n.minTier) : false;
+                const badge =
+                  n.to === "/seller/orders"
+                    ? unreadOrderCount
+                    : n.to === "/seller/notifications"
+                      ? unreadCount
+                      : 0;
                 return (
                   <li key={n.to}>
                     <Link
@@ -180,8 +186,13 @@ function SellerSidebar({
                           : "text-muted-foreground hover:text-foreground hover:bg-surface"
                       }`}
                     >
-                      <n.icon className={`size-4 ${isLocked ? "text-muted-foreground/50" : ""}`} /> 
+                      <n.icon className={`size-4 ${isLocked ? "text-muted-foreground/50" : ""}`} />
                       <span className={`flex-1 ${isLocked ? "text-muted-foreground/80" : ""}`}>{n.label}</span>
+                      {badge > 0 && (
+                        <span className="shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
                       {isLocked ? (
                         <Lock className="size-3 text-muted-foreground/50 shrink-0" />
                       ) : active ? (
@@ -649,6 +660,7 @@ export function StatCard({
   positive = true,
   icon: Icon,
   premium = false,
+  badge = 0,
 }: {
   label: string;
   value: string;
@@ -656,6 +668,7 @@ export function StatCard({
   positive?: boolean;
   icon?: typeof LayoutDashboard;
   premium?: boolean;
+  badge?: number;
 }) {
   return (
     <div
@@ -663,6 +676,11 @@ export function StatCard({
         premium ? "ring-1 ring-gold/20" : ""
       }`}
     >
+      {badge > 0 && (
+        <span className="absolute top-3 right-3 z-10 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-lg">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
       {premium && (
         <div
           className="absolute -top-12 -right-12 size-32 rounded-full opacity-20 pointer-events-none"
@@ -694,6 +712,14 @@ export function StatusPill({ status }: { status: string }) {
     Completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
     Processing: "bg-sky-500/15 text-sky-400 border-sky-500/20",
     Pending: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+    "Pending Payment": "bg-blue-500/15 text-blue-400 border-blue-500/20",
+    "Pending Review": "bg-amber-500/15 text-amber-400 border-amber-500/20",
+    "Payment Reviewing": "bg-amber-500/15 text-amber-400 border-amber-500/20",
+    "Payment Verified": "bg-indigo-500/15 text-indigo-400 border-indigo-500/20",
+    "In Progress": "bg-sky-500/15 text-sky-400 border-sky-500/20",
+    Delivering: "bg-pink-500/15 text-pink-400 border-pink-500/20",
+    "Awaiting Confirmation": "bg-teal-500/15 text-teal-400 border-teal-500/20",
+    Cancelled: "bg-rose-500/15 text-rose-400 border-rose-500/20",
     Uploaded: "bg-amber-500/15 text-amber-400 border-amber-500/20",
     Paused: "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",
     Disputed: "bg-destructive/15 text-destructive border-destructive/20",

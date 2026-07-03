@@ -9,6 +9,9 @@ import { toast } from "sonner";
 import { SignedImage } from "@/components/SignedImage";
 
 export const Route = createFileRoute("/_authenticated/seller/disputes")({
+  validateSearch: (s: Record<string, unknown>): { disputeId?: string } => ({
+    disputeId: s.disputeId ? String(s.disputeId) : undefined,
+  }),
   head: () => ({ meta: [{ title: "Disputes — HUXZAIN Seller" }] }),
   component: Page,
 });
@@ -38,9 +41,17 @@ function EvidenceLink({ path }: { path: string }) {
 
 function Page() {
   const { user } = useAuth();
+  const { disputeId } = Route.useSearch() as any;
   const [disputes, setDisputes] = useState<any[]>([]);
   const [selectedCase, setSelectedCase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (disputeId && disputes.length > 0) {
+      const matched = disputes.find((x: any) => x.id === disputeId);
+      if (matched) setSelectedCase(matched);
+    }
+  }, [disputeId, disputes]);
 
   // Response Form States
   const [responseNotes, setResponseNotes] = useState("");

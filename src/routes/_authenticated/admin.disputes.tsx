@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { completeOrderAndCreditSeller, addWalletBalance } from "@/lib/wallet.functions";
+import { onDisputeResolved } from "@/lib/notifications/hooks";
 import { SignedImage } from "@/components/SignedImage";
 
 export const Route = createFileRoute("/_authenticated/admin/disputes")({
@@ -465,30 +466,16 @@ function Page() {
         });
       }
 
-      // 5b. Notify buyer and seller about the mediation result
+      // 5b. HX-006: dispute-resolved notifications (buyer + seller) via the engine.
       try {
-        const notificationsToInsert = [];
-        if (orderDetail.buyer_id) {
-          notificationsToInsert.push({
-            user_id: orderDetail.buyer_id,
-            kind: "dispute.resolved",
-            title: "Dispute Resolved by Admin",
-            body: `Your dispute for Order #${orderDetail.id.slice(0, 8)} has been mediated. Split: Buyer ₹${buyerRefund} (${buyerPercent}%), Seller ₹${sellerPayout} (${sellerPercent}%). Verdict: "${resolutionNotes}"`,
-          });
-        }
-        if (orderDetail.seller_id) {
-          notificationsToInsert.push({
-            user_id: orderDetail.seller_id,
-            kind: "dispute.resolved",
-            title: "Dispute Resolved by Admin",
-            body: `The dispute for Order #${orderDetail.id.slice(0, 8)} has been mediated. Split: Buyer ₹${buyerRefund} (${buyerPercent}%), Seller ₹${sellerPayout} (${sellerPercent}%). Verdict: "${resolutionNotes}"`,
-          });
-        }
-        if (notificationsToInsert.length > 0) {
-          await supabase.from("notifications").insert(notificationsToInsert);
-        }
+        await onDisputeResolved(
+          orderDetail.id,
+          selectedDispute.id,
+          orderDetail.buyer_id,
+          orderDetail.seller_id,
+        );
       } catch (err) {
-        console.warn("[AdminDisputes] Non-blocking notifications trigger failed:", err);
+        console.warn("[AdminDisputes] Non-blocking dispute-resolved notification failed:", err);
       }
 
       // 6. Log staff action

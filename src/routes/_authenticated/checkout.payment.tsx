@@ -19,11 +19,14 @@ import {
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
+import { onOrderCreated, onPaymentSubmitted } from "@/lib/notifications/hooks";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { TIERS, type SellerTier } from "@/lib/seller/tier-context";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
+import { TransactionSummaryPanel } from "@/components/finance/TransactionSummaryPanel";
+import { useFinanceConfig, computeTransactionSummary } from "@/lib/finance";
 import { extractPaymentDetails } from "@/lib/ai.functions";
 import { friendlyError } from "@/lib/error-messages";
 
@@ -60,7 +63,10 @@ function UnifiedPaymentPage() {
   // Listing State
   const [listing, setListing] = useState<any>(null);
   const [sellerProfile, setSellerProfile] = useState<any>(null);
+  const [sellerTier, setSellerTier] = useState<string>("standard");
+  const [categorySlug, setCategorySlug] = useState<string | null>(null);
   const [loadingListing, setLoadingListing] = useState(false);
+  const { config: financeConfig } = useFinanceConfig();
   const [orderId, setOrderId] = useState<string | null>(orderIdParam || null);
  
   // Flow & Upload State
@@ -70,8 +76,7 @@ function UnifiedPaymentPage() {
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
-  const [utrReference, setUtrReference] = useState("");
-  const [buyerGstin, setBuyerGstin] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
  
   // Fetch listing & seller info if listingId is provided
@@ -103,14 +108,25 @@ function UnifiedPaymentPage() {
  
         setListing(listData);
  
-        // Fetch seller profile
+        // Fetch seller profile (+ plan for the Transaction Summary commission tier)
         if (listData.seller_id) {
           const { data: profData } = await supabase
             .from("profiles")
-            .select("display_name, username, email")
+            .select("display_name, username, email, subscription_tier")
             .eq("id", listData.seller_id)
             .maybeSingle();
           setSellerProfile(profData);
+          setSellerTier((profData?.subscription_tier as string) || "standard");
+        }
+
+        // Resolve the listing category slug (drives commission + escrow in the summary)
+        if (listData.category_id) {
+          const { data: catData } = await supabase
+            .from("categories")
+            .select("slug")
+            .eq("id", listData.category_id)
+            .maybeSingle();
+          setCategorySlug((catData?.slug as string) ?? null);
         }
       } catch (err: any) {
         console.error("Error loading listing checkout details:", err);
@@ -137,6 +153,16 @@ function UnifiedPaymentPage() {
         : 0;
  
   const checkoutPrice = isNaN(rawPrice) ? 0 : rawPrice;
+
+  // HX-007: buyer-facing Transaction Summary (listing purchases only).
+  const transactionSummary =
+    !isSubscription && checkoutPrice > 0
+      ? computeTransactionSummary(financeConfig, {
+          categorySlug,
+          tier: sellerTier,
+          priceInr: checkoutPrice,
+        })
+      : null;
  
   const sellerName = isSubscription
     ? "HUXZAIN Platform"
@@ -187,11 +213,6 @@ function UnifiedPaymentPage() {
       return;
     }
 
-    if (!utrReference.trim()) {
-      toast.error("Please enter your UTR / transaction reference number.");
-      return;
-    }
-
     const supabase = getSupabase();
     if (!supabase || !user) {
       toast.error("Database connection not configured.");
@@ -223,14 +244,24 @@ function UnifiedPaymentPage() {
             payment_method: "manual",
             payment_status: "created",
             status: "pending_payment",
-            buyer_gstin: buyerGstin.trim() || null,
+            // HX-007: lock the fee breakdown at purchase time (engine-computed) so
+            // completion pays out exactly what the buyer was shown.
+            ...(transactionSummary
+              ? {
+                  commission_inr: transactionSummary.commissionInr,
+                  seller_payout_inr: transactionSummary.sellerReceivesInr,
+                  commission_percent: transactionSummary.commissionPercent,
+                  category_key: transactionSummary.categoryKey,
+                }
+              : {}),
           })
           .select("id")
           .single();
 
         if (orderErr) throw orderErr;
-        finalOrderId = newOrder.id;
-        setOrderId(finalOrderId);
+        const createdOrderId: string = newOrder.id;
+        finalOrderId = createdOrderId;
+        setOrderId(createdOrderId);
 
         // Also create charge transaction (non-blocking – table may not exist in all envs)
         try {
@@ -246,22 +277,29 @@ function UnifiedPaymentPage() {
           console.warn("[Unified Checkout] Non-blocking wallet_transactions insert skipped:", txErr);
         }
 
-        // Insert notification
+        // HX-006.5: order-created notification via the engine (buyer), matching
+        // the product-page Buy-Now path so both entry points behave identically.
         try {
-          await supabase.from("notifications").insert({
-            user_id: listing.seller_id,
-            kind: "order.created",
-            title: "New order received",
-            body: `${user.email ?? "A buyer"} started checkout for ${listing.title}`,
-          });
+          await onOrderCreated(createdOrderId, user.id);
         } catch (notifErr) {
-          console.warn("[Unified Checkout] Non-blocking notification insert skipped:", notifErr);
+          console.warn("[Unified Checkout] Non-blocking order-created notification skipped:", notifErr);
         }
       } else if (finalOrderId && !isSubscription) {
         try {
           await supabase
             .from("orders")
-            .update({ buyer_gstin: buyerGstin.trim() || null })
+            .update({
+              // HX-007: lock the engine-computed fee breakdown on the pre-created
+              // order (e.g. from the product-page Buy Now flow) at confirmation.
+              ...(transactionSummary
+                ? {
+                    commission_inr: transactionSummary.commissionInr,
+                    seller_payout_inr: transactionSummary.sellerReceivesInr,
+                    commission_percent: transactionSummary.commissionPercent,
+                    category_key: transactionSummary.categoryKey,
+                  }
+                : {}),
+            })
             .eq("id", finalOrderId);
         } catch (gstErr) {
           console.warn("[Unified Checkout] Non-blocking update of buyer_gstin failed:", gstErr);
@@ -318,7 +356,6 @@ function UnifiedPaymentPage() {
             listing_id: isSubscription ? null : listingIdParam,
             payment_type: isSubscription ? "subscription" : "listing",
             amount: checkoutPrice,
-            utr_reference: utrReference.trim(),
             screenshot_url: screenshotUrl,
             payment_reference: isSubscription ? `subscription:${planMeta.id}` : `order:${finalOrderId}`,
             status: "pending",
@@ -352,7 +389,7 @@ function UnifiedPaymentPage() {
                 screenshot_hash: `hash_${Date.now()}`,
                 amount: checkoutPrice,
                 status: "pending",
-                utr_reference: utrReference.trim(),
+                note: paymentNote.trim() || null,
                 payment_reference: `order:${finalOrderId}`,
               },
             });
@@ -378,18 +415,12 @@ function UnifiedPaymentPage() {
               console.warn("[Unified Checkout] Non-blocking wallet_transactions update skipped:", txErr);
             }
 
-            // Notify Seller
-            if (listing?.seller_id) {
-              try {
-                await supabase.from("notifications").insert({
-                  user_id: listing.seller_id,
-                  kind: "payment.submitted",
-                  title: "Payment proof submitted",
-                  body: `Order ${finalOrderId.slice(0, 8)} is awaiting admin verification.`,
-                });
-              } catch (notifErr) {
-                console.warn("[Unified Checkout] Non-blocking seller notification skipped:", notifErr);
-              }
+            // HX-006.5: payment-submitted notification via the engine (buyer ack
+            // + payment-verification queue), matching the verify-payment path.
+            try {
+              await onPaymentSubmitted(finalOrderId, user.id);
+            } catch (notifErr) {
+              console.warn("[Unified Checkout] Non-blocking payment-submitted notification skipped:", notifErr);
             }
           }
         } catch (bgErr) {
@@ -536,6 +567,11 @@ function UnifiedPaymentPage() {
                     </div>
                   </div>
 
+                  {/* HX-007: Transaction Summary for listing purchases */}
+                  {transactionSummary && (
+                    <TransactionSummaryPanel summary={transactionSummary} variant="checkout" />
+                  )}
+
                   {/* Next Step trigger */}
                   <button
                     onClick={() => setStep("upload")}
@@ -599,48 +635,24 @@ function UnifiedPaymentPage() {
                     </div>
                   )}
 
-                  {/* UTR / Transaction Reference Input */}
+                  {/* Optional payment note */}
                   <div className="space-y-2 text-left bg-surface/10 border border-border p-5 rounded-2xl">
                     <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Clock size={13} className="text-gold" /> UTR / Transaction Reference <span className="text-red-500">*</span>
+                      <Info size={13} className="text-gold" /> Payment note <span className="text-muted-foreground font-normal">(optional)</span>
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Enter 12-digit UPI UTR or Bank Reference No."
-                      value={utrReference}
-                      onChange={(e) => setUtrReference(e.target.value)}
-                      className="w-full h-11 px-4 rounded-xl bg-surface/50 border border-border focus:border-gold/50 text-sm outline-none text-foreground placeholder:text-muted-foreground transition-all duration-300"
-                      required
+                    <textarea
+                      placeholder="Add any note about this payment for the seller / admin (optional)."
+                      value={paymentNote}
+                      onChange={(e) => setPaymentNote(e.target.value)}
+                      rows={2}
+                      className="w-full px-4 py-2.5 rounded-xl bg-surface/50 border border-border focus:border-gold/50 text-sm outline-none text-foreground placeholder:text-muted-foreground transition-all duration-300 resize-none"
                     />
-                    <p className="text-[10px] text-muted-foreground leading-normal">
-                      This is the 12-digit number found in your payment transaction details. Providing it ensures immediate and precise admin approval.
-                    </p>
                   </div>
-
-                  {/* Optional GSTIN Input */}
-                  {!isSubscription && (
-                    <div className="space-y-2 text-left bg-surface/10 border border-border p-5 rounded-2xl">
-                      <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Building size={13} className="text-gold" /> GSTIN (Optional — for B2B Invoice)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Enter your 15-digit GSTIN (e.g. 29AAAAA0000A1Z5)"
-                        value={buyerGstin}
-                        onChange={(e) => setBuyerGstin(e.target.value.toUpperCase())}
-                        className="w-full h-11 px-4 rounded-xl bg-surface/50 border border-border focus:border-gold/50 text-sm outline-none text-foreground placeholder:text-muted-foreground transition-all duration-300"
-                        maxLength={15}
-                      />
-                      <p className="text-[10px] text-muted-foreground leading-normal">
-                        Provide a valid 15-character GSTIN if you require a tax invoice for business expense claims.
-                      </p>
-                    </div>
-                  )}
 
                   {/* Action submit button */}
                   <button
                     onClick={handleSubmitProof}
-                    disabled={!file || !utrReference.trim() || uploading}
+                    disabled={!file || uploading}
                     className="w-full h-12 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 disabled:opacity-50 active:scale-98 transition-all inline-flex items-center justify-center gap-1.5 shadow-lg shadow-gold/10 cursor-pointer border-none"
                   >
                     {uploading ? (

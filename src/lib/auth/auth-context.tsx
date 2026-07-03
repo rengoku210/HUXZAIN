@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabase } from "@/lib/supabase-client";
+import { onSubscriptionExpired } from "@/lib/notifications/hooks";
 import { isSupabaseConfigured, env } from "@/lib/env";
 import { type Role, hasAnyRole, hasPermission, type Permission } from "@/lib/roles";
 
@@ -358,15 +359,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
             
-            // Notify user
+            // HX-006: subscription-expired notification via the engine.
             try {
-              await supabase.from("notifications").insert({
-                user_id: userId,
-                kind: "subscription.expired",
-                title: "Subscription Plan Expired",
-                body: "Your premium Pro/Elite/Enterprise trial or plan has expired. Your store customization has been reverted to the Standard plan."
-              });
-            } catch (e) { console.error("Notification trigger error:", e); }
+              await onSubscriptionExpired(userId);
+            } catch (e) { console.error("Subscription-expired notification error:", e); }
           }
       } catch (err) {
         console.warn("[Auth] Expiration check exception:", err);

@@ -47,6 +47,31 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
     icon: Clock,
   },
+  payment_under_review: {
+    label: "Payment Reviewing",
+    color: "text-yellow-500 bg-yellow-500/10 border-yellow-500/20",
+    icon: Clock,
+  },
+  payment_approved: {
+    label: "Payment Verified",
+    color: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
+    icon: CheckCircle2,
+  },
+  order_active: {
+    label: "In Progress",
+    color: "text-sky-400 bg-sky-500/10 border-sky-500/20",
+    icon: RefreshCw,
+  },
+  seller_delivering: {
+    label: "Delivering",
+    color: "text-pink-400 bg-pink-500/10 border-pink-500/20",
+    icon: Clock,
+  },
+  buyer_reviewing: {
+    label: "Awaiting Confirmation",
+    color: "text-teal-400 bg-teal-500/10 border-teal-500/20",
+    icon: Clock,
+  },
   paid: {
     label: "Payment Completed",
     color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
@@ -165,7 +190,7 @@ function OrdersPage() {
   const filtered = orders.filter((o) => {
     if (activeTab === "all") return true;
     if (activeTab === "pending") return ["pending_payment", "pending", "admin_review"].includes(o.status);
-    if (activeTab === "paid") return ["paid", "delivering", "delivered", "approved"].includes(o.status);
+    if (activeTab === "paid") return ["paid", "payment_under_review", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "delivering", "delivered", "approved", "disputed"].includes(o.status);
     if (activeTab === "completed") return o.status === "completed";
     return true;
   });
@@ -278,7 +303,7 @@ function OrdersPage() {
                             Complete payment
                           </Link>
                         )}
-                        {["paid", "delivering", "delivered", "completed", "approved"].includes(o.status) && (
+                        {["paid", "payment_under_review", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "completed", "disputed"].includes(o.status) && (
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
                               Payment Completed

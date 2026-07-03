@@ -2,6 +2,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { getAdminClient } from "@/server/supabase-admin";
+import { isDisposableEmail, DISPOSABLE_EMAIL_MESSAGE } from "@/lib/security/disposable-email";
 import crypto from "crypto";
 
 // Memory fallback cache for environments without the pg table migration active yet
@@ -118,6 +119,13 @@ export const requestOtp = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { email: rawEmail } = data;
     const email = rawEmail.trim().toLowerCase();
+
+    // Security: reject disposable / temporary mailboxes at the server (the client
+    // check in signup.tsx is UX only and can be bypassed). Blocks fake-account /
+    // OTP-abuse vectors before an OTP is ever generated or sent.
+    if (isDisposableEmail(email)) {
+      throw new Error(DISPOSABLE_EMAIL_MESSAGE);
+    }
 
     console.log(`[Auth Server] Request OTP for: ${email}`);
 
@@ -364,4 +372,73 @@ export const verifyOtpCode = createServerFn({ method: "POST" })
 
     const actionLink = linkData.properties.action_link;
     return { success: true, actionLink };
+  });
+
+/**
+ * Change a logged-in user's email after verifying an OTP that was sent to the
+ * NEW address via `requestOtp`. This never updates the email without a verified
+ * code. Kept separate from `verifyOtpCode` (which handles login/signup sessions).
+ */
+export const changeEmailWithOtp = createServerFn({ method: "POST" })
+  .inputValidator((d: { userId: string; newEmail: string; code: string }) => d)
+  .handler(async ({ data }) => {
+    const { userId, code } = data;
+    const email = data.newEmail.trim().toLowerCase();
+
+    if (!userId) throw new Error("Not authenticated.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Please enter a valid email address.");
+
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Auth service is not configured (Admin Client missing).");
+
+    // 1. Verify the OTP for the new address (mirror of verifyOtpCode's checks).
+    let record: OtpRecord | null = null;
+    let isDb = false;
+    try {
+      const { data: dbRecord, error } = await supabase.from("otps").select("*").eq("email", email).maybeSingle();
+      if (!error && dbRecord) { record = dbRecord as OtpRecord; isDb = true; }
+      else record = memoryOtpCache.get(email) || null;
+    } catch {
+      record = memoryOtpCache.get(email) || null;
+    }
+    if (!record) throw new Error("Verification code expired or not found. Please request a new code.");
+
+    if (Date.now() > new Date(record.expires_at).getTime()) {
+      if (isDb) await supabase.from("otps").delete().eq("email", email); else memoryOtpCache.delete(email);
+      throw new Error("Verification code has expired. Please request a new one.");
+    }
+    if (record.attempts >= 5) throw new Error("Too many failed verification attempts. Please request a new code.");
+
+    if (hashOtp(code) !== record.otp_hash) {
+      const nextAttempts = record.attempts + 1;
+      if (isDb) await supabase.from("otps").update({ attempts: nextAttempts }).eq("email", email);
+      else record.attempts = nextAttempts;
+      if (nextAttempts >= 5) {
+        if (isDb) await supabase.from("otps").delete().eq("email", email); else memoryOtpCache.delete(email);
+        throw new Error("Too many failed verification attempts. Please request a new code.");
+      }
+      throw new Error(`Incorrect verification code. ${5 - nextAttempts} attempts remaining.`);
+    }
+
+    // 2. Code is valid — consume it.
+    if (isDb) await supabase.from("otps").delete().eq("email", email); else memoryOtpCache.delete(email);
+
+    // 3. Reject if the address already belongs to a different account.
+    const { data: clash } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
+    if (clash && clash.id !== userId) throw new Error("That email is already in use by another account.");
+
+    // 4. Update the auth email (confirmed) and the profile record.
+    const { error: authErr } = await supabase.auth.admin.updateUserById(userId, {
+      email,
+      email_confirm: true,
+    });
+    if (authErr) throw new Error(`Failed to update email: ${authErr.message}`);
+
+    const { error: profErr } = await supabase
+      .from("profiles")
+      .update({ email, email_verified: true, email_verified_at: new Date().toISOString() })
+      .eq("id", userId);
+    if (profErr) console.warn("[Auth] Email updated in auth but profile sync failed:", profErr.message);
+
+    return { success: true, email };
   });

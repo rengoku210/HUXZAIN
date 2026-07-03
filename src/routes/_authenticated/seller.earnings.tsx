@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { getOrCreateWallet, syncAndGetWallet } from "@/lib/wallet.functions";
 import { useSellerTier } from "@/lib/seller/tier-context";
 import { toast } from "sonner";
+import { useFinanceConfig, commissionPlanFor, type CategoryKey } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/seller/earnings")({
   head: () => ({ meta: [{ title: "Earnings — HUXZAIN Seller" }] }),
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/_authenticated/seller/earnings")({
 function Page() {
   const { user, profile } = useAuth();
   const { tier } = useSellerTier();
+  const { config: financeConfig } = useFinanceConfig();
   const [wallet, setWallet] = useState<any>(null);
   const [monthlySales, setMonthlySales] = useState(0);
   const [grossSales30, setGrossSales30] = useState(0);
@@ -90,11 +92,24 @@ function Page() {
     loadData();
   }, [user]);
 
-  // Platform fee tier label
-  const feePercentLabel =
-    tier === "pro" ? "1.5%" :
-    tier === "elite" ? "1.0%" :
-    tier === "enterprise" ? "0.5%" : "1.9%";
+  // Platform fee tier label dynamically computed from the finance config matrix
+  let feePercentLabel = "Standard Rates";
+  if (financeConfig && tier) {
+    const plan = commissionPlanFor(tier);
+    const rates = Object.keys(financeConfig.commission).map(
+      (cat) => financeConfig.commission[cat as CategoryKey][plan]
+    );
+    if (rates.length > 0) {
+      const minRate = Math.min(...rates);
+      const maxRate = Math.max(...rates);
+      feePercentLabel = `${minRate}% - ${maxRate}%`;
+    }
+  } else {
+    feePercentLabel =
+      tier === "pro" ? "4.5% - 22%" :
+      tier === "elite" ? "4% - 20%" :
+      tier === "enterprise" ? "3% - 18%" : "5% - 25%";
+  }
 
   const fmt = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

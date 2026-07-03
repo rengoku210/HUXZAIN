@@ -1,5 +1,7 @@
 import { getSupabase } from "@/lib/supabase-client";
 import { calculateCoolingDays, calculateInspectionHours, type SellerTier } from "@/lib/escrow";
+import { onOrderCompleted, onWithdrawRequested, onWithdrawalCompleted } from "@/lib/notifications/hooks";
+import { getFinanceConfig, computeTransactionSummary, type CategoryKey } from "@/lib/finance";
 
 // Ensure a wallet row exists for the user and return it
 export async function getOrCreateWallet(userId: string) {
@@ -49,7 +51,7 @@ export async function completeOrderAndCreditSeller(orderId: string, opts?: { byp
   // 1. Fetch order details
   const { data: order, error: orderErr } = await supabase
     .from("orders")
-    .select("*, listings:listing_id(title, seller_id)")
+    .select("*, listings:listing_id(title, seller_id, categories(slug))")
     .eq("id", orderId)
     .single();
 
@@ -112,18 +114,46 @@ export async function completeOrderAndCreditSeller(orderId: string, opts?: { byp
 
   const tier = (profile?.subscription_tier || "standard") as SellerTier;
 
-  // Tier fee mappings: Standard = 1.9%, Pro = 1.5%, Elite = 1.0%, Enterprise = 0.5%
-  let feePercent = 0.019;
-  if (tier === "pro") feePercent = 0.015;
-  else if (tier === "elite") feePercent = 0.010;
-  else if (tier === "enterprise") feePercent = 0.005;
+  // HX-007: commission comes from the single finance engine (category × plan matrix),
+  // NOT a flat tier rate. If the order already has a locked breakdown from checkout,
+  // honour it verbatim (what the buyer saw == what the seller gets). Completed orders
+  // are never recomputed (guarded by the status === "completed" early-return above),
+  // so historical payouts are untouched.
+  let commission: number;
+  let sellerPayout: number;
+  let commissionPercent: number | null = null;
+  let categoryKey: string | null = null;
+  let coolingDays: number;
 
-  const commission = Math.round(amount * feePercent);
-  const sellerPayout = Math.round(amount - commission);
-
-  console.log(`[WalletFunctions] Order #${orderId} complete. Tier: ${tier}, Fee: ${feePercent * 100}%, Gross: ₹${amount}, Comm: ₹${commission}, Net: ₹${sellerPayout}`);
-
-  const coolingDays = calculateCoolingDays(tier);
+  if (order.commission_inr != null && order.seller_payout_inr != null) {
+    commission = Number(order.commission_inr);
+    sellerPayout = Number(order.seller_payout_inr);
+    commissionPercent = order.commission_percent != null ? Number(order.commission_percent) : null;
+    categoryKey = order.category_key ?? null;
+    
+    let days = 7;
+    if (order.category_key) {
+      const config = await getFinanceConfig();
+      days = config.escrow[order.category_key as CategoryKey]?.[tier] ?? 7;
+    } else {
+      days = calculateCoolingDays(tier);
+    }
+    coolingDays = days;
+    console.log(`[WalletFunctions] Order #${orderId} using locked commission: ₹${commission} (payout ₹${sellerPayout}), escrow: ${coolingDays} days.`);
+  } else {
+    const financeConfig = await getFinanceConfig();
+    const summary = computeTransactionSummary(financeConfig, {
+      categorySlug: order.listings?.categories?.slug ?? null,
+      tier,
+      priceInr: amount,
+    });
+    commission = summary.commissionInr;
+    sellerPayout = summary.sellerReceivesInr;
+    commissionPercent = summary.commissionPercent;
+    categoryKey = summary.categoryKey;
+    coolingDays = summary.escrowHoldDays;
+    console.log(`[WalletFunctions] Order #${orderId} complete. Tier: ${tier}, Cat: ${categoryKey ?? "unmapped"}, Rate: ${commissionPercent}%, Gross: ₹${amount}, Comm: ₹${commission}, Net: ₹${sellerPayout}`);
+  }
   const now = new Date();
   const eligibleAt = new Date(now.getTime() + coolingDays * 24 * 60 * 60 * 1000);
   const expiresAt = new Date(eligibleAt.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -136,6 +166,8 @@ export async function completeOrderAndCreditSeller(orderId: string, opts?: { byp
       completed_at: now.toISOString(),
       commission_inr: commission,
       seller_payout_inr: sellerPayout,
+      commission_percent: commissionPercent,
+      category_key: categoryKey,
       payout_status: "pending_cooling",
       cooling_days: coolingDays,
       withdrawal_eligible_at: eligibleAt.toISOString(),
@@ -175,15 +207,10 @@ export async function completeOrderAndCreditSeller(orderId: string, opts?: { byp
 
   if (txnErr) console.error("[WalletFunctions] Transaction log error:", txnErr);
 
-  // 7. Trigger seller notification
+  // 7. HX-006: order-completed notifications (buyer + seller) via the engine.
   try {
-    await supabase.from("notifications").insert({
-      user_id: sellerId,
-      kind: "order.completed",
-      title: "Order Completed — Cooling Hold Active",
-      body: `Order for "${order.listing_title || "Listing"}" is completed. ₹${sellerPayout} is held in cooling for ${coolingDays} days before withdrawal eligibility.`
-    });
-  } catch (e) { console.error("Notification trigger error:", e); }
+    await onOrderCompleted(orderId, order.buyer_id, sellerId);
+  } catch (e) { console.error("Order-completed notification error:", e); }
 
   // 8. Auto-generate invoice (idempotent — safe to call multiple times)
   try {
@@ -434,23 +461,24 @@ export async function requestWithdrawal(userId: string, amount: number, method: 
     throw new Error("Your payouts and withdrawals are frozen by platform moderation.");
   }
 
+  // Fast fail for UX (authoritative check is the atomic RPC below).
   if (wallet.available_balance < amount) {
     throw new Error("Insufficient available balance");
   }
 
   console.log(`[WalletFunctions] Withdrawal requested: user=${userId}, amount=₹${amount}, method=${method}`);
 
-  // 1. Deduct from available, transfer to pending
-  const { error: walletErr } = await supabase
-    .from("wallets")
-    .update({
-      available_balance: wallet.available_balance - amount,
-      pending_balance: wallet.pending_balance + amount,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", userId);
-
-  if (walletErr) throw walletErr;
+  // 1. Atomically move available -> pending inside the DB (auth.uid()-scoped).
+  //    This is the ONLY correct guard against concurrent double-submit races:
+  //    the decrement happens under a row lock, and a second concurrent request
+  //    sees the already-reduced balance and is rejected instead of over-holding.
+  const { data: held, error: holdErr } = await supabase.rpc("request_wallet_hold", {
+    p_amount: amount,
+  });
+  if (holdErr) throw holdErr;
+  if (held !== true) {
+    throw new Error("Insufficient available balance");
+  }
 
   // 2. Insert withdrawal request record
   const { data: withdrawal, error: wErr } = await supabase
@@ -494,6 +522,11 @@ export async function requestWithdrawal(userId: string, amount: number, method: 
       status: "open"
     });
   } catch (e) { console.error("[WalletFunctions] Auto-ticket creation failed:", e); }
+
+  // 5. HX-006: seller acknowledgement + finance-team queue via the engine.
+  try {
+    await onWithdrawRequested(withdrawal.id, userId);
+  } catch (e) { console.error("[WalletFunctions] Withdrawal-requested notification error:", e); }
 
   return withdrawal;
 }
@@ -579,15 +612,10 @@ export async function processWithdrawalStatus(withdrawalId: string, status: "com
     await supabase.from("wallet_transactions").update({ status: "completed" }).eq("reference_id", withdrawalId).eq("type", "withdrawal");
 
 
-    // 4. Notify user
+    // 4. HX-006: withdrawal-completed notification via the engine.
     try {
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        kind: "wallet.withdrawal",
-        title: "Withdrawal Completed",
-        body: `Your withdrawal request for ₹${amount} has been successfully paid out.`
-      });
-    } catch (e) { console.error("Notification error:", e); }
+      await onWithdrawalCompleted(withdrawalId, userId);
+    } catch (e) { console.error("Withdrawal-completed notification error:", e); }
 
   } else if (status === "rejected") {
     // 1. Deduct from pending_balance and refund back to available_balance

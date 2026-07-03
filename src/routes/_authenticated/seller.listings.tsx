@@ -13,6 +13,12 @@ import {
   CheckCircle2,
   ImagePlus,
   AlertCircle,
+  Star,
+  Zap,
+  Sparkles,
+  Rocket,
+  RotateCcw,
+  Clock,
 } from "lucide-react";
 import { PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
@@ -20,11 +26,15 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
 import { slugify } from "@/lib/marketplace/listing-adapter";
 import { getCategoryTypeFromSlug } from "@/lib/marketplace/listing-attributes";
+import { TransactionSummaryPanel } from "@/components/finance/TransactionSummaryPanel";
+import { useFinanceConfig, computeTransactionSummary } from "@/lib/finance";
+import { useCategoryConfig, validateDynamicAttributes, type CategoryField } from "@/lib/marketplace/category-engine";
 type Category = { id: string; name: string; slug: string };
 
 export const Route = createFileRoute("/_authenticated/seller/listings")({
-  validateSearch: (s: Record<string, unknown>): { intent?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { intent?: string; listingId?: string } => ({
     intent: s.intent ? String(s.intent) : undefined,
+    listingId: s.listingId ? String(s.listingId) : undefined,
   }),
   head: () => ({ meta: [{ title: "Listings — HUXZAIN Seller" }] }),
   component: Page,
@@ -45,6 +55,13 @@ type Listing = {
   delivery_type: "instant" | "manual" | "hybrid";
   delivery_time?: string;
   created_at: string;
+  // Lifecycle + promotion flags (DB columns; see 20260604113000 + 20260702150000)
+  expiry_date?: string | null;
+  is_featured?: boolean;
+  is_homepage_featured?: boolean;
+  is_urgent?: boolean;
+  has_glow?: boolean;
+  glow_color?: string | null;
 };
 
 // ── Edit / Create Modal ──────────────────────────────────────────────────────────
@@ -94,6 +111,59 @@ function ListingModal({
   const [recoveryDetails, setRecoveryDetails] = useState("");
   const [emailTransferDetails, setEmailTransferDetails] = useState("");
   const [uploadingProof, setUploadingProof] = useState<Record<string, boolean>>({});
+
+  // HX-007: seller plan + finance config drive the live Transaction Summary.
+  const [sellerTier, setSellerTier] = useState<string>("standard");
+  const { config: financeConfig } = useFinanceConfig();
+
+  // Load Category Engine config dynamically
+  const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
+  const { fields: dynamicFields, engine: dynamicEngine, loading: configLoading } = useCategoryConfig(catSlug);
+
+  // Handle Category Switching: preserve compatible values, clear stale metadata, reload delivery engine
+  useEffect(() => {
+    if (dynamicFields.length > 0) {
+      setAttributes(prev => {
+        const newAttributes: Record<string, any> = {};
+        dynamicFields.forEach(f => {
+          if (prev[f.field_key] !== undefined) {
+            newAttributes[f.field_key] = prev[f.field_key];
+          } else {
+            if (f.field_type === 'checkbox' || f.field_type === 'boolean') {
+              newAttributes[f.field_key] = false;
+            } else {
+              newAttributes[f.field_key] = '';
+            }
+          }
+        });
+        newAttributes.type = catSlug;
+        return newAttributes;
+      });
+
+      if (dynamicEngine?.delivery_type) {
+        setDeliveryType(dynamicEngine.delivery_type);
+      }
+    }
+  }, [categoryId, dynamicFields, dynamicEngine, catSlug]);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || !userId) return;
+    supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data }) => setSellerTier((data?.subscription_tier as string) || "standard"));
+  }, [userId]);
+
+  const summaryCategorySlug = categories.find((c) => c.id === categoryId)?.slug ?? null;
+  const summaryPrice = parseFloat(price) || 0;
+  const transactionSummary = computeTransactionSummary(financeConfig, {
+    categorySlug: summaryCategorySlug,
+    tier: sellerTier,
+    priceInr: summaryPrice,
+  });
 
   useEffect(() => {
     if (!listing?.id) return;
@@ -254,28 +324,44 @@ function ListingModal({
     }
 
     const catSlug = categories.find(c => c.id === finalCategoryId)?.slug || "";
-    const isGameAccount = getCategoryTypeFromSlug(catSlug) === "game-accounts";
 
-    if (isGameAccount) {
-      if (!attributes.game?.trim()) { toast.error("Game Name is required."); return; }
-      if (!attributes.region?.trim()) { toast.error("Region is required."); return; }
-      if (!attributes.rank?.trim()) { toast.error("Rank is required."); return; }
-      if (!attributes.platform?.trim()) { toast.error("Platform is required."); return; }
-      if (attributes.level === undefined || attributes.level === null || isNaN(attributes.level)) { toast.error("Level is required."); return; }
-      if (attributes.skinsCount === undefined || attributes.skinsCount === null || isNaN(attributes.skinsCount)) { toast.error("Skins Count is required."); return; }
-      if (!attributes.rareItems?.trim() && !attributes.rareSkins?.trim()) { toast.error("Rare Items list is required."); return; }
-      if (!attributes.linkedAccounts?.trim()) { toast.error("Linked Accounts info is required."); return; }
-      if (!attributes.warrantyInformation?.trim() && !attributes.warrantyPeriod?.trim()) { toast.error("Warranty Information is required."); return; }
-      if (!attributes.accountCreationDate?.trim()) { toast.error("Account Creation Date is required."); return; }
-      if (!attributes.recoveryHistory?.trim() && !attributes.recoveryInfo?.trim()) { toast.error("Recovery History is required."); return; }
-      if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
-      if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+    // Dynamic Validation Check
+    if (dynamicFields.length > 0) {
+      const valError = validateDynamicAttributes(dynamicFields, attributes);
+      if (valError) {
+        toast.error(valError);
+        return;
+      }
+      // If delivery engine requires Credentials vault
+      if (dynamicEngine?.delivery_engine === 'Credentials') {
+        if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
+        if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+      }
+    } else {
+      // Backward Compatibility Fallback
+      const isGameAccount = getCategoryTypeFromSlug(catSlug) === "game-accounts";
+      if (isGameAccount) {
+        if (!attributes.game?.trim()) { toast.error("Game Name is required."); return; }
+        if (!attributes.region?.trim()) { toast.error("Region is required."); return; }
+        if (!attributes.rank?.trim()) { toast.error("Rank is required."); return; }
+        if (!attributes.platform?.trim()) { toast.error("Platform is required."); return; }
+        if (attributes.level === undefined || attributes.level === null || isNaN(attributes.level)) { toast.error("Level is required."); return; }
+        if (attributes.skinsCount === undefined || attributes.skinsCount === null || isNaN(attributes.skinsCount)) { toast.error("Skins Count is required."); return; }
+        if (!attributes.rareItems?.trim() && !attributes.rareSkins?.trim()) { toast.error("Rare Items list is required."); return; }
+        if (!attributes.linkedAccounts?.trim()) { toast.error("Linked Accounts info is required."); return; }
+        if (!attributes.warrantyInformation?.trim() && !attributes.warrantyPeriod?.trim()) { toast.error("Warranty Information is required."); return; }
+        if (!attributes.accountCreationDate?.trim()) { toast.error("Account Creation Date is required."); return; }
+        if (!attributes.recoveryHistory?.trim() && !attributes.recoveryInfo?.trim()) { toast.error("Recovery History is required."); return; }
+        if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
+        if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+      }
     }
 
     // Ensure key syncing for compatibility in JSONB attributes
+    const isGameAccount = dynamicFields.length > 0 ? (catSlug === "accounts") : (getCategoryTypeFromSlug(catSlug) === "game-accounts");
     const syncedAttributes = isGameAccount ? {
       ...attributes,
-      type: "game-accounts" as const,
+      type: (dynamicFields.length > 0 ? catSlug : "game-accounts") as any,
       rareItems: attributes.rareItems || attributes.rareSkins || "",
       rareSkins: attributes.rareItems || attributes.rareSkins || "",
       emailChangeable: attributes.emailChangeable !== undefined ? attributes.emailChangeable : (attributes.emailChangeAvailable !== undefined ? attributes.emailChangeAvailable : true),
@@ -454,7 +540,8 @@ function ListingModal({
       }
 
       // Upsert secure credentials
-      if (isGameAccount) {
+      const requiresCredentials = dynamicFields.length > 0 ? (dynamicEngine?.delivery_engine === 'Credentials') : (getCategoryTypeFromSlug(catSlug) === "game-accounts");
+      if (requiresCredentials) {
         const { error: credsErr } = await supabase
           .rpc("set_listing_credentials", {
             p_listing_id: savedListingId,
@@ -628,6 +715,11 @@ function ListingModal({
               </div>
             </div>
 
+            {/* HX-007: Transaction Summary — live, right below pricing (client mockup). */}
+            {summaryPrice > 0 && (
+              <TransactionSummaryPanel summary={transactionSummary} variant="listing" />
+            )}
+
             <div>
               <label className="block text-sm font-medium mb-1.5">Tags (Press Enter to add)</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -650,12 +742,306 @@ function ListingModal({
             </div>
 
             <div className="border border-border rounded-2xl p-4 bg-surface/30 space-y-4">
-              <span className="text-sm font-semibold text-white">Listing Attributes (Auto-updates based on Category)</span>
+              <span className="text-sm font-semibold text-white">
+                {dynamicFields.length > 0
+                  ? `${categories.find((c) => c.id === categoryId)?.name || "Listing"} Details`
+                  : "Listing Attributes (Auto-updates based on Category)"}
+              </span>
               <div className="space-y-4">
                 {(() => {
                   const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
                   const type = getCategoryTypeFromSlug(catSlug);
                   
+                  if (dynamicFields.length > 0) {
+                    // Group fields by validation_rules.group
+                    const groups: Record<string, CategoryField[]> = {};
+                    dynamicFields.forEach(f => {
+                      const gName = f.validation_rules?.group || "General Details";
+                      if (!groups[gName]) groups[gName] = [];
+                      groups[gName].push(f);
+                    });
+
+                    return (
+                      <div className="space-y-6">
+                        {Object.entries(groups).map(([groupName, fields]) => {
+                          const visibleFields = fields.filter(field => {
+                            const dependsOn = field.validation_rules?.depends_on;
+                            if (dependsOn && attributes[dependsOn.field] !== dependsOn.value) {
+                              return false;
+                            }
+                            return true;
+                          });
+
+                          if (visibleFields.length === 0) return null;
+
+                          return (
+                            <div key={groupName} className="space-y-3 border-t border-border/30 pt-4 first:border-t-0 first:pt-0">
+                              <h4 className="text-xs font-semibold text-gold/80 tracking-wider uppercase">{groupName}</h4>
+                              <div className="grid grid-cols-2 gap-4">
+                                {visibleFields.map((field) => {
+                                  const value = attributes[field.field_key] ?? "";
+                                  const renderInput = () => {
+                                    const baseClass = "w-full h-9 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white";
+                                    switch (field.field_type) {
+                                      case 'textarea':
+                                        return (
+                                          <textarea
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            placeholder={field.placeholder || ""}
+                                            rows={3}
+                                            className="w-full p-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 text-white resize-none"
+                                          />
+                                        );
+                                      case 'number':
+                                        return (
+                                          <input
+                                            type="number"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value === "" ? "" : Number(e.target.value) })}
+                                            placeholder={field.placeholder || ""}
+                                            min={field.validation_rules?.min}
+                                            max={field.validation_rules?.max}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'select':
+                                        return (
+                                          <select
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            className={baseClass}
+                                          >
+                                            <option value="">{field.placeholder || "Select option"}</option>
+                                            {(field.validation_rules?.allowed_values || []).map((val) => (
+                                              <option key={val} value={val}>{val}</option>
+                                            ))}
+                                          </select>
+                                        );
+                                      case 'checkbox':
+                                      case 'boolean':
+                                        return (
+                                          <div className="flex items-center gap-2 mt-2">
+                                            <input
+                                              type="checkbox"
+                                              checked={!!value}
+                                              onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.checked })}
+                                              className="rounded border-border text-gold focus:ring-gold/30 bg-surface/60"
+                                            />
+                                            <span className="text-xs text-muted-foreground">{field.placeholder || "Enable"}</span>
+                                          </div>
+                                        );
+                                      case 'radio':
+                                        return (
+                                          <div className="flex flex-wrap gap-4 mt-2">
+                                            {(field.validation_rules?.allowed_values || []).map((val) => (
+                                              <label key={val} className="flex items-center gap-1.5 text-xs text-white cursor-pointer">
+                                                <input
+                                                  type="radio"
+                                                  name={field.field_key}
+                                                  value={val}
+                                                  checked={value === val}
+                                                  onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                                  className="text-gold focus:ring-gold/30"
+                                                />
+                                                {val}
+                                              </label>
+                                            ))}
+                                          </div>
+                                        );
+                                      case 'date':
+                                        return (
+                                          <input
+                                            type="date"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'datetime':
+                                        return (
+                                          <input
+                                            type="datetime-local"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'email':
+                                        return (
+                                          <input
+                                            type="email"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            placeholder={field.placeholder || "e.g. user@domain.com"}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'password':
+                                        return (
+                                          <input
+                                            type="password"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            placeholder={field.placeholder || "Password"}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'url':
+                                        return (
+                                          <input
+                                            type="url"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            placeholder={field.placeholder || "https://..."}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'tags':
+                                        return (
+                                          <input
+                                            type="text"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            placeholder={field.placeholder || "e.g. rare, cheap (comma separated)"}
+                                            className={baseClass}
+                                          />
+                                        );
+                                      case 'file':
+                                      case 'image':
+                                        return (
+                                          <div className="rounded-xl border border-border bg-background/40 p-2.5 w-full">
+                                            {value ? (
+                                              <div className="flex items-center justify-between gap-2">
+                                                <span className="text-xs text-gold truncate">{String(value).split('/').pop()}</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setAttributes(prev => {
+                                                    const copy = { ...prev };
+                                                    delete copy[field.field_key];
+                                                    return copy;
+                                                  })}
+                                                  className="text-red-400 hover:text-red-500 text-xs shrink-0 font-medium"
+                                                >
+                                                  Remove
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-center gap-2 w-full">
+                                                <input
+                                                  type="file"
+                                                  accept={field.field_type === 'image' ? "image/*" : "*"}
+                                                  onChange={(e) => handleProofUpload(e, field.field_key)}
+                                                  disabled={uploadingProof[field.field_key]}
+                                                  className="text-xs text-muted-foreground w-full file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-gold/10 file:text-gold hover:file:bg-gold/20"
+                                                />
+                                                {uploadingProof[field.field_key] && <Loader2 className="size-3 text-gold animate-spin" />}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      default:
+                                        return (
+                                          <input
+                                            type="text"
+                                            value={value}
+                                            onChange={(e) => setAttributes({ ...attributes, [field.field_key]: e.target.value })}
+                                            placeholder={field.placeholder || ""}
+                                            className={baseClass}
+                                          />
+                                        );
+                                    }
+                                  };
+                                  const isFullWidth = field.field_type === 'textarea' || field.field_type === 'file' || field.field_type === 'image';
+                                  return (
+                                    <div key={field.field_key} className={isFullWidth ? "col-span-2" : ""}>
+                                      <label className="block text-xs font-medium mb-1.5 flex items-center justify-between">
+                                        <span>
+                                          {field.label} {field.is_required && <span className="text-red-400">*</span>}
+                                        </span>
+                                        {field.validation_rules?.pricing_hint && (
+                                          <span className="text-[10px] text-gold font-medium bg-gold/10 px-2 py-0.5 rounded-full border border-gold/15">
+                                            💡 {field.validation_rules.pricing_hint}
+                                          </span>
+                                        )}
+                                      </label>
+                                      {renderInput()}
+                                      {field.help_text && (
+                                        <p className="text-[10px] text-muted-foreground mt-1">{field.help_text}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {dynamicEngine?.delivery_engine === 'Credentials' && (
+                          <div className="border-t border-gold/20 pt-4 mt-2 bg-gold/5 rounded-xl p-3 border border-gold/15">
+                            <span className="text-xs font-semibold text-gold block mb-1">🔐 Secure Account Credentials Vault</span>
+                            <p className="text-[10px] text-muted-foreground mb-3">
+                              These credentials are encrypted, hidden from the public listing, and only shared with the buyer automatically after successful payment.
+                            </p>
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[10px] text-muted-foreground mb-1">Login ID / Username <span className="text-red-400">*</span></label>
+                                  <input
+                                    value={loginId}
+                                    onChange={(e) => setLoginId(e.target.value)}
+                                    placeholder="e.g. valorant_acc_1"
+                                    className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-muted-foreground mb-1">Login Password <span className="text-red-400">*</span></label>
+                                  <input
+                                    type="password"
+                                    value={loginPassword}
+                                    onChange={(e) => setLoginPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-muted-foreground mb-1">Delivery & Login Instructions</label>
+                                <textarea
+                                  value={instructions}
+                                  onChange={(e) => setInstructions(e.target.value)}
+                                  placeholder="Enter specific instructions on how the buyer should log in and secure the account..."
+                                  rows={2}
+                                  className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-muted-foreground mb-1">Account Recovery Details (Security Questions, Codes)</label>
+                                <textarea
+                                  value={recoveryDetails}
+                                  onChange={(e) => setRecoveryDetails(e.target.value)}
+                                  placeholder="Enter recovery codes, first location, transaction IDs, original ISP, security answers..."
+                                  rows={2}
+                                  className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-muted-foreground mb-1">Email Transfer Details</label>
+                                <textarea
+                                  value={emailTransferDetails}
+                                  onChange={(e) => setEmailTransferDetails(e.target.value)}
+                                  placeholder="Enter credentials for the recovery email, or instructions on how email transfer will take place..."
+                                  rows={2}
+                                  className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
                   if (type === "game-accounts") {
                     return (
                       <div className="space-y-4">
@@ -1465,7 +1851,6 @@ function ListingModal({
               >
                 <option value="draft">Draft</option>
                 <option value="active">Active (Published)</option>
-                <option value="hidden">Hidden</option>
               </select>
             </div>
           </div>
@@ -1539,8 +1924,15 @@ function PublishSuccessModal({
 function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { intent } = Route.useSearch();
+  const { intent, listingId } = Route.useSearch() as any;
   const [listings, setListings] = useState<Listing[]>([]);
+
+  useEffect(() => {
+    if (listingId && listings.length > 0) {
+      const matched = listings.find((l) => l.id === listingId);
+      if (matched) setEditTarget(matched);
+    }
+  }, [listingId, listings]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1616,7 +2008,7 @@ function Page() {
     }
   }, [intent]);
 
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "hidden" | "draft" | "deleted">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "promoted" | "draft" | "expired" | "deleted">("all");
 
   async function executeDelete() {
     if (!deleteTarget) return;
@@ -1667,21 +2059,76 @@ function Page() {
     }
   }
 
+  // Derived listing-state helpers (no category-specific logic).
+  const isPromoted = (l: any) =>
+    !!(l.is_featured || l.is_homepage_featured || l.is_urgent || l.has_glow);
+  const isExpired = (l: any) =>
+    l.status === "archived" ||
+    (!!l.expiry_date && new Date(l.expiry_date).getTime() < Date.now());
+  const isDraftLike = (l: any) =>
+    l.status === "draft" || l.status === "pending" || l.status === "pending_review";
+
+  // Official spec (Universal Listing Expiry): show a countdown per listing.
+  const expiryLabel = (l: any): { text: string; tone: string } | null => {
+    if (!l.expiry_date) return null;
+    const ms = new Date(l.expiry_date).getTime() - Date.now();
+    const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+    if (ms <= 0) return { text: "Expired", tone: "text-red-400" };
+    if (days === 1) return { text: "Expires Tomorrow", tone: "text-amber-400" };
+    if (days <= 7) return { text: `Expires in ${days} Days`, tone: "text-amber-400" };
+    return { text: `Expires in ${days} Days`, tone: "text-muted-foreground" };
+  };
+
+  async function setListingLifecycle(id: string, patch: Record<string, any>, msg: string) {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from("listings").update(patch).eq("id", id);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success(msg);
+        setListings((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+        fetchListings();
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
+
+  const executeExpire = (id: string) =>
+    setListingLifecycle(
+      id,
+      { status: "archived", expiry_date: new Date().toISOString() },
+      "Listing expired. It is no longer visible to buyers."
+    );
+
+  const executeRenew = (id: string) => {
+    const in30 = new Date();
+    in30.setDate(in30.getDate() + 30);
+    setListingLifecycle(
+      id,
+      { status: "active", expiry_date: in30.toISOString() },
+      "Listing renewed for 30 days and set back to Active."
+    );
+  };
+
   const stats = {
-    active: listings.filter((l) => l.status === "active").length,
-    hidden: listings.filter((l) => l.status === "hidden").length,
-    draft: listings.filter((l) => l.status === "draft" || l.status === "pending" || l.status === "pending_review").length,
-    deleted: listings.filter((l) => l.status === "deleted").length,
+    active: listings.filter((l) => l.status === "active" && !isExpired(l)).length,
+    promoted: listings.filter((l) => l.status !== "deleted" && isPromoted(l)).length,
+    draft: listings.filter((l) => l.status !== "deleted" && isDraftLike(l)).length,
+    expired: listings.filter((l) => l.status !== "deleted" && isExpired(l)).length,
   };
 
   const filtered = listings.filter((l) => {
     const matchesQuery = l.title.toLowerCase().includes(query.toLowerCase());
     if (!matchesQuery) return false;
-    
+
     if (activeTab === "all") return l.status !== "deleted";
-    if (activeTab === "active") return l.status === "active";
-    if (activeTab === "hidden") return l.status === "hidden";
-    if (activeTab === "draft") return l.status === "draft" || l.status === "pending" || l.status === "pending_review";
+    if (activeTab === "active") return l.status === "active" && !isExpired(l);
+    if (activeTab === "promoted") return l.status !== "deleted" && isPromoted(l);
+    if (activeTab === "draft") return l.status !== "deleted" && isDraftLike(l);
+    if (activeTab === "expired") return l.status !== "deleted" && isExpired(l);
     if (activeTab === "deleted") return l.status === "deleted";
     return true;
   });
@@ -1744,9 +2191,9 @@ function Page() {
         <div className="grid grid-cols-4 gap-3">
           {[
             { id: "active", l: "Active", v: stats.active, c: "text-green-400" },
-            { id: "hidden", l: "Hidden", v: stats.hidden, c: "text-purple-400" },
+            { id: "promoted", l: "Promoted", v: stats.promoted, c: "text-gold" },
             { id: "draft", l: "Drafts", v: stats.draft, c: "text-yellow-400" },
-            { id: "deleted", l: "Deleted", v: stats.deleted, c: "text-red-400" },
+            { id: "expired", l: "Expired", v: stats.expired, c: "text-red-400" },
           ].map((s) => (
             <button
               key={s.l}
@@ -1770,10 +2217,12 @@ function Page() {
               ? "All Listings"
               : activeTab === "active"
               ? "Active Listings"
-              : activeTab === "hidden"
-              ? "Hidden Listings"
+              : activeTab === "promoted"
+              ? "Promoted Listings"
               : activeTab === "draft"
-              ? "Draft Listings"
+              ? "Draft & Pending Listings"
+              : activeTab === "expired"
+              ? "Expired Listings"
               : "Deleted Listings"
           }
           action={
@@ -1793,9 +2242,9 @@ function Page() {
             {[
               { id: "all", label: "All Listings" },
               { id: "active", label: `Active (${stats.active})` },
-              { id: "hidden", label: `Hidden (${stats.hidden})` },
+              { id: "promoted", label: `Promoted (${stats.promoted})` },
               { id: "draft", label: `Drafts (${stats.draft})` },
-              { id: "deleted", label: `Deleted (${stats.deleted})` },
+              { id: "expired", label: `Expired (${stats.expired})` },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1863,9 +2312,19 @@ function Page() {
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium truncate max-w-[200px]">{l.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(l.created_at).toLocaleDateString()}
-                            </p>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">
+                                {new Date(l.created_at).toLocaleDateString()}
+                              </span>
+                              {(() => {
+                                const exp = expiryLabel(l);
+                                return exp ? (
+                                  <span className={`inline-flex items-center gap-1 ${exp.tone}`}>
+                                    <Clock className="size-3" /> {exp.text}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1873,11 +2332,49 @@ function Page() {
                         ₹{(l.price ?? (l.price_cents / 100)).toFixed(2)}
                       </td>
                       <td className="py-3 pr-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${statusColors[l.status] ?? "text-muted-foreground bg-surface border-border"}`}
-                        >
-                          {l.status}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(() => {
+                            const expired = isExpired(l);
+                            const label = expired
+                              ? "Expired"
+                              : l.status === "active" && isPromoted(l)
+                              ? "Promoted"
+                              : l.status === "pending" || l.status === "pending_review"
+                              ? "Pending Approval"
+                              : l.status === "active"
+                              ? "Active"
+                              : l.status === "draft"
+                              ? "Draft"
+                              : l.status === "sold"
+                              ? "Sold"
+                              : l.status === "rejected"
+                              ? "Rejected"
+                              : l.status;
+                            const cls = expired
+                              ? "text-red-400 bg-red-500/10 border-red-500/20"
+                              : l.status === "active" && isPromoted(l)
+                              ? "text-gold bg-gold/10 border-gold/20"
+                              : statusColors[l.status] ?? "text-muted-foreground bg-surface border-border";
+                            return (
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${cls}`}>
+                                {label}
+                              </span>
+                            );
+                          })()}
+                          {/* Promotion indicator icons — driven by real listing flags */}
+                          {l.is_homepage_featured && (
+                            <Star className="size-3.5 text-gold" aria-label="Homepage Featured" />
+                          )}
+                          {l.is_featured && !l.is_homepage_featured && (
+                            <Star className="size-3.5 text-purple-400" aria-label="Featured in Category" />
+                          )}
+                          {l.is_urgent && (
+                            <Zap className="size-3.5 text-red-400" aria-label="Urgent Sale" />
+                          )}
+                          {l.has_glow && (
+                            <Sparkles className="size-3.5 text-amber-400" aria-label="Glow Highlight" />
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 text-right">
                         <div className="inline-flex items-center gap-1">
@@ -1889,8 +2386,34 @@ function Page() {
                             >
                               Restore
                             </button>
+                          ) : isExpired(l) ? (
+                            <>
+                              <button
+                                onClick={() => executeRenew(l.id)}
+                                className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold text-xs font-semibold transition-all cursor-pointer border-none"
+                                title="Renew for 30 days"
+                              >
+                                <RotateCcw className="size-3.5" /> Renew
+                              </button>
+                              <button
+                                onClick={() => setDeleteTarget(l.id)}
+                                disabled={deleting === l.id || deleting !== null}
+                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </>
                           ) : (
                             <>
+                              {/* Promote → Promotion Center (Boost, Glow, Urgent, Featured) */}
+                              <a
+                                href={`/seller/boosts?listing=${l.id}`}
+                                className="p-1.5 rounded-lg hover:bg-gold/10 text-muted-foreground hover:text-gold transition-colors"
+                                title="Promote (Boost / Glow / Urgent)"
+                              >
+                                <Rocket className="size-4" />
+                              </a>
                               <a
                                 href={`/product/${l.id}`}
                                 target="_blank"
@@ -1907,6 +2430,15 @@ function Page() {
                               >
                                 <Edit className="size-4" />
                               </button>
+                              {l.status === "active" && (
+                                <button
+                                  onClick={() => executeExpire(l.id)}
+                                  className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-red-400 transition-colors"
+                                  title="Expire (unpublish)"
+                                >
+                                  <Clock className="size-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => setDeleteTarget(l.id)}
                                 disabled={deleting === l.id || deleting !== null}

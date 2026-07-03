@@ -10,6 +10,13 @@ export type Notification = {
   body: string;
   read_at: string | null;
   created_at: string;
+  // HX-001 schema additions (optional for back-compat with legacy rows).
+  link?: string | null;
+  category?: string | null;
+  priority?: string | null;
+  event_key?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
 };
 
 export function useNotifications() {
@@ -44,8 +51,9 @@ export function useNotifications() {
 
     fetchInitial();
 
+    const channelId = `notifications_hook_${user.id}_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel(`public:notifications:user_id=eq.${user.id}`)
+      .channel(channelId)
       .on(
         "postgres_changes", 
         { 
@@ -66,6 +74,10 @@ export function useNotifications() {
   }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
+  // Unread "new order" notifications, used for the seller Orders badge.
+  const unreadOrderCount = notifications.filter(
+    (n) => !n.read_at && (n.kind?.toLowerCase().startsWith("order") ?? false),
+  ).length;
 
   const markAsRead = async (id: string) => {
     const supabase = getSupabase();
@@ -101,5 +113,5 @@ export function useNotifications() {
     }
   };
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead };
+  return { notifications, unreadCount, unreadOrderCount, loading, markAsRead, markAllAsRead };
 }

@@ -5,6 +5,7 @@ import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Field } from "./login";
 import { requestOtp } from "@/lib/auth.functions";
+import { isDisposableEmail, DISPOSABLE_EMAIL_MESSAGE } from "@/lib/security/disposable-email";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/signup")({
@@ -38,6 +39,11 @@ function SignupPage() {
     }
     if (password.length < 8) {
       setErr("Password must be at least 8 characters.");
+      return;
+    }
+    // Block disposable/temporary mailboxes early (server re-checks — see requestOtp).
+    if (isDisposableEmail(email)) {
+      setErr(DISPOSABLE_EMAIL_MESSAGE);
       return;
     }
 

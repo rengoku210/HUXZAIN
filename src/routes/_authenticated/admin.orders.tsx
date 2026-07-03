@@ -21,6 +21,10 @@ import {
   getAdminOrderDetails,
   updateOrderTimeline,
   addOrderInvestigationNote,
+  adminForceCompleteOrder,
+  adminForceCancelOrder,
+  adminRestartOrderDelivery,
+  adminExtendInspection,
 } from "@/lib/admin/orders.functions";
 import { SignedImage, useSignedUrl } from "@/components/SignedImage";
 
@@ -431,6 +435,16 @@ function AdminOrdersCenter() {
                           </span>
                         </div>
                       </div>
+                      <div className="grid grid-cols-2 gap-4 text-xs border-t border-border/30 pt-3">
+                        <div>
+                          <div className="text-muted-foreground text-[10px] uppercase">Delivery Engine</div>
+                          <div className="font-bold text-foreground mt-0.5">{details.delivery_engine || "Manual"}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground text-[10px] uppercase">Delivery Type</div>
+                          <div className="font-bold text-foreground mt-0.5 font-mono uppercase text-[10px]">{details.delivery_type || "manual"}</div>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-3 gap-4 border-t border-border/30 pt-3 text-xs font-mono">
                         <div>
                           <span className="text-[10px] text-muted-foreground uppercase">Buyer Paid</span>
@@ -572,6 +586,103 @@ function AdminOrdersCenter() {
                           {timelineSaving ? "Appending..." : "Append Milestone"}
                         </button>
                       </form>
+                    </div>
+
+                    {/* Admin Force Override Actions (HX-012) */}
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5 space-y-4">
+                      <div className="flex items-center gap-2 border-b border-red-500/20 pb-2">
+                        <ShieldAlert size={16} className="text-red-400" />
+                        <h4 className="font-display font-semibold text-xs text-red-400 uppercase tracking-wider">
+                          Admin Force Actions
+                        </h4>
+                      </div>
+                      <div className="space-y-2">
+                        {/* Force Complete */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm("Are you sure you want to force complete this order? Payout will be processed immediately.")) return;
+                            try {
+                              await adminForceCompleteOrder({ data: { order_id: details.order.id, staff_user_id: auth.user!.id } });
+                              toast.success("Order force completed.");
+                              void handleOpenDetails(details.order.id);
+                            } catch (e: any) {
+                              toast.error(e.message || "Failed to force complete order.");
+                            }
+                          }}
+                          className="w-full py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 text-[10px] uppercase font-bold tracking-wider active:scale-95 transition-all cursor-pointer"
+                        >
+                          Force Complete Order
+                        </button>
+
+                        {/* Force Cancel */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const reason = window.prompt("Reason for cancellation:");
+                            if (reason === null) return;
+                            try {
+                              await adminForceCancelOrder({ data: { order_id: details.order.id, staff_user_id: auth.user!.id, reason } });
+                              toast.success("Order force cancelled.");
+                              void handleOpenDetails(details.order.id);
+                            } catch (e: any) {
+                              toast.error(e.message || "Failed to force cancel order.");
+                            }
+                          }}
+                          className="w-full py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 text-[10px] uppercase font-bold tracking-wider active:scale-95 transition-all cursor-pointer"
+                        >
+                          Force Cancel Order
+                        </button>
+
+                        {/* Restart Delivery */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm("Are you sure you want to restart delivery for this order?")) return;
+                            try {
+                              await adminRestartOrderDelivery({ data: { order_id: details.order.id, staff_user_id: auth.user!.id } });
+                              toast.success("Delivery restarted.");
+                              void handleOpenDetails(details.order.id);
+                            } catch (e: any) {
+                              toast.error(e.message || "Failed to restart delivery.");
+                            }
+                          }}
+                          className="w-full py-1.5 rounded-lg bg-surface hover:bg-surface/60 border border-border text-gold text-[10px] uppercase font-bold tracking-wider active:scale-95 transition-all cursor-pointer"
+                        >
+                          Restart Delivery
+                        </button>
+
+                        {/* Extend Inspection */}
+                        <div className="pt-2 border-t border-red-500/20 flex gap-2">
+                          <input
+                            type="number"
+                            id="extendHoursInput"
+                            placeholder="Hours..."
+                            className="w-1/2 bg-[#101114] border border-border rounded-lg px-2 py-1 text-xs outline-none text-foreground font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const hoursEl = document.getElementById("extendHoursInput") as HTMLInputElement;
+                              const hours = parseInt(hoursEl?.value || "0");
+                              if (isNaN(hours) || hours <= 0) {
+                                toast.error("Please specify positive hours.");
+                                return;
+                              }
+                              try {
+                                await adminExtendInspection({ data: { order_id: details.order.id, hours, staff_user_id: auth.user!.id } });
+                                toast.success(`Inspection period extended by ${hours} hours.`);
+                                void handleOpenDetails(details.order.id);
+                              } catch (e: any) {
+                                toast.error(e.message || "Failed to extend inspection.");
+                              }
+                            }}
+                            className="w-1/2 py-1 rounded-lg bg-surface hover:bg-surface/60 border border-border text-gold text-[10px] uppercase font-bold tracking-wider active:scale-95 transition-all cursor-pointer text-center"
+                          >
+                            Extend Inspect
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

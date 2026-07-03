@@ -530,7 +530,8 @@ function AntiFraudAndChatMonitor() {
                         return (
                           <tr
                             key={c.id}
-                            className="border-b border-border/40 hover:bg-surface/20 transition-all text-xs"
+                            onClick={() => setSelectedChatId(c.id)}
+                            className="border-b border-border/40 hover:bg-surface/20 transition-all text-xs cursor-pointer"
                           >
                             <td className="py-5 px-6 font-mono font-bold text-gold align-middle">
                               <div className="flex items-center gap-1.5">

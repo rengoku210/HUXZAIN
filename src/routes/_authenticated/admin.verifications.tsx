@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
 import { PanelCard, EmptyState, StatusPill } from "@/components/seller/SellerShell";
+import { onVerificationApproved, onVerificationRejected } from "@/lib/notifications/hooks";
 import { 
   ShieldCheck, 
   RefreshCw, 
@@ -243,27 +244,28 @@ function KYCVerifications() {
         });
       }
 
-      // 4. Notify user
-      let title = "KYC Verification Approved!";
-      let body = "Congratulations! Your account verification has been approved. You now have a verified seller status badge!";
-      let kind = "kyc.approved";
-
-      if (decision === "rejected") {
-        title = "KYC Verification Rejected";
-        body = `Your account verification request was rejected. Details: ${notes || "Please re-upload valid government ID and proofs."}`;
-        kind = "kyc.rejected";
-      } else if (decision === "action_required") {
-        title = "KYC Action Required: Resubmission Request";
-        body = `Your verification requires attention. Please view details and re-upload documents. Reason: ${notes || "Missing document files."}`;
-        kind = "kyc.action_required";
+      // 4. HX-006: verification approved/rejected notifications via the engine.
+      //    "action_required" has no matrix event yet, so it keeps its in-app note.
+      if (decision === "approved") {
+        try {
+          await onVerificationApproved(id);
+        } catch (notifEx) {
+          console.warn("[AdminVerifications] Verification-approved notification exception:", notifEx);
+        }
+      } else if (decision === "rejected") {
+        try {
+          await onVerificationRejected(id);
+        } catch (notifEx) {
+          console.warn("[AdminVerifications] Verification-rejected notification exception:", notifEx);
+        }
+      } else {
+        await supabase.from("notifications").insert({
+          user_id: id,
+          kind: "kyc.action_required",
+          title: "KYC Action Required: Resubmission Request",
+          body: `Your verification requires attention. Please view details and re-upload documents. Reason: ${notes || "Missing document files."}`,
+        });
       }
-
-      await supabase.from("notifications").insert({
-        user_id: id,
-        kind,
-        title,
-        body
-      });
 
       // If approved, update active subscription to 'Verified' plan if they are currently on 'Free'
       if (decision === "approved") {

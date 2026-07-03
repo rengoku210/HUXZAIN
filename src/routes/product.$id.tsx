@@ -17,6 +17,7 @@ import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
+import { onOrderCreated } from "@/lib/notifications/hooks";
 import { toast } from "sonner";
 import { cartStore } from "@/lib/cart/cart-store";
 import { wishlistStore } from "@/lib/wishlist/wishlist-store";
@@ -35,6 +36,7 @@ import { SellerBadge } from "@/components/site/SellerBadge";
 import { sanitizeHexColor } from "@/lib/security";
 import { friendlyError } from "@/lib/error-messages";
 import { TrustBadge } from "@/components/site/TrustBadge";
+import { useCategoryConfig } from "@/lib/marketplace/category-engine";
 
 export const Route = createFileRoute("/product/$id")({
   head: () => ({
@@ -78,6 +80,9 @@ function ProductPage() {
   const navigate = useNavigate();
   const { isAuthenticated, user, ready } = useAuth();
   const [listing, setListing] = useState<DbListing | null>(null);
+
+  const catSlug = listing?.categories?.slug || "";
+  const { fields: dynamicFields } = useCategoryConfig(catSlug);
   const [sellerProfile, setSellerProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -304,16 +309,13 @@ function ProductPage() {
         console.warn("[BuyNow] Transaction insert non-blocking exception:", txEx);
       }
 
-      // Safe notification insert (do not block checkout if RLS restricts buyer insert)
+      // HX-006: notify the buyer their order was created (routed through the
+      // notification engine). The seller is intentionally notified later, at
+      // payment approval (order.payment_approved_seller), per the event matrix.
       try {
-        await supabase.from("notifications").insert({
-          user_id: listing.seller_id,
-          kind: "order.created",
-          title: "New order received",
-          body: `${user.email ?? "A buyer"} started checkout for ${finalTitle}`,
-        });
+        await onOrderCreated(order.id, user.id);
       } catch (notifEx) {
-        console.warn("[BuyNow] Notifications insert non-blocking exception:", notifEx);
+        console.warn("[BuyNow] Order-created notification non-blocking exception:", notifEx);
       }
 
       const redirectPath = "/checkout/payment";
@@ -577,160 +579,42 @@ function ProductPage() {
               </div>
             </div>
 
-            {(() => {
-              const attrs = listing.attributes as any;
-              const catSlug = listing.categories?.slug || "";
-              const isGameAcc = attrs?.type === "game-accounts" || catSlug === "gaming-accounts" || catSlug.includes("account");
-              if (!isGameAcc) return null;
-
-              // Calculate Security Score
-              let score = 0;
-              const factors = [];
-
-              // Factor 1: Original Email Included (+25)
-              const hasOrigEmail = attrs?.originalEmailIncluded === true || attrs?.originalEmailIncluded === "true";
-              if (hasOrigEmail) {
-                score += 25;
-                factors.push({ name: "Original Email Included", desc: "Includes access to the initial registration email account.", status: true, points: 25 });
-              } else {
-                factors.push({ name: "Original Email Included", desc: "Original registration email is not provided with purchase.", status: false, points: 25 });
-              }
-
-              // Factor 2: First Owner Status / Original Owner (+20)
-              const isFirstOwner = attrs?.firstOwnerStatus === true || attrs?.firstOwnerStatus === "true" || attrs?.originalOwner === true || attrs?.originalOwner === "true";
-              if (isFirstOwner) {
-                score += 20;
-                factors.push({ name: "First Owner Verified", desc: "Seller is the original creator of the gaming account.", status: true, points: 20 });
-              } else {
-                factors.push({ name: "First Owner Verified", desc: "Account was resold or traded previously by other owners.", status: false, points: 20 });
-              }
-
-              // Factor 3: Recovery History / Recovery Info Available (+15)
-              const hasRecovery = !!(attrs?.recoveryHistory || attrs?.recoveryInfo);
-              if (hasRecovery) {
-                score += 15;
-                factors.push({ name: "Recovery History Provided", desc: "Detailed recovery details & security answers are supplied.", status: true, points: 15 });
-              } else {
-                factors.push({ name: "Recovery History Provided", desc: "No recovery details or history supplied by the seller.", status: false, points: 15 });
-              }
-
-              // Factor 4: Warranty Availability (+15)
-              const hasWarranty = !!(attrs?.warrantyInformation || attrs?.warrantyPeriod) && !String(attrs?.warrantyInformation || attrs?.warrantyPeriod).toLowerCase().includes("none");
-              if (hasWarranty) {
-                score += 15;
-                factors.push({ name: "Warranty Period Active", desc: `Account is covered by a seller warranty: ${attrs?.warrantyInformation || attrs?.warrantyPeriod}.`, status: true, points: 15 });
-              } else {
-                factors.push({ name: "Warranty Period Active", desc: "No refund or replacement warranty is offered for this account.", status: false, points: 15 });
-              }
-
-              // Factor 5: Purchase Receipts (+15)
-              const hasReceipts = attrs?.purchaseReceiptsAvailable === true || attrs?.purchaseReceiptsAvailable === "true";
-              if (hasReceipts) {
-                score += 15;
-                factors.push({ name: "Purchase Receipts Available", desc: "First purchase receipt/invoices are provided to buyer.", status: true, points: 15 });
-              } else {
-                factors.push({ name: "Purchase Receipts Available", desc: "No transaction receipts or purchase history proofs available.", status: false, points: 15 });
-              }
-
-              // Factor 6: Linked Accounts (+10)
-              const hasLinked = !!attrs?.linkedAccounts && !String(attrs?.linkedAccounts).toLowerCase().includes("none");
-              if (hasLinked) {
-                score += 10;
-                factors.push({ name: "Linked Connections Checked", desc: `Linked social/console accounts detailed: ${attrs?.linkedAccounts}.`, status: true, points: 10 });
-              } else {
-                factors.push({ name: "Linked Connections Checked", desc: "No linked third-party consoles or platforms specified.", status: false, points: 10 });
-              }
-
-              // Determine color class based on score
-              let scoreColor = "text-red-500 border-red-500/20 bg-red-500/5";
-              let scoreLabel = "High Risk";
-              if (score >= 80) {
-                scoreColor = "text-emerald-400 border-emerald-500/20 bg-emerald-500/5";
-                scoreLabel = "Excellent Security";
-              } else if (score >= 50) {
-                scoreColor = "text-gold border-gold/20 bg-gold/5";
-                scoreLabel = "Moderate Security";
-              }
-
-              return (
-                <div className="mt-6 p-5 rounded-2xl border border-border bg-surface/30">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4 mb-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gold">Gaming Account Security Score</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Automated safety verification indicator</p>
-                    </div>
-                    <div className={`flex items-center gap-3 px-4 py-2 rounded-xl border ${scoreColor}`}>
-                      <div className="text-3xl font-extrabold tracking-tight">{score}</div>
-                      <div className="text-left shrink-0">
-                        <div className="text-[10px] uppercase font-bold tracking-wider opacity-65">Score</div>
-                        <div className="text-xs font-bold">{scoreLabel}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {factors.map((f, i) => (
-                      <div key={i} className="flex items-start gap-2.5 text-xs">
-                        <div className={`mt-0.5 shrink-0 size-4 rounded-full flex items-center justify-center text-[9px] font-bold ${f.status ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
-                          {f.status ? "✓" : "✗"}
-                        </div>
-                        <div>
-                          <div className="font-semibold flex items-center gap-1.5 text-white">
-                            {f.name}
-                            <span className="text-[9px] text-muted-foreground">({f.points} pts)</span>
-                          </div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5">{f.desc}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Verification proofs */}
-                  {(attrs?.proofRankUrl || attrs?.proofInventoryUrl || attrs?.proofPurchaseUrl || attrs?.proofScreenshotsUrl) && (
-                    <div className="border-t border-border/40 pt-4 mt-4">
-                      <div className="text-[10px] uppercase tracking-widest text-gold/80 font-bold mb-2.5">Verified Seller Uploads</div>
-                      <div className="flex flex-wrap gap-2">
-                        {attrs?.proofRankUrl && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-xs font-medium">
-                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            Rank Proof Attached
-                          </span>
-                        )}
-                        {attrs?.proofInventoryUrl && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-xs font-medium">
-                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            Inventory Proof Attached
-                          </span>
-                        )}
-                        {attrs?.proofPurchaseUrl && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-xs font-medium">
-                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            Receipt Proof Attached
-                          </span>
-                        )}
-                        {attrs?.proofScreenshotsUrl && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-xs font-medium">
-                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            In-Game Proof Screenshots
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            {/*
+              Gaming Account Security Score removed from the buyer/public product
+              page. It is INTERNAL admin/moderation data and is now shown ONLY in
+              the admin listing-review flow (admin.listings) via
+              computeGamingSecurityScore(). Buyers must never see this value.
+            */}
 
             {listing.attributes && Object.keys(listing.attributes).length > 0 && listing.attributes.type !== "generic" && (
               <div className="mt-6">
                 <h3 className="text-sm font-semibold mb-3 text-gold">Specifications</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                  {Object.entries(listing.attributes).filter(([k]) => k !== 'type' && k !== 'game').map(([key, value]) => (
-                    <div key={key} className="flex flex-col p-3 rounded-xl border border-border bg-surface/30">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                      <span className="font-medium mt-0.5 text-foreground truncate" title={String(value)}>{String(value)}</span>
-                    </div>
-                  ))}
+                  {dynamicFields.length > 0 ? (
+                    dynamicFields.map((field) => {
+                      const value = (listing.attributes as any)?.[field.field_key];
+                      if (value === undefined || value === null || value === "") return null;
+                      
+                      let displayValue = String(value);
+                      if (field.field_type === 'checkbox' || field.field_type === 'boolean') {
+                        displayValue = value === true || String(value) === "true" ? "Yes" : "No";
+                      }
+                      
+                      return (
+                        <div key={field.field_key} className="flex flex-col p-3 rounded-xl border border-border bg-surface/30">
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{field.label}</span>
+                          <span className="font-medium mt-0.5 text-foreground truncate" title={displayValue}>{displayValue}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    Object.entries(listing.attributes).filter(([k]) => k !== 'type' && k !== 'game').map(([key, value]) => (
+                      <div key={key} className="flex flex-col p-3 rounded-xl border border-border bg-surface/30">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span className="font-medium mt-0.5 text-foreground truncate" title={String(value)}>{String(value)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}

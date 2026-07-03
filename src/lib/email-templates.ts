@@ -272,5 +272,33 @@ export const emailTemplates = {
       subject: `Invoice ${invoiceNumber} for Order ${orderId}`,
       html: getEmailWrapper("Transaction Invoice Generated", content)
     };
+  },
+
+  paymentReuploadRequired: (paymentRef: string, orderRef: string, reason: string, uploadUrl: string) => {
+    const content = `
+      <p>Your payment screenshot requires another upload before we can verify it.</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #121216; border: 1px solid #1A1A22; border-radius: 8px; overflow: hidden;">
+        <tr style="border-bottom: 1px solid #1A1A22;">
+          <td style="padding: 12px; color: #8F8F9A; font-size: 13px;">Payment Reference</td>
+          <td style="padding: 12px; color: #FFFFFF; font-weight: 600; text-align: right;">${paymentRef || "N/A"}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #1A1A22;">
+          <td style="padding: 12px; color: #8F8F9A; font-size: 13px;">Order Reference</td>
+          <td style="padding: 12px; color: #FFFFFF; font-weight: 600; text-align: right;">${orderRef || "N/A"}</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px; color: #8F8F9A; font-size: 13px;">Reason for Request</td>
+          <td style="padding: 12px; color: #FFD200; font-weight: 600; text-align: right;">${reason}</td>
+        </tr>
+      </table>
+      <p>Please upload a clearer screenshot of your payment proof using the button below to continue verification.</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${uploadUrl}" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Upload Again</a>
+      </div>
+    `;
+    return {
+      subject: "Payment Screenshot Re-upload Required",
+      html: getEmailWrapper("Screenshot Re-upload Required", content)
+    };
   }
 };

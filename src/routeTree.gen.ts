@@ -40,6 +40,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountIndexRouteImport } from './routes/account.index'
 import { Route as VerifyInvoiceNumberRouteImport } from './routes/verify.$invoiceNumber'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
+import { Route as OrdersOrderIdRouteImport } from './routes/orders.$orderId'
 import { Route as GameBuddiesIdRouteImport } from './routes/game-buddies.$id'
 import { Route as CoachingIdRouteImport } from './routes/coaching.$id'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
@@ -104,6 +105,9 @@ import { Route as AuthenticatedAdminAuditLogsRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
 import { Route as AuthenticatedSellerSubscriptionIndexRouteImport } from './routes/_authenticated/seller.subscription.index'
 import { Route as AuthenticatedSellerSubscriptionPaymentRouteImport } from './routes/_authenticated/seller.subscription.payment'
+import { Route as AuthenticatedSellerOrdersOrderIdRouteImport } from './routes/_authenticated/seller.orders.$orderId'
+import { Route as AuthenticatedSellerListingsListingIdRouteImport } from './routes/_authenticated/seller.listings.$listingId'
+import { Route as AuthenticatedSellerDisputesDisputeIdRouteImport } from './routes/_authenticated/seller.disputes.$disputeId'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
@@ -258,6 +262,11 @@ const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersOrderIdRoute = OrdersOrderIdRouteImport.update({
+  id: '/$orderId',
+  path: '/$orderId',
+  getParentRoute: () => OrdersRoute,
 } as any)
 const GameBuddiesIdRoute = GameBuddiesIdRouteImport.update({
   id: '/$id',
@@ -624,6 +633,24 @@ const AuthenticatedSellerSubscriptionPaymentRoute =
     path: '/subscription/payment',
     getParentRoute: () => AuthenticatedSellerRoute,
   } as any)
+const AuthenticatedSellerOrdersOrderIdRoute =
+  AuthenticatedSellerOrdersOrderIdRouteImport.update({
+    id: '/$orderId',
+    path: '/$orderId',
+    getParentRoute: () => AuthenticatedSellerOrdersRoute,
+  } as any)
+const AuthenticatedSellerListingsListingIdRoute =
+  AuthenticatedSellerListingsListingIdRouteImport.update({
+    id: '/$listingId',
+    path: '/$listingId',
+    getParentRoute: () => AuthenticatedSellerListingsRoute,
+  } as any)
+const AuthenticatedSellerDisputesDisputeIdRoute =
+  AuthenticatedSellerDisputesDisputeIdRouteImport.update({
+    id: '/$disputeId',
+    path: '/$disputeId',
+    getParentRoute: () => AuthenticatedSellerDisputesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -641,7 +668,7 @@ export interface FileRoutesByFullPath {
   '/game-buddies': typeof GameBuddiesRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
-  '/orders': typeof OrdersRoute
+  '/orders': typeof OrdersRouteWithChildren
   '/pages': typeof PagesRoute
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
@@ -665,6 +692,7 @@ export interface FileRoutesByFullPath {
   '/category/$slug': typeof CategorySlugRoute
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
+  '/orders/$orderId': typeof OrdersOrderIdRoute
   '/product/$id': typeof ProductIdRoute
   '/verify/$invoiceNumber': typeof VerifyInvoiceNumberRoute
   '/account/': typeof AccountIndexRoute
@@ -701,12 +729,12 @@ export interface FileRoutesByFullPath {
   '/seller/boosts': typeof AuthenticatedSellerBoostsRoute
   '/seller/coupons': typeof AuthenticatedSellerCouponsRoute
   '/seller/delivery': typeof AuthenticatedSellerDeliveryRoute
-  '/seller/disputes': typeof AuthenticatedSellerDisputesRoute
+  '/seller/disputes': typeof AuthenticatedSellerDisputesRouteWithChildren
   '/seller/earnings': typeof AuthenticatedSellerEarningsRoute
-  '/seller/listings': typeof AuthenticatedSellerListingsRoute
+  '/seller/listings': typeof AuthenticatedSellerListingsRouteWithChildren
   '/seller/messages': typeof AuthenticatedSellerMessagesRoute
   '/seller/notifications': typeof AuthenticatedSellerNotificationsRoute
-  '/seller/orders': typeof AuthenticatedSellerOrdersRoute
+  '/seller/orders': typeof AuthenticatedSellerOrdersRouteWithChildren
   '/seller/reviews': typeof AuthenticatedSellerReviewsRoute
   '/seller/security': typeof AuthenticatedSellerSecurityRoute
   '/seller/settings': typeof AuthenticatedSellerSettingsRoute
@@ -718,6 +746,9 @@ export interface FileRoutesByFullPath {
   '/seller/withdrawals': typeof AuthenticatedSellerWithdrawalsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/seller/': typeof AuthenticatedSellerIndexRoute
+  '/seller/disputes/$disputeId': typeof AuthenticatedSellerDisputesDisputeIdRoute
+  '/seller/listings/$listingId': typeof AuthenticatedSellerListingsListingIdRoute
+  '/seller/orders/$orderId': typeof AuthenticatedSellerOrdersOrderIdRoute
   '/seller/subscription/payment': typeof AuthenticatedSellerSubscriptionPaymentRoute
   '/seller/subscription/': typeof AuthenticatedSellerSubscriptionIndexRoute
 }
@@ -737,7 +768,7 @@ export interface FileRoutesByTo {
   '/game-buddies': typeof GameBuddiesRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
-  '/orders': typeof OrdersRoute
+  '/orders': typeof OrdersRouteWithChildren
   '/pages': typeof PagesRoute
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
@@ -759,6 +790,7 @@ export interface FileRoutesByTo {
   '/category/$slug': typeof CategorySlugRoute
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
+  '/orders/$orderId': typeof OrdersOrderIdRoute
   '/product/$id': typeof ProductIdRoute
   '/verify/$invoiceNumber': typeof VerifyInvoiceNumberRoute
   '/account': typeof AccountIndexRoute
@@ -795,12 +827,12 @@ export interface FileRoutesByTo {
   '/seller/boosts': typeof AuthenticatedSellerBoostsRoute
   '/seller/coupons': typeof AuthenticatedSellerCouponsRoute
   '/seller/delivery': typeof AuthenticatedSellerDeliveryRoute
-  '/seller/disputes': typeof AuthenticatedSellerDisputesRoute
+  '/seller/disputes': typeof AuthenticatedSellerDisputesRouteWithChildren
   '/seller/earnings': typeof AuthenticatedSellerEarningsRoute
-  '/seller/listings': typeof AuthenticatedSellerListingsRoute
+  '/seller/listings': typeof AuthenticatedSellerListingsRouteWithChildren
   '/seller/messages': typeof AuthenticatedSellerMessagesRoute
   '/seller/notifications': typeof AuthenticatedSellerNotificationsRoute
-  '/seller/orders': typeof AuthenticatedSellerOrdersRoute
+  '/seller/orders': typeof AuthenticatedSellerOrdersRouteWithChildren
   '/seller/reviews': typeof AuthenticatedSellerReviewsRoute
   '/seller/security': typeof AuthenticatedSellerSecurityRoute
   '/seller/settings': typeof AuthenticatedSellerSettingsRoute
@@ -812,6 +844,9 @@ export interface FileRoutesByTo {
   '/seller/withdrawals': typeof AuthenticatedSellerWithdrawalsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/seller': typeof AuthenticatedSellerIndexRoute
+  '/seller/disputes/$disputeId': typeof AuthenticatedSellerDisputesDisputeIdRoute
+  '/seller/listings/$listingId': typeof AuthenticatedSellerListingsListingIdRoute
+  '/seller/orders/$orderId': typeof AuthenticatedSellerOrdersOrderIdRoute
   '/seller/subscription/payment': typeof AuthenticatedSellerSubscriptionPaymentRoute
   '/seller/subscription': typeof AuthenticatedSellerSubscriptionIndexRoute
 }
@@ -833,7 +868,7 @@ export interface FileRoutesById {
   '/game-buddies': typeof GameBuddiesRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
-  '/orders': typeof OrdersRoute
+  '/orders': typeof OrdersRouteWithChildren
   '/pages': typeof PagesRoute
   '/privacy': typeof PrivacyRoute
   '/refund-policy': typeof RefundPolicyRoute
@@ -857,6 +892,7 @@ export interface FileRoutesById {
   '/category/$slug': typeof CategorySlugRoute
   '/coaching/$id': typeof CoachingIdRoute
   '/game-buddies/$id': typeof GameBuddiesIdRoute
+  '/orders/$orderId': typeof OrdersOrderIdRoute
   '/product/$id': typeof ProductIdRoute
   '/verify/$invoiceNumber': typeof VerifyInvoiceNumberRoute
   '/account/': typeof AccountIndexRoute
@@ -893,12 +929,12 @@ export interface FileRoutesById {
   '/_authenticated/seller/boosts': typeof AuthenticatedSellerBoostsRoute
   '/_authenticated/seller/coupons': typeof AuthenticatedSellerCouponsRoute
   '/_authenticated/seller/delivery': typeof AuthenticatedSellerDeliveryRoute
-  '/_authenticated/seller/disputes': typeof AuthenticatedSellerDisputesRoute
+  '/_authenticated/seller/disputes': typeof AuthenticatedSellerDisputesRouteWithChildren
   '/_authenticated/seller/earnings': typeof AuthenticatedSellerEarningsRoute
-  '/_authenticated/seller/listings': typeof AuthenticatedSellerListingsRoute
+  '/_authenticated/seller/listings': typeof AuthenticatedSellerListingsRouteWithChildren
   '/_authenticated/seller/messages': typeof AuthenticatedSellerMessagesRoute
   '/_authenticated/seller/notifications': typeof AuthenticatedSellerNotificationsRoute
-  '/_authenticated/seller/orders': typeof AuthenticatedSellerOrdersRoute
+  '/_authenticated/seller/orders': typeof AuthenticatedSellerOrdersRouteWithChildren
   '/_authenticated/seller/reviews': typeof AuthenticatedSellerReviewsRoute
   '/_authenticated/seller/security': typeof AuthenticatedSellerSecurityRoute
   '/_authenticated/seller/settings': typeof AuthenticatedSellerSettingsRoute
@@ -910,6 +946,9 @@ export interface FileRoutesById {
   '/_authenticated/seller/withdrawals': typeof AuthenticatedSellerWithdrawalsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/seller/': typeof AuthenticatedSellerIndexRoute
+  '/_authenticated/seller/disputes/$disputeId': typeof AuthenticatedSellerDisputesDisputeIdRoute
+  '/_authenticated/seller/listings/$listingId': typeof AuthenticatedSellerListingsListingIdRoute
+  '/_authenticated/seller/orders/$orderId': typeof AuthenticatedSellerOrdersOrderIdRoute
   '/_authenticated/seller/subscription/payment': typeof AuthenticatedSellerSubscriptionPaymentRoute
   '/_authenticated/seller/subscription/': typeof AuthenticatedSellerSubscriptionIndexRoute
 }
@@ -955,6 +994,7 @@ export interface FileRouteTypes {
     | '/category/$slug'
     | '/coaching/$id'
     | '/game-buddies/$id'
+    | '/orders/$orderId'
     | '/product/$id'
     | '/verify/$invoiceNumber'
     | '/account/'
@@ -1008,6 +1048,9 @@ export interface FileRouteTypes {
     | '/seller/withdrawals'
     | '/admin/'
     | '/seller/'
+    | '/seller/disputes/$disputeId'
+    | '/seller/listings/$listingId'
+    | '/seller/orders/$orderId'
     | '/seller/subscription/payment'
     | '/seller/subscription/'
   fileRoutesByTo: FileRoutesByTo
@@ -1049,6 +1092,7 @@ export interface FileRouteTypes {
     | '/category/$slug'
     | '/coaching/$id'
     | '/game-buddies/$id'
+    | '/orders/$orderId'
     | '/product/$id'
     | '/verify/$invoiceNumber'
     | '/account'
@@ -1102,6 +1146,9 @@ export interface FileRouteTypes {
     | '/seller/withdrawals'
     | '/admin'
     | '/seller'
+    | '/seller/disputes/$disputeId'
+    | '/seller/listings/$listingId'
+    | '/seller/orders/$orderId'
     | '/seller/subscription/payment'
     | '/seller/subscription'
   id:
@@ -1146,6 +1193,7 @@ export interface FileRouteTypes {
     | '/category/$slug'
     | '/coaching/$id'
     | '/game-buddies/$id'
+    | '/orders/$orderId'
     | '/product/$id'
     | '/verify/$invoiceNumber'
     | '/account/'
@@ -1199,6 +1247,9 @@ export interface FileRouteTypes {
     | '/_authenticated/seller/withdrawals'
     | '/_authenticated/admin/'
     | '/_authenticated/seller/'
+    | '/_authenticated/seller/disputes/$disputeId'
+    | '/_authenticated/seller/listings/$listingId'
+    | '/_authenticated/seller/orders/$orderId'
     | '/_authenticated/seller/subscription/payment'
     | '/_authenticated/seller/subscription/'
   fileRoutesById: FileRoutesById
@@ -1220,7 +1271,7 @@ export interface RootRouteChildren {
   GameBuddiesRoute: typeof GameBuddiesRouteWithChildren
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
-  OrdersRoute: typeof OrdersRoute
+  OrdersRoute: typeof OrdersRouteWithChildren
   PagesRoute: typeof PagesRoute
   PrivacyRoute: typeof PrivacyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
@@ -1460,6 +1511,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/product/$id'
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/orders/$orderId': {
+      id: '/orders/$orderId'
+      path: '/$orderId'
+      fullPath: '/orders/$orderId'
+      preLoaderRoute: typeof OrdersOrderIdRouteImport
+      parentRoute: typeof OrdersRoute
     }
     '/game-buddies/$id': {
       id: '/game-buddies/$id'
@@ -1909,6 +1967,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSellerSubscriptionPaymentRouteImport
       parentRoute: typeof AuthenticatedSellerRoute
     }
+    '/_authenticated/seller/orders/$orderId': {
+      id: '/_authenticated/seller/orders/$orderId'
+      path: '/$orderId'
+      fullPath: '/seller/orders/$orderId'
+      preLoaderRoute: typeof AuthenticatedSellerOrdersOrderIdRouteImport
+      parentRoute: typeof AuthenticatedSellerOrdersRoute
+    }
+    '/_authenticated/seller/listings/$listingId': {
+      id: '/_authenticated/seller/listings/$listingId'
+      path: '/$listingId'
+      fullPath: '/seller/listings/$listingId'
+      preLoaderRoute: typeof AuthenticatedSellerListingsListingIdRouteImport
+      parentRoute: typeof AuthenticatedSellerListingsRoute
+    }
+    '/_authenticated/seller/disputes/$disputeId': {
+      id: '/_authenticated/seller/disputes/$disputeId'
+      path: '/$disputeId'
+      fullPath: '/seller/disputes/$disputeId'
+      preLoaderRoute: typeof AuthenticatedSellerDisputesDisputeIdRouteImport
+      parentRoute: typeof AuthenticatedSellerDisputesRoute
+    }
   }
 }
 
@@ -1976,18 +2055,63 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedSellerDisputesRouteChildren {
+  AuthenticatedSellerDisputesDisputeIdRoute: typeof AuthenticatedSellerDisputesDisputeIdRoute
+}
+
+const AuthenticatedSellerDisputesRouteChildren: AuthenticatedSellerDisputesRouteChildren =
+  {
+    AuthenticatedSellerDisputesDisputeIdRoute:
+      AuthenticatedSellerDisputesDisputeIdRoute,
+  }
+
+const AuthenticatedSellerDisputesRouteWithChildren =
+  AuthenticatedSellerDisputesRoute._addFileChildren(
+    AuthenticatedSellerDisputesRouteChildren,
+  )
+
+interface AuthenticatedSellerListingsRouteChildren {
+  AuthenticatedSellerListingsListingIdRoute: typeof AuthenticatedSellerListingsListingIdRoute
+}
+
+const AuthenticatedSellerListingsRouteChildren: AuthenticatedSellerListingsRouteChildren =
+  {
+    AuthenticatedSellerListingsListingIdRoute:
+      AuthenticatedSellerListingsListingIdRoute,
+  }
+
+const AuthenticatedSellerListingsRouteWithChildren =
+  AuthenticatedSellerListingsRoute._addFileChildren(
+    AuthenticatedSellerListingsRouteChildren,
+  )
+
+interface AuthenticatedSellerOrdersRouteChildren {
+  AuthenticatedSellerOrdersOrderIdRoute: typeof AuthenticatedSellerOrdersOrderIdRoute
+}
+
+const AuthenticatedSellerOrdersRouteChildren: AuthenticatedSellerOrdersRouteChildren =
+  {
+    AuthenticatedSellerOrdersOrderIdRoute:
+      AuthenticatedSellerOrdersOrderIdRoute,
+  }
+
+const AuthenticatedSellerOrdersRouteWithChildren =
+  AuthenticatedSellerOrdersRoute._addFileChildren(
+    AuthenticatedSellerOrdersRouteChildren,
+  )
+
 interface AuthenticatedSellerRouteChildren {
   AuthenticatedSellerAdsRoute: typeof AuthenticatedSellerAdsRoute
   AuthenticatedSellerAnalyticsRoute: typeof AuthenticatedSellerAnalyticsRoute
   AuthenticatedSellerBoostsRoute: typeof AuthenticatedSellerBoostsRoute
   AuthenticatedSellerCouponsRoute: typeof AuthenticatedSellerCouponsRoute
   AuthenticatedSellerDeliveryRoute: typeof AuthenticatedSellerDeliveryRoute
-  AuthenticatedSellerDisputesRoute: typeof AuthenticatedSellerDisputesRoute
+  AuthenticatedSellerDisputesRoute: typeof AuthenticatedSellerDisputesRouteWithChildren
   AuthenticatedSellerEarningsRoute: typeof AuthenticatedSellerEarningsRoute
-  AuthenticatedSellerListingsRoute: typeof AuthenticatedSellerListingsRoute
+  AuthenticatedSellerListingsRoute: typeof AuthenticatedSellerListingsRouteWithChildren
   AuthenticatedSellerMessagesRoute: typeof AuthenticatedSellerMessagesRoute
   AuthenticatedSellerNotificationsRoute: typeof AuthenticatedSellerNotificationsRoute
-  AuthenticatedSellerOrdersRoute: typeof AuthenticatedSellerOrdersRoute
+  AuthenticatedSellerOrdersRoute: typeof AuthenticatedSellerOrdersRouteWithChildren
   AuthenticatedSellerReviewsRoute: typeof AuthenticatedSellerReviewsRoute
   AuthenticatedSellerSecurityRoute: typeof AuthenticatedSellerSecurityRoute
   AuthenticatedSellerSettingsRoute: typeof AuthenticatedSellerSettingsRoute
@@ -2008,12 +2132,14 @@ const AuthenticatedSellerRouteChildren: AuthenticatedSellerRouteChildren = {
   AuthenticatedSellerBoostsRoute: AuthenticatedSellerBoostsRoute,
   AuthenticatedSellerCouponsRoute: AuthenticatedSellerCouponsRoute,
   AuthenticatedSellerDeliveryRoute: AuthenticatedSellerDeliveryRoute,
-  AuthenticatedSellerDisputesRoute: AuthenticatedSellerDisputesRoute,
+  AuthenticatedSellerDisputesRoute:
+    AuthenticatedSellerDisputesRouteWithChildren,
   AuthenticatedSellerEarningsRoute: AuthenticatedSellerEarningsRoute,
-  AuthenticatedSellerListingsRoute: AuthenticatedSellerListingsRoute,
+  AuthenticatedSellerListingsRoute:
+    AuthenticatedSellerListingsRouteWithChildren,
   AuthenticatedSellerMessagesRoute: AuthenticatedSellerMessagesRoute,
   AuthenticatedSellerNotificationsRoute: AuthenticatedSellerNotificationsRoute,
-  AuthenticatedSellerOrdersRoute: AuthenticatedSellerOrdersRoute,
+  AuthenticatedSellerOrdersRoute: AuthenticatedSellerOrdersRouteWithChildren,
   AuthenticatedSellerReviewsRoute: AuthenticatedSellerReviewsRoute,
   AuthenticatedSellerSecurityRoute: AuthenticatedSellerSecurityRoute,
   AuthenticatedSellerSettingsRoute: AuthenticatedSellerSettingsRoute,
@@ -2082,6 +2208,17 @@ const GameBuddiesRouteWithChildren = GameBuddiesRoute._addFileChildren(
   GameBuddiesRouteChildren,
 )
 
+interface OrdersRouteChildren {
+  OrdersOrderIdRoute: typeof OrdersOrderIdRoute
+}
+
+const OrdersRouteChildren: OrdersRouteChildren = {
+  OrdersOrderIdRoute: OrdersOrderIdRoute,
+}
+
+const OrdersRouteWithChildren =
+  OrdersRoute._addFileChildren(OrdersRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -2099,7 +2236,7 @@ const rootRouteChildren: RootRouteChildren = {
   GameBuddiesRoute: GameBuddiesRouteWithChildren,
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,
-  OrdersRoute: OrdersRoute,
+  OrdersRoute: OrdersRouteWithChildren,
   PagesRoute: PagesRoute,
   PrivacyRoute: PrivacyRoute,
   RefundPolicyRoute: RefundPolicyRoute,

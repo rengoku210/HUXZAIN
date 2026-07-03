@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { getSupabase } from "@/lib/supabase-client";
 import * as LucideIcons from "lucide-react";
 import { cartStore } from "@/lib/cart/cart-store";
+import { groupByCategory } from "@/lib/notifications/group";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
 import { primaryCategories, getDbSlugFromUiSlug, getUiSlugFromDbSlug, getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
 import { CategoryMegaMenu } from "../category/CategoryMegaMenu";
@@ -85,6 +86,52 @@ function getInitials(name?: string | null, email?: string | null): string {
       : parts[0].slice(0, 2).toUpperCase();
   }
   return (email?.[0] ?? "U").toUpperCase();
+}
+
+function getNotificationLink(n: any): string {
+  const kind = n.kind ? String(n.kind).toLowerCase() : "";
+  const entityId = n.entity_id || "";
+  const link = n.link || "";
+
+  if (link && link.startsWith("/")) {
+    if (kind === "listing.approved" && link.includes("/seller/listings/")) {
+      const parts = link.split("/");
+      const id = parts[parts.length - 1];
+      if (id && id.length === 36) {
+        return `/product/${id}`;
+      }
+    }
+    return link;
+  }
+
+  if (kind.startsWith("order.") || kind.startsWith("dispute.") || kind.startsWith("refund.")) {
+    const orderId = entityId || link.match(/orders?\/([a-zA-Z0-9\-_]+)/)?.[1] || "";
+    if (orderId) {
+      return `/messages?orderId=${orderId}`;
+    }
+    return "/messages";
+  }
+
+  if (kind.startsWith("listing.")) {
+    if (kind === "listing.approved" && entityId) {
+      return `/product/${entityId}`;
+    }
+    return "/seller/listings";
+  }
+
+  if (kind.startsWith("membership.") || kind.startsWith("verification.")) {
+    return "/seller/verification";
+  }
+
+  if (kind.startsWith("finance.") || kind.startsWith("withdrawal.")) {
+    return "/seller/withdrawals";
+  }
+
+  if (kind.startsWith("security.")) {
+    return "/account";
+  }
+
+  return "/dashboard";
 }
 
 export function Header({ transparent }: { transparent?: boolean }) {
@@ -297,8 +344,9 @@ export function Header({ transparent }: { transparent?: boolean }) {
     const sb = getSupabase();
     if (!sb) return;
 
+    const channelId = `user_notifications_${user.id}_${Math.random().toString(36).substring(2, 9)}`;
     const channel = sb
-      .channel(`user_notifications_${user.id}`)
+      .channel(channelId)
       .on(
         "postgres_changes",
         {
@@ -493,14 +541,11 @@ export function Header({ transparent }: { transparent?: boolean }) {
     }
   }
 
-  const groupedNotifs = {
-    Orders: notifications.filter(n => n.kind?.includes('order') || n.title?.toLowerCase().includes('order')),
-    Payments: notifications.filter(n => n.kind?.includes('payment') || n.kind?.includes('withdrawal') || n.title?.toLowerCase().includes('payment') || n.kind?.includes('wallet')),
-    Support: notifications.filter(n => n.kind?.includes('ticket') || n.kind?.includes('dispute')),
-    Messages: notifications.filter(n => n.kind?.includes('message') || n.title?.toLowerCase().includes('message')),
-  };
-  const groupedIds = new Set(Object.values(groupedNotifs).flat().map(n => n.id));
-  const generalNotifs = notifications.filter(n => !groupedIds.has(n.id));
+  // HX-005: group notifications by the HX-001 `category` column into the six
+  // spec categories (Orders / Listings / Finance / Seller Membership / Security
+  // / Platform). Legacy rows (category backfilled to 'platform') fall under
+  // Platform; new rows from the notify() engine carry their real category.
+  const groupedNotifs = groupByCategory(notifications);
 
   return (
     <>
@@ -696,13 +741,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
                     </div>
                   ) : (
                     <div className="max-h-[26rem] overflow-y-auto scrollbar-thin flex flex-col gap-1 p-2">
-                      {[
-                        { label: "Orders", items: groupedNotifs.Orders },
-                        { label: "Payments", items: groupedNotifs.Payments },
-                        { label: "Support & Disputes", items: groupedNotifs.Support },
-                        { label: "Messages", items: groupedNotifs.Messages },
-                        { label: "General Alerts", items: generalNotifs },
-                      ].map(group => group.items.length > 0 && (
+                      {groupedNotifs.map(group => group.items.length > 0 && (
                         <div key={group.label} className="mb-2">
                           <h4 className="text-[10px] font-bold text-gold uppercase tracking-wider px-3 py-1 bg-surface/30 rounded-md mb-1 flex items-center justify-between">
                             {group.label}
@@ -716,6 +755,9 @@ export function Header({ transparent }: { transparent?: boolean }) {
                                 key={n.id}
                                 onClick={() => {
                                   if (!n.read_at) markAsRead(n.id);
+                                  setNotifOpen(false);
+                                  const targetLink = getNotificationLink(n);
+                                  navigate({ to: targetLink as any });
                                 }}
                                 className={`w-full text-left px-3 py-2.5 hover:bg-surface/60 transition-colors flex gap-3 relative border-none bg-transparent cursor-pointer rounded-lg ${!n.read_at ? "bg-gold/5" : ""}`}
                               >
@@ -852,6 +894,12 @@ export function Header({ transparent }: { transparent?: boolean }) {
                         to="/account"
                         icon={Settings}
                         label="Settings"
+                        close={() => setAccountOpen(false)}
+                      />
+                      <DropLink
+                        to="/contact"
+                        icon={HelpCircle}
+                        label="Help & Support"
                         close={() => setAccountOpen(false)}
                       />
 
@@ -993,12 +1041,6 @@ export function Header({ transparent }: { transparent?: boolean }) {
                 >
                   Boosting Service
                 </Link>
-                <Link
-                  to="/contact"
-                  className="text-[13px] font-medium text-muted-foreground hover:text-gold transition-colors whitespace-nowrap flex items-center gap-1"
-                >
-                  ❓ Support
-                </Link>
               </div>
 
             </div>
@@ -1118,17 +1160,22 @@ export function Header({ transparent }: { transparent?: boolean }) {
         {mobileOpen && (
           <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-xl">
             <div className="container-page py-4 space-y-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.label}
-                  to={item.to as any}
-                  params={"params" in item ? (item.params as any) : undefined}
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center h-10 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-surface/60 rounded-lg transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const linkProps: any = { to: item.to };
+                if ("params" in item && item.params) {
+                  linkProps.params = item.params;
+                }
+                return (
+                  <Link
+                    key={item.label}
+                    {...linkProps}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center h-10 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-surface/60 rounded-lg transition-colors"
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               {!isAuthenticated && (
                 <div className="flex gap-2 pt-3 border-t border-border/60 mt-3">
                   <Link

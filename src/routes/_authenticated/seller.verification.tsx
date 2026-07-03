@@ -23,11 +23,11 @@ function Page() {
   const [addrFile, setAddrFile] = useState<string>("");
   
   // Payout Verification Form States
-  const [payoutMethod, setPayoutMethod] = useState<"upi" | "bank_transfer">("upi");
+  // Bank transfer is the only supported payout method. UPI payouts were removed per platform policy.
+  const payoutMethod = "bank_transfer" as const;
   const [accountHolder, setAccountHolder] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [ifscCode, setIfscCode] = useState("");
-  const [upiId, setUpiId] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -61,11 +61,10 @@ function Page() {
           setVerification(data);
           if (data.payout_details) {
             const pd = data.payout_details;
-            if (pd.method) setPayoutMethod(pd.method);
+            // Bank transfer only — UPI payout fields are no longer loaded into the form.
             if (pd.accountHolder) setAccountHolder(pd.accountHolder);
             if (pd.accountNumber) setAccountNumber(pd.accountNumber);
             if (pd.ifscCode) setIfscCode(pd.ifscCode);
-            if (pd.upiId) setUpiId(pd.upiId);
           }
         }
 
@@ -149,11 +148,7 @@ function Page() {
       toast.error("Please upload an address proof.");
       return;
     }
-    if (payoutMethod === "upi" && !upiId.trim()) {
-      toast.error("Please fill in your UPI ID for payouts.");
-      return;
-    }
-    if (payoutMethod === "bank_transfer" && (!accountHolder.trim() || !accountNumber.trim() || !ifscCode.trim())) {
+    if (!accountHolder.trim() || !accountNumber.trim() || !ifscCode.trim()) {
       toast.error("Please complete all bank transfer details.");
       return;
     }
@@ -173,7 +168,7 @@ function Page() {
             accountHolder: accountHolder.trim(),
             accountNumber: accountNumber.trim(),
             ifscCode: ifscCode.trim().toUpperCase(),
-            upiId: upiId.trim().toLowerCase()
+            upiId: ""
           }
         }
       });
@@ -324,7 +319,7 @@ function Page() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Verification & KYC</h1>
+          <h1 className="font-display text-2xl font-bold">KYC Verification</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Verified HUXZAIN sellers receive trusted badges, higher search priority, and unlock withdrawal settlements.
           </p>
@@ -439,37 +434,13 @@ function Page() {
             <PanelCard title="Withdrawal Payout Details Verification" action={<Wallet className="text-gold size-4" />}>
               <div className="space-y-4 text-sm">
                 <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Choose Payout Settlement Mode</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPayoutMethod("upi")}
-                      className={`h-10 rounded-lg border text-xs font-semibold ${payoutMethod === "upi" ? "bg-gold text-black border-gold" : "border-border hover:bg-surface"}`}
-                    >
-                      UPI Transfer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPayoutMethod("bank_transfer")}
-                      className={`h-10 rounded-lg border text-xs font-semibold ${payoutMethod === "bank_transfer" ? "bg-gold text-black border-gold" : "border-border hover:bg-surface"}`}
-                    >
-                      Bank Account Transfer
-                    </button>
+                  <label className="text-xs text-muted-foreground block mb-1">Payout Settlement Mode</label>
+                  <div className="h-10 rounded-lg bg-gold text-black text-xs font-semibold flex items-center justify-center">
+                    Bank Account Transfer
                   </div>
                 </div>
 
-                {payoutMethod === "upi" ? (
-                  <div>
-                    <label className="text-xs text-muted-foreground block mb-1">UPI ID</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. name@upi or username@oksbi"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-hidden"
-                    />
-                  </div>
-                ) : (
+                {(
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-muted-foreground block mb-1">Account Holder Full Name</label>

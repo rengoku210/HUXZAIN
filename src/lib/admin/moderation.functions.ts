@@ -2,6 +2,15 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { getAdminClient } from "@/server/supabase-admin";
+import {
+  onUserStrike,
+  onStrikeRemoved,
+  onUserWarning,
+  onUserMuted,
+  onUserSuspended,
+  onUserBanned,
+  onUserUnbanned,
+} from "@/lib/notifications/hooks";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RELATIONSHIP HYDRATION HELPERS
@@ -396,32 +405,13 @@ export const issueStrike = createServerFn({ method: "POST" })
     const is_suspended = !!newStatus?.is_suspended;
     const suspension_ends_at = newStatus?.suspension_expires_at ?? null;
 
-    // 3. Insert notification based on strike number
-    let kind = "strike.warning";
-    let title = `Strike ${newStrikeNumber} Issued`;
-    let body = `A strike has been issued against your account for: ${data.reason}`;
-
-    if (newStrikeNumber === 1) {
-      kind = "strike.warning";
-      body = `Warning: Strike 1 issued for: ${data.reason}. Please review our community guidelines. Further violations will result in account suspension.`;
-    } else if (newStrikeNumber === 2) {
-      kind = "strike.strong_warning";
-      body = `Strong Warning: Strike 2 issued for: ${data.reason}. Your next violation will trigger an automatic 30-day account suspension.`;
-    } else if (newStrikeNumber === 3) {
-      kind = "strike.suspension";
-      body = `Account Suspended: Strike 3 issued for: ${data.reason}. Your account has been automatically suspended for 30 days.`;
-    } else if (newStrikeNumber >= 5) {
-      kind = "strike.ban";
-      body = `Account Banned: Strike ${newStrikeNumber} issued for: ${data.reason}. Your account is permanently restricted and under manual ban review.`;
+    // 3. HX-006.5: notify via the engine. onUserStrike maps the strike number to
+    //    the matching matrix event (warning → final warning → suspension → ban).
+    try {
+      await onUserStrike(data.user_id, newStrikeNumber, data.reason);
+    } catch (notifEx) {
+      console.warn("[Strike] Strike notification non-blocking exception:", notifEx);
     }
-
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind,
-      title,
-      body,
-      read_at: null,
-    });
 
     // 4. Insert into user_strikes for backwards compatibility
     const { data: strike, error: sErr } = await supabase
@@ -533,12 +523,12 @@ export const removeStrike = createServerFn({ method: "POST" })
       issued_by: data.moderator_id,
     });
 
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind: "strike.removed",
-      title: "Strike Removed",
-      body: `One strike has been removed from your account. Your current strike count is ${newStrikes}.`,
-    });
+    // HX-006.5: strike-removed notification via the engine.
+    try {
+      await onStrikeRemoved(data.user_id, newStrikes);
+    } catch (notifEx) {
+      console.warn("[Strike] Strike-removed notification non-blocking exception:", notifEx);
+    }
 
     return { success: true, strike_count: newStrikes };
   });
@@ -562,12 +552,12 @@ export const muteUser = createServerFn({ method: "POST" })
       expires_at: expiresAt,
     });
 
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind: "user.muted",
-      title: "Account Muted",
-      body: `You have been muted from sending messages. Reason: ${data.reason}. Expires at: ${expiresAt}`,
-    });
+    // HX-006.5: mute notification via the engine.
+    try {
+      await onUserMuted(data.user_id, data.reason, expiresAt);
+    } catch (notifEx) {
+      console.warn("[Mute] Mute notification non-blocking exception:", notifEx);
+    }
 
     return { success: true, expires_at: expiresAt };
   });
@@ -591,12 +581,12 @@ export const suspendUser = createServerFn({ method: "POST" })
       expires_at: expiresAt,
     });
 
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind: "user.suspended",
-      title: "Account Suspended",
-      body: `Your account has been suspended until ${expiresAt}. Reason: ${data.reason}`,
-    });
+    // HX-006.5: suspension notification via the engine.
+    try {
+      await onUserSuspended(data.user_id, data.reason, expiresAt);
+    } catch (notifEx) {
+      console.warn("[Suspend] Suspension notification non-blocking exception:", notifEx);
+    }
 
     return { success: true, expires_at: expiresAt };
   });
@@ -617,12 +607,12 @@ export const banUser = createServerFn({ method: "POST" })
       reason: data.reason,
     });
 
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind: "user.banned",
-      title: "Account Permanently Restricted",
-      body: `Your account has been permanently restricted. Reason: ${data.reason}`,
-    });
+    // HX-006.5: ban notification via the engine.
+    try {
+      await onUserBanned(data.user_id, data.reason);
+    } catch (notifEx) {
+      console.warn("[Ban] Ban notification non-blocking exception:", notifEx);
+    }
 
     return { success: true };
   });
@@ -643,12 +633,12 @@ export const unbanUser = createServerFn({ method: "POST" })
       reason: data.reason,
     });
 
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind: "user.unbanned",
-      title: "Account Restrictions Lifted",
-      body: `Your account restrictions have been lifted. You can now access all platform features.`,
-    });
+    // HX-006.5: unban notification via the engine.
+    try {
+      await onUserUnbanned(data.user_id);
+    } catch (notifEx) {
+      console.warn("[Unban] Unban notification non-blocking exception:", notifEx);
+    }
 
     return { success: true };
   });
@@ -670,12 +660,12 @@ export const issueWarning = createServerFn({ method: "POST" })
       notes: data.notes || null,
     });
 
-    await supabase.from("notifications").insert({
-      user_id: data.user_id,
-      kind: "user.warning",
-      title: "Moderation Warning",
-      body: `You have received a warning from moderation: ${data.reason}`,
-    });
+    // HX-006.5: warning notification via the engine.
+    try {
+      await onUserWarning(data.user_id, data.reason);
+    } catch (notifEx) {
+      console.warn("[Warning] Warning notification non-blocking exception:", notifEx);
+    }
 
     return { success: true };
   });

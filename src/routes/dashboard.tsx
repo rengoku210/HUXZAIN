@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { useNotifications } from "@/hooks/useNotifications";
 import { completeOrderAndCreditSeller } from "@/lib/wallet.functions";
 import { openDispute } from "@/lib/marketplace/disputeService";
+import { triggerRoleNotification } from "@/lib/notifications.functions";
 import { calculateInspectionHours } from "@/lib/escrow";
 import {
   ShoppingBag,
@@ -89,6 +90,7 @@ type DisputeMessage = {
 
 type PaymentProof = {
   id: string;
+  user_id?: string;
   status: string;
   amount: number;
   screenshot_url: string;
@@ -339,7 +341,26 @@ function DashboardPage() {
       // 1. Upload proof screenshot
       const url = await uploadFile(reuploadFile, "payment-proofs", "proofs");
 
-      // 2. Update payment proof row
+      // 2. Fetch current version count for archiving history
+      const { count } = await supabase
+        .from("payment_proof_history")
+        .select("id", { count: "exact", head: true })
+        .eq("payment_proof_id", activeProofToReupload.id);
+
+      const nextVersion = (count ?? 0) + 1;
+
+      // 3. Insert into payment_proof_history to archive old screenshot
+      await supabase
+        .from("payment_proof_history")
+        .insert({
+          payment_proof_id: activeProofToReupload.id,
+          version: nextVersion,
+          screenshot_url: activeProofToReupload.screenshot_url,
+          reason: activeProofToReupload.rejection_reason || "Re-upload required",
+          uploader_id: activeProofToReupload.user_id,
+        });
+
+      // 4. Update payment proof row to 'pending'
       const { error: proofErr } = await supabase
         .from("payment_proofs")
         .update({
@@ -352,13 +373,27 @@ function DashboardPage() {
 
       if (proofErr) throw proofErr;
 
-      // 3. Update order payment status back to under review
+      // 5. Update order payment status back to under review
       const orderId = orders.find(o => o.listing_id === activeProofToReupload.listing_id)?.id;
       if (orderId) {
         await supabase
           .from("orders")
           .update({ status: "payment_under_review", updated_at: new Date().toISOString() })
           .eq("id", orderId);
+      }
+
+      // 6. Notify admin/staff of new screenshot re-uploaded
+      try {
+        await triggerRoleNotification({
+          data: {
+            roles: ["admin", "staff"],
+            kind: "staff.payment_verification",
+            title: "New payment screenshot uploaded",
+            body: `User ${user?.email || "Buyer"} uploaded a new screenshot for Order #${orderId?.slice(0, 8) || "N/A"}.`
+          }
+        });
+      } catch (notifErr) {
+        console.warn("[Dashboard] Failed to notify staff:", notifErr);
       }
 
       toast.success("Payment proof re-submitted successfully!");
@@ -598,7 +633,7 @@ function DashboardPage() {
 
   // Warning payments (reupload requested)
   const reuploadRequestedProofs = useMemo(() => {
-    return proofs.filter(p => p.status === "reupload_requested");
+    return proofs.filter(p => p.status === "reupload_requested" || p.status === "REUPLOAD_REQUIRED");
   }, [proofs]);
 
   // Combined notifications & active sessions recent activity

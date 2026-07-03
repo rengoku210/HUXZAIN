@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   ArrowLeft, 
   AlertCircle, 
@@ -33,6 +33,36 @@ function CheckoutPage() {
   // Validate selected plan (strip any enclosing quotes from JSON-serialized URL query format)
   const selectedPlanId = (plan?.replace(/"/g, "")?.toLowerCase() || "pro") as SellerTier;
   const planMeta = TIERS[selectedPlanId] || TIERS.pro;
+
+  const [dbPlan, setDbPlan] = useState<any | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(true);
+
+  useEffect(() => {
+    async function loadPlan() {
+      const supabase = getSupabase();
+      if (!supabase) {
+        setLoadingPrice(false);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("subscription_plans_config")
+          .select("*")
+          .eq("id", selectedPlanId)
+          .maybeSingle();
+        if (!error && data) {
+          setDbPlan(data);
+        }
+      } catch (err) {
+        console.warn("Failed to load dynamic plan price:", err);
+      } finally {
+        setLoadingPrice(false);
+      }
+    }
+    loadPlan();
+  }, [selectedPlanId]);
+
+  const monthlyPrice = dbPlan ? dbPlan.monthly_price_inr : planMeta.monthly;
 
   const [step, setStep] = useState<"pay" | "upload" | "success">("pay");
   const [file, setFile] = useState<File | null>(null);
@@ -126,7 +156,7 @@ function CheckoutPage() {
             order_id: null,
             listing_id: null,
             payment_type: "subscription" as const,
-            amount: planMeta.monthly,
+            amount: monthlyPrice,
             utr_reference: "",
             screenshot_url: screenshotUrl,
             payment_reference: `subscription:${selectedPlanId}`,
@@ -141,7 +171,7 @@ function CheckoutPage() {
           const legacyPayload = {
             user_id: user.id,
             selected_plan: planMeta.label,
-            amount: planMeta.monthly,
+            amount: monthlyPrice,
             screenshot_url: screenshotUrl,
             status: "pending",
             ai_reason: ocrDataString,
@@ -195,7 +225,7 @@ function CheckoutPage() {
             </div>
             <div className="text-right">
               <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Amount Payable</div>
-              <div className="text-2xl font-display font-extrabold text-gold mt-0.5">₹{planMeta.monthly}</div>
+              <div className="text-2xl font-display font-extrabold text-gold mt-0.5">₹{monthlyPrice.toLocaleString()}</div>
             </div>
           </div>
 
@@ -214,7 +244,7 @@ function CheckoutPage() {
             <div className="relative p-3 rounded-2xl border border-gold/30 bg-white shadow-2xl flex items-center justify-center w-52 h-52 group overflow-hidden">
               {/* Dynamic QR API that generates a working UPI QR Code tailored to their UPI ID */}
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=shprivateltd@upi&pn=HUXZAIN&am=${planMeta.monthly}&cu=INR&tn=Huxzain%20${planMeta.label}%20Subscription`)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=shprivateltd@upi&pn=HUXZAIN&am=${monthlyPrice}&cu=INR&tn=Huxzain%20${planMeta.label}%20Subscription`)}`}
                 alt="UPI QR Code" 
                 className="w-full h-full object-contain"
               />
@@ -235,7 +265,7 @@ function CheckoutPage() {
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-foreground">Important Payment Instructions</h4>
               <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-1 leading-relaxed">
-                <li>Please pay the exact amount: <span className="text-gold font-bold">₹{planMeta.monthly}</span></li>
+                <li>Please pay the exact amount: <span className="text-gold font-bold">₹{monthlyPrice.toLocaleString()}</span></li>
                 <li>Do not modify the amount or pay less/more than specified.</li>
                 <li>Payments are manually verified after screenshot upload.</li>
                 <li>Verification may take **24–48 hours** by our staff.</li>

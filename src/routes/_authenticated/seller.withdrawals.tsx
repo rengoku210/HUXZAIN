@@ -8,6 +8,7 @@ import { getSupabase } from "@/lib/supabase-client";
 import { getOrCreateWallet, requestWithdrawal, checkAndReleaseEscrows, syncAndGetWallet } from "@/lib/wallet.functions";
 import { parseWithdrawnOrderIds, getPayoutState, type OrderPayout } from "@/lib/payout-calculator";
 import { toast } from "sonner";
+import { useFinanceConfig } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/seller/withdrawals")({
   head: () => ({ meta: [{ title: "Withdrawals — HUXZAIN Seller" }] }),
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/seller/withdrawals")({
 function Page() {
   const { user } = useAuth();
   const { tier } = useSellerTier();
+  const { config: financeConfig } = useFinanceConfig();
   const [wallet, setWallet] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [payouts, setPayouts] = useState<OrderPayout[]>([]);
@@ -26,8 +28,8 @@ function Page() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Form State
-  const [method, setMethod] = useState<"upi" | "bank_transfer">("upi");
-  const [upiId, setUpiId] = useState<string>("");
+  // Payouts are bank-transfer only. UPI payouts were removed per platform KYC/payout policy.
+  const method = "bank_transfer" as const;
   const [accountHolder, setAccountHolder] = useState<string>("");
   const [accountNumber, setAccountNumber] = useState<string>("");
   const [ifscCode, setIfscCode] = useState<string>("");
@@ -81,7 +83,7 @@ function Page() {
         const withdrawnIds = parseWithdrawnOrderIds(historyList);
 
         const mappedPayouts = (ordersData || []).map(o => 
-          getPayoutState(o, withdrawnIds, tier as any, reactivatedIds)
+          getPayoutState(o, withdrawnIds, tier as any, reactivatedIds, financeConfig)
         );
 
         setPayouts(mappedPayouts);
@@ -200,11 +202,7 @@ function Page() {
       return;
     }
 
-    if (method === "upi" && !upiId) {
-      toast.error("Please provide a valid UPI ID");
-      return;
-    }
-    if (method === "bank_transfer" && (!accountHolder || !accountNumber || !ifscCode)) {
+    if (!accountHolder || !accountNumber || !ifscCode) {
       toast.error("Please fill in all bank transfer fields");
       return;
     }
@@ -216,8 +214,8 @@ function Page() {
       const orderIdsSuffix = `|orders:${Array.from(selectedIds).join(",")}`;
       
       const details = {
-        upi_id: method === "upi" ? upiId + orderIdsSuffix : null,
-        account_holder: method === "bank_transfer" ? accountHolder + orderIdsSuffix : null,
+        upi_id: null,
+        account_holder: accountHolder + orderIdsSuffix,
         account_number: accountNumber || null,
         ifsc_code: ifscCode || null
       };
@@ -227,7 +225,6 @@ function Page() {
       
       // Reset state
       setSelectedIds(new Set());
-      setUpiId("");
       setAccountHolder("");
       setAccountNumber("");
       setIfscCode("");
@@ -541,40 +538,12 @@ function Page() {
 
                   <div>
                     <span className="text-xs font-semibold text-muted-foreground">Payout Method</span>
-                    <div className="grid grid-cols-2 gap-2 mt-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setMethod("upi")}
-                        className={`h-9 rounded-lg border text-xs font-semibold transition-all border-none cursor-pointer ${
-                          method === "upi" ? "bg-gold text-black font-bold" : "border border-border hover:bg-surface text-muted-foreground bg-transparent"
-                        }`}
-                      >
-                        UPI ID
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMethod("bank_transfer")}
-                        className={`h-9 rounded-lg border text-xs font-semibold transition-all border-none cursor-pointer ${
-                          method === "bank_transfer" ? "bg-gold text-black font-bold" : "border border-border hover:bg-surface text-muted-foreground bg-transparent"
-                        }`}
-                      >
-                        Bank Transfer
-                      </button>
+                    <div className="mt-1.5 h-9 rounded-lg bg-gold text-black font-bold text-xs flex items-center justify-center">
+                      Bank Transfer
                     </div>
                   </div>
 
-                  {method === "upi" ? (
-                    <div>
-                      <span className="text-xs font-semibold text-muted-foreground">UPI ID</span>
-                      <input
-                        type="text"
-                        placeholder="username@upi"
-                        value={upiId}
-                        onChange={(e) => setUpiId(e.target.value)}
-                        className="mt-1.5 w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-gold/50"
-                      />
-                    </div>
-                  ) : (
+                  {(
                     <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
                       <div>
                         <span className="text-xs font-semibold text-muted-foreground">Account Holder Name</span>

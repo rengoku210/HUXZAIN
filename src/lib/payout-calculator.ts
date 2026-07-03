@@ -1,5 +1,6 @@
 // src/lib/payout-calculator.ts
 import { calculateCoolingDays, type SellerTier } from "./escrow";
+import { type FinanceConfig, type CategoryKey } from "./finance";
 
 export type PayoutState = "cooling" | "eligible" | "dormant" | "withdrawn" | "pending_escrow" | "reactivated";
 
@@ -36,7 +37,8 @@ export function getPayoutState(
   order: any,
   withdrawnIds: Set<string>,
   sellerTier: SellerTier = "standard",
-  reactivatedIds: Set<string> = new Set()
+  reactivatedIds: Set<string> = new Set(),
+  financeConfig?: FinanceConfig
 ): OrderPayout {
   const orderId = order.id;
   const orderNumber = order.order_number || `AEX-${orderId.slice(0, 8).toUpperCase()}`;
@@ -95,12 +97,29 @@ export function getPayoutState(
   // Calculate timelines
   if (completedAt) {
     const compTime = new Date(completedAt).getTime();
-    const coolingDays = calculateCoolingDays(sellerTier);
-    const eligibleTime = compTime + coolingDays * 24 * 60 * 60 * 1000;
+    
+    let eligibleTime: number;
+    let expiryTime: number;
+    
+    if (order.withdrawal_eligible_at) {
+      eligibleTime = new Date(order.withdrawal_eligible_at).getTime();
+    } else {
+      let coolingDays = 7;
+      if (financeConfig && order.category_key) {
+        coolingDays = financeConfig.escrow[order.category_key as CategoryKey]?.[sellerTier] ?? 7;
+      } else {
+        coolingDays = calculateCoolingDays(sellerTier);
+      }
+      eligibleTime = compTime + coolingDays * 24 * 60 * 60 * 1000;
+    }
+    
+    if (order.withdrawal_expired_at) {
+      expiryTime = new Date(order.withdrawal_expired_at).getTime();
+    } else {
+      expiryTime = eligibleTime + 30 * 24 * 60 * 60 * 1000;
+    }
+    
     eligibleAt = new Date(eligibleTime);
-
-    // 30 days claim window
-    const expiryTime = eligibleTime + 30 * 24 * 60 * 60 * 1000;
     expiresAt = new Date(expiryTime);
 
     const now = Date.now();

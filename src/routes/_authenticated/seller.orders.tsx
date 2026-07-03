@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Download, RefreshCw, ShoppingBag, Clock, CheckCircle2, AlertTriangle, FileText, Printer, X } from "lucide-react";
 import { PanelCard, StatCard, StatusPill } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useNotifications } from "@/hooks/useNotifications";
 
 export const Route = createFileRoute("/_authenticated/seller/orders")({
   head: () => ({ meta: [{ title: "Orders - HUXZAIN Seller" }] }),
@@ -29,13 +30,16 @@ type SellerOrder = {
 
 function statusLabel(status: string) {
   const map: Record<string, string> = {
-    pending_payment: "Pending",
-    pending: "Pending",
-    paid: "Processing",
-    delivering: "Processing",
-    delivered: "Delivered",
+    pending_payment: "Pending Payment",
+    pending: "Pending Review",
+    payment_under_review: "Payment Reviewing",
+    payment_approved: "Payment Verified",
+    order_active: "In Progress",
+    seller_delivering: "Delivering",
+    buyer_reviewing: "Awaiting Confirmation",
     completed: "Completed",
     disputed: "Disputed",
+    cancelled: "Cancelled",
   };
   return map[status] ?? status;
 }
@@ -161,9 +165,15 @@ function InvoiceModal({ order, onClose }: { order: SellerOrder; onClose: () => v
 
 function Page() {
   const { user } = useAuth();
+  const { notifications, markAsRead } = useNotifications();
   const [orders, setOrders] = useState<SellerOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<SellerOrder | null>(null);
+  // Snapshot of unread "new order" notifications when the page opened, so the
+  // Orders card can show how many new orders arrived (before we mark them read).
+  const [newOrderBadge, setNewOrderBadge] = useState(0);
+  const [badgeSnapped, setBadgeSnapped] = useState(false);
+  const markedIdsRef = useRef<Set<string>>(new Set());
 
   async function loadOrders() {
     const supabase = getSupabase();
@@ -210,12 +220,49 @@ function Page() {
 
   useEffect(() => {
     void loadOrders();
+
+    // Realtime: refresh the seller's order list the moment a buyer places /
+    // updates an order, so the dashboard never "stays empty" after checkout.
+    const supabase = getSupabase();
+    if (!supabase || !user) return;
+    const channelId = `seller-orders-${user.id}-${Math.random().toString(36).substring(2, 9)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `seller_id=eq.${user.id}` },
+        () => {
+          void loadOrders();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
+  // Viewing the Orders page clears the "new order" badge (menu / card / bell).
+  // We snapshot the unread order count once (for the card) before marking read.
+  useEffect(() => {
+    const unreadOrders = notifications.filter(
+      (n) => !n.read_at && (n.kind?.toLowerCase().startsWith("order") ?? false),
+    );
+    if (!badgeSnapped && unreadOrders.length > 0) {
+      setNewOrderBadge(unreadOrders.length);
+      setBadgeSnapped(true);
+    }
+    for (const n of unreadOrders) {
+      if (!markedIdsRef.current.has(n.id)) {
+        markedIdsRef.current.add(n.id);
+        void markAsRead(n.id);
+      }
+    }
+  }, [notifications]);
+
   const pending = orders.filter((o) =>
-    ["pending_payment", "pending", "paid", "delivering"].includes(o.status),
+    ["pending_payment", "pending", "paid", "payment_under_review", "payment_approved", "order_active", "seller_delivering"].includes(o.status),
   ).length;
-  const delivered = orders.filter((o) => ["delivered", "completed"].includes(o.status)).length;
+  const delivered = orders.filter((o) => ["delivered", "buyer_reviewing", "completed"].includes(o.status)).length;
   const disputed = orders.filter((o) => o.status === "disputed").length;
 
   return (
@@ -236,7 +283,7 @@ function Page() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="All orders" value={String(orders.length)} icon={ShoppingBag} />
+        <StatCard label="All orders" value={String(orders.length)} icon={ShoppingBag} badge={newOrderBadge} />
         <StatCard
           label="Pending fulfillment"
           value={String(pending)}

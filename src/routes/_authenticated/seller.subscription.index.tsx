@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Check, Crown, AlertCircle, Clock, CheckCircle2, RefreshCw } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Check, Crown, AlertCircle, Clock, CheckCircle2, RefreshCw, Upload, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { PanelCard } from "@/components/seller/SellerShell";
 import { TierBadge } from "@/components/seller/TierBadge";
 import { TIERS, type SellerTier, useSellerTier } from "@/lib/seller/tier-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { toast } from "sonner";
+import { SignedImage } from "@/components/SignedImage";
+import { triggerRoleNotification, submitSubscriptionReupload } from "@/lib/notifications.functions";
 
 export const Route = createFileRoute("/_authenticated/seller/subscription/")({
   head: () => ({ meta: [{ title: "Subscription — HUXZAIN Seller" }] }),
@@ -19,6 +21,7 @@ type PaymentProof = {
   amount: number;
   status: string;
   rejection_reason?: string | null;
+  screenshot_url?: string | null;
   created_at: string;
 };
 
@@ -28,12 +31,81 @@ function Page() {
   const navigate = useNavigate();
   const [proofs, setProofs] = useState<PaymentProof[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dbPlans, setDbPlans] = useState<any[]>([]);
+
+  const [reuploading, setReuploading] = useState(false);
+  const [reuploadFile, setReuploadFile] = useState<File | null>(null);
+  const [reuploadPreview, setReuploadPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const selectedFile = files[0];
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        toast.error("File is too large. Max size is 5MB.");
+        return;
+      }
+      setReuploadFile(selectedFile);
+      setReuploadPreview(URL.createObjectURL(selectedFile));
+    }
+  };
+
+  async function handleSubscriptionReupload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!latestProof || !reuploadFile || !user) return;
+    const supabase = getSupabase()!;
+    setReuploading(true);
+
+    try {
+      // 1. Upload screenshot to 'payment-proofs' storage bucket
+      const ext = reuploadFile.name.split(".").pop() ?? "png";
+      const filePath = `${user.id}/subscriptions/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+      
+      const { error: uploadErr } = await supabase.storage
+        .from("payment-proofs")
+        .upload(filePath, reuploadFile, { upsert: true, contentType: reuploadFile.type });
+
+      if (uploadErr) throw uploadErr;
+
+      // 2. Call the server function to update DB rows and notify admin/staff bypassing RLS
+      const res = await submitSubscriptionReupload({
+        data: {
+          userId: user.id,
+          latestProofId: latestProof.id,
+          filePath,
+          selectedPlan: latestProof.selected_plan,
+          userEmail: user.email ?? "Unknown Seller",
+        }
+      });
+
+      if (!res?.success) {
+        throw new Error(res?.error || "Server transaction failed");
+      }
+
+      toast.success("Subscription payment proof re-submitted successfully!");
+      setReuploadFile(null);
+      setReuploadPreview(null);
+      void fetchProofs();
+    } catch (err: any) {
+      toast.error("Re-upload failed: " + err.message);
+    } finally {
+      setReuploading(false);
+    }
+  }
 
   async function fetchProofs() {
     const supabase = getSupabase();
     if (!supabase || !user) return;
     setLoading(true);
     try {
+      const { data: plansData } = await supabase
+        .from("subscription_plans_config")
+        .select("*");
+      if (plansData) {
+        setDbPlans(plansData);
+      }
+
       const { data, error } = await supabase
         .from("subscription_payment_proofs")
         .select("*")
@@ -130,6 +202,109 @@ function Page() {
               </div>
             </div>
           )}
+
+          {(latestProof.status === "reupload_requested" || latestProof.status === "REUPLOAD_REQUIRED") && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="size-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                  <AlertCircle className="size-5 animate-pulse" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-amber-400 text-sm font-display">Re-upload Required</h3>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    The reviewer requested a new screenshot of your manual UPI payment.
+                  </p>
+                  {latestProof.rejection_reason && (
+                    <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/10 text-xs text-amber-400 font-mono">
+                      <strong>Reason for request:</strong> "{latestProof.rejection_reason}"
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress Timeline */}
+              <div className="border-t border-b border-border/40 py-3 my-2">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase tracking-wider px-2">
+                  <span className="text-gold font-bold">1. Initiated</span>
+                  <span className="text-amber-500 font-bold font-sans">2. Re-upload Required</span>
+                  <span>3. Re-submitted</span>
+                  <span>4. Verified</span>
+                </div>
+                <div className="w-full bg-surface h-1 mt-2 rounded-full overflow-hidden flex">
+                  <div className="bg-gold h-full w-1/3" />
+                  <div className="bg-amber-500 h-full w-1/3" />
+                  <div className="bg-border h-full w-1/3" />
+                </div>
+              </div>
+
+              {/* Version History & Upload Interface */}
+              <div className="grid md:grid-cols-2 gap-6 pt-2">
+                <div>
+                  <h4 className="text-xs font-bold text-foreground mb-2">Previous Evidence Preview</h4>
+                  <div className="relative rounded-xl overflow-hidden border border-border bg-black/40 h-40 flex items-center justify-center">
+                    <SignedImage
+                      path={latestProof.screenshot_url}
+                      bucket="payment-proofs"
+                      className="w-full h-full object-contain"
+                      alt="Previous Payment Screenshot"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-foreground">Upload New Screenshot</h4>
+                  {!reuploadFile ? (
+                    <div
+                      className="border-2 border-dashed border-border/60 hover:border-gold/50 rounded-xl p-5 text-center bg-surface/20 hover:bg-gold/5 cursor-pointer h-28 flex flex-col justify-center"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="size-6 text-muted-foreground mx-auto mb-1.5" />
+                      <p className="text-xs font-semibold">Replace Screenshot</p>
+                      <p className="text-[10px] text-muted-foreground">PNG, JPG up to 5MB</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative rounded-xl overflow-hidden border border-border bg-black h-28">
+                      <img src={reuploadPreview || ""} alt="New Preview" className="w-full h-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReuploadFile(null);
+                          setReuploadPreview(null);
+                        }}
+                        className="absolute top-1.5 right-1.5 p-1 bg-black/80 rounded-full border border-white/10"
+                      >
+                        <X className="size-3 text-white" />
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSubscriptionReupload}
+                    disabled={reuploading || !reuploadFile}
+                    className="w-full h-9 rounded-xl bg-gold text-black text-xs font-bold hover:brightness-110 disabled:opacity-50 transition-all cursor-pointer border-none flex items-center justify-center gap-1.5"
+                  >
+                    {reuploading ? (
+                      <>
+                        <RefreshCw className="size-3.5 animate-spin" /> Uploading New Screenshot...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={12} /> Submit Replacement Screenshot
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -165,10 +340,16 @@ function Page() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-4 font-display text-3xl font-bold text-foreground">
-                    {m.monthly === 0 ? "Free" : `₹${m.monthly}`}
-                    <span className="text-sm font-normal text-muted-foreground">/mo</span>
-                  </div>
+                  {(() => {
+                    const dbPlan = dbPlans.find((p) => p.id === t);
+                    const monthlyPrice = dbPlan ? dbPlan.monthly_price_inr : m.monthly;
+                    return (
+                      <div className="mt-4 font-display text-3xl font-bold text-foreground">
+                        {monthlyPrice === 0 ? "Free" : `₹${monthlyPrice.toLocaleString()}`}
+                        <span className="text-sm font-normal text-muted-foreground font-sans">/mo</span>
+                      </div>
+                    );
+                  })()}
                   <div className="text-xs text-muted-foreground mt-2">{m.tagline}</div>
 
                   <ul className="mt-6 space-y-3 text-xs text-muted-foreground">

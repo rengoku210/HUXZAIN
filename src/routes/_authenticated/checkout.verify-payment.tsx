@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
 import { uploadPaymentProof } from "@/lib/payments/paymentUploadService";
 import { createVerification } from "@/lib/payments/verificationQueueService";
+import { onPaymentSubmitted } from "@/lib/notifications/hooks";
 
 export const Route = createFileRoute("/_authenticated/checkout/verify-payment")({
   head: () => ({ meta: [{ title: "Complete Payment - HUXZAIN" }] }),
@@ -48,7 +49,7 @@ function VerifyPayment() {
   const orderId = search.orderId;
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [step, setStep] = useState<FlowStep>("pay");
-  const [txnId, setTxnId] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -83,6 +84,8 @@ function VerifyPayment() {
     setPreviewUrl(URL.createObjectURL(f));
   };
 
+  const [submissionStatus, setSubmissionStatus] = useState("");
+
   async function handleSubmit() {
     if (!file || !orderId || !user) return;
     const supabase = getSupabase();
@@ -90,11 +93,13 @@ function VerifyPayment() {
 
     setSubmitting(true);
     setUploadErrorMsg(null);
+    setSubmissionStatus("Initializing secure upload channel...");
     const controller = new AbortController();
     setAbortController(controller);
 
     try {
       // 1. Upload proof image
+      setSubmissionStatus("Uploading payment proof to cloud vault...");
       const uploadResult = await uploadPaymentProof({
         file,
         userId: user.id,
@@ -103,6 +108,7 @@ function VerifyPayment() {
       });
 
       // 2. Create verification record (handles fallback to payment_events)
+      setSubmissionStatus("Analyzing transaction and running security checks...");
       const verification = await createVerification({
         userId: user.id,
         orderId: orderId,
@@ -110,19 +116,18 @@ function VerifyPayment() {
       });
 
       // 3. Update transaction status
+      setSubmissionStatus("Registering payment receipt...");
       await supabase
         .from("transactions")
-        .update({ ref: txnId.trim(), status: "submitted" })
+        .update({ ref: `manual:${orderId}`, status: "submitted" })
         .eq("order_id", orderId)
         .eq("user_id", user.id);
 
-      if (order?.seller_id) {
-        await supabase.from("notifications").insert({
-          user_id: order.seller_id,
-          kind: "payment.submitted",
-          title: "Payment proof submitted",
-          body: `Order ${orderId.slice(0, 8)} is awaiting admin verification.`,
-        });
+      // HX-006: buyer acknowledgement + payment-verification queue for staff.
+      try {
+        await onPaymentSubmitted(orderId, user.id);
+      } catch (notifEx) {
+        console.warn("[VerifyPayment] Payment-submitted notification non-blocking exception:", notifEx);
       }
 
       setVerificationId(verification.id);
@@ -133,11 +138,13 @@ function VerifyPayment() {
         setUploadErrorMsg("Upload cancelled.");
         toast.error("Upload cancelled.");
       } else {
+        setUploadErrorMsg(e.message || "Something went wrong.");
         toast.error(`Submission failed: ${e.message}`);
       }
     } finally {
       setSubmitting(false);
       setAbortController(null);
+      setSubmissionStatus("");
     }
   }
 
@@ -268,17 +275,18 @@ function VerifyPayment() {
           <div className="rounded-2xl border border-border bg-surface/40 p-5 h-fit">
             <h1 className="font-display text-2xl font-bold mb-1">Upload Payment Proof</h1>
             <p className="text-xs text-muted-foreground mb-4">
-              Upload your receipt screenshot and enter your transaction reference.
+              Upload your receipt screenshot to complete payment.
             </p>
             <div className="mb-4">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Transaction ID / UTR Number
+                Payment note (optional)
               </label>
-              <input
-                value={txnId}
-                onChange={(e) => setTxnId(e.target.value)}
-                placeholder="e.g. UTR123456789"
-                className="w-full h-10 px-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+              <textarea
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder="Add any note about this payment (optional)."
+                rows={2}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 resize-none"
               />
             </div>
             <div className="mb-4">
@@ -328,7 +336,7 @@ function VerifyPayment() {
             </div>
             <button
               onClick={handleSubmit}
-              disabled={submitting || !file || !txnId.trim() || !orderId}
+              disabled={submitting || !file || !orderId}
               className="w-full h-12 rounded-xl bg-gold text-primary-foreground text-sm font-bold hover:brightness-110 disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {submitting ? (
@@ -341,6 +349,11 @@ function VerifyPayment() {
                 </>
               )}
             </button>
+            {submitting && submissionStatus && (
+              <p className="text-[11px] text-muted-foreground text-center animate-pulse mt-2 font-mono">
+                {submissionStatus}
+              </p>
+            )}
             {submitting && (
               <button
                 type="button"

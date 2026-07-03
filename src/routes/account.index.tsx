@@ -6,6 +6,7 @@ import { PhoneVerificationModal } from "@/components/site/PhoneVerificationModal
 import { Footer } from "@/components/site/Footer";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
+import { requestOtp, changeEmailWithOtp } from "@/lib/auth.functions";
 import type { Role } from "@/lib/roles";
 import {
   User,
@@ -235,6 +236,13 @@ function AccountPage() {
   const [emailVisibility, setEmailVisibility] = useState("private");
   const [phone, setPhone] = useState("");
 
+  // Email change (OTP-verified) state
+  const [emailChangeOpen, setEmailChangeOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarPreviewFile, setAvatarPreviewFile] = useState<File | null>(null);
@@ -243,6 +251,53 @@ function AccountPage() {
   const [activatingRole, setActivatingRole] = useState<Role | null>(null);
 const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [showSellerSuccess, setShowSellerSuccess] = useState(false);
+
+  // FIX-8: change email with OTP verification (never update without a verified code).
+  const handleSendEmailOtp = async () => {
+    const target = newEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+      toast.error("Enter a valid email address.");
+      return;
+    }
+    if (target === (user?.email ?? "").toLowerCase()) {
+      toast.error("That is already your current email.");
+      return;
+    }
+    setEmailBusy(true);
+    try {
+      await requestOtp({ data: { email: target } });
+      setEmailOtpSent(true);
+      toast.success(`Verification code sent to ${target}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to send code.");
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleConfirmEmailChange = async () => {
+    if (!user) return;
+    if (emailOtp.trim().length < 6) {
+      toast.error("Enter the 6-digit verification code.");
+      return;
+    }
+    setEmailBusy(true);
+    try {
+      await changeEmailWithOtp({
+        data: { userId: user.id, newEmail: newEmail.trim().toLowerCase(), code: emailOtp.trim() },
+      });
+      toast.success("Email updated successfully.");
+      setEmailChangeOpen(false);
+      setEmailOtpSent(false);
+      setNewEmail("");
+      setEmailOtp("");
+      await refreshUserMeta();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to update email.");
+    } finally {
+      setEmailBusy(false);
+    }
+  };
 
   // Password state
   const [newPassword, setNewPassword] = useState("");
@@ -549,7 +604,9 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const TABS: { id: Tab; label: string; icon: any }[] = [
     { id: "profile", label: "Profile Settings", icon: User },
     { id: "security", label: "Security & Pass", icon: Lock },
-    { id: "notifications", label: "Notifications", icon: Bell },
+    // Notification preferences UI temporarily hidden per client request.
+    // Notification delivery still works automatically via the engine; only the
+    // settings tab is removed (the panel code below is left intact / unreachable).
     { id: "orders", label: "My Orders", icon: ShoppingBag },
     { id: "roles", label: "Account Roles", icon: BadgeCheck },
     { id: "standing", label: "Account Standing", icon: Shield },
@@ -695,6 +752,81 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                             <option value="public">Public</option>
                           </select>
                         </div>
+                      </div>
+
+                      {/* Email address — changing it requires OTP verification (FIX-8) */}
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium flex items-center justify-between">
+                          <span className="flex items-center gap-1.5"><Mail className="size-3.5 text-gold" /> Email Address</span>
+                          {profile?.email_verified && (
+                            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-wider">Verified ✓</span>
+                          )}
+                        </label>
+                        <div className="flex gap-3">
+                          <input
+                            type="email"
+                            value={user?.email ?? ""}
+                            disabled
+                            className="flex-1 h-11 px-4 rounded-xl border border-border bg-surface/60 text-sm outline-none opacity-75 cursor-not-allowed"
+                          />
+                          {!emailChangeOpen && (
+                            <button
+                              type="button"
+                              onClick={() => setEmailChangeOpen(true)}
+                              className="h-11 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold transition-all cursor-pointer flex-shrink-0 bg-transparent"
+                            >
+                              Change
+                            </button>
+                          )}
+                        </div>
+                        {emailChangeOpen && (
+                          <div className="mt-2 p-4 rounded-xl border border-gold/20 bg-gold/5 space-y-3">
+                            {!emailOtpSent ? (
+                              <>
+                                <input
+                                  type="email"
+                                  value={newEmail}
+                                  onChange={(e) => setNewEmail(e.target.value)}
+                                  placeholder="Enter new email address"
+                                  className="w-full h-11 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:border-gold/50 outline-none"
+                                />
+                                <div className="flex gap-2">
+                                  <button type="button" disabled={emailBusy} onClick={handleSendEmailOtp} className="h-10 px-4 rounded-xl bg-gold hover:brightness-110 text-black text-sm font-bold transition-all border-none cursor-pointer disabled:opacity-50">
+                                    {emailBusy ? "Sending..." : "Send OTP"}
+                                  </button>
+                                  <button type="button" onClick={() => { setEmailChangeOpen(false); setNewEmail(""); }} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-xs text-muted-foreground">
+                                  Enter the 6-digit code sent to <span className="text-foreground font-semibold">{newEmail}</span>.
+                                </p>
+                                <input
+                                  inputMode="numeric"
+                                  maxLength={6}
+                                  value={emailOtp}
+                                  onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ""))}
+                                  placeholder="000000"
+                                  className="w-full h-11 px-4 rounded-xl border border-border bg-surface/60 text-sm tracking-[0.4em] font-mono focus:border-gold/50 outline-none"
+                                />
+                                <div className="flex gap-2 flex-wrap">
+                                  <button type="button" disabled={emailBusy} onClick={handleConfirmEmailChange} className="h-10 px-4 rounded-xl bg-gold hover:brightness-110 text-black text-sm font-bold transition-all border-none cursor-pointer disabled:opacity-50">
+                                    {emailBusy ? "Verifying..." : "Verify & Update"}
+                                  </button>
+                                  <button type="button" disabled={emailBusy} onClick={handleSendEmailOtp} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer disabled:opacity-50">
+                                    Resend
+                                  </button>
+                                  <button type="button" onClick={() => { setEmailChangeOpen(false); setEmailOtpSent(false); setNewEmail(""); setEmailOtp(""); }} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-1.5">

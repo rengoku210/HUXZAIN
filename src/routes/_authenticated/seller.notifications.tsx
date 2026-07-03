@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PanelCard } from "@/components/seller/SellerShell";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -21,9 +21,56 @@ export const Route = createFileRoute("/_authenticated/seller/notifications")({
   component: Page,
 });
 
+function getNotificationLink(n: any): string {
+  const kind = n.kind ? String(n.kind).toLowerCase() : "";
+  const entityId = n.entity_id || "";
+  const link = n.link || "";
+
+  if (link && link.startsWith("/")) {
+    if (kind === "listing.approved" && link.includes("/seller/listings/")) {
+      const parts = link.split("/");
+      const id = parts[parts.length - 1];
+      if (id && id.length === 36) {
+        return `/product/${id}`;
+      }
+    }
+    return link;
+  }
+
+  if (kind.startsWith("order.") || kind.startsWith("dispute.") || kind.startsWith("refund.")) {
+    const orderId = entityId || link.match(/orders?\/([a-zA-Z0-9\-_]+)/)?.[1] || "";
+    if (orderId) {
+      return `/messages?orderId=${orderId}`;
+    }
+    return "/messages";
+  }
+
+  if (kind.startsWith("listing.")) {
+    if (kind === "listing.approved" && entityId) {
+      return `/product/${entityId}`;
+    }
+    return "/seller/listings";
+  }
+
+  if (kind.startsWith("membership.") || kind.startsWith("verification.")) {
+    return "/seller/verification";
+  }
+
+  if (kind.startsWith("finance.") || kind.startsWith("withdrawal.")) {
+    return "/seller/withdrawals";
+  }
+
+  if (kind.startsWith("security.")) {
+    return "/account";
+  }
+
+  return "/dashboard";
+}
+
 function Page() {
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useNotifications();
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
+  const navigate = useNavigate();
 
   const filtered = notifications.filter((n) => {
     if (filter === "unread") return !n.read_at;
@@ -31,8 +78,8 @@ function Page() {
     return true;
   });
 
-  const getNotificationIcon = (kind: string) => {
-    const k = kind.toLowerCase();
+  const getNotificationIcon = (kind?: string | null) => {
+    const k = kind ? kind.toLowerCase() : "";
     if (k.startsWith("order")) return <ShoppingBag className="size-4 text-blue-400" />;
     if (k.startsWith("payment") || k.includes("earnings") || k.includes("withdrawal")) {
       return <ShieldCheck className="size-4 text-gold" />;
@@ -47,8 +94,8 @@ function Page() {
     return <Sparkles className="size-4 text-gold" />;
   };
 
-  const getKindBadge = (kind: string) => {
-    const k = kind.toLowerCase().replace(/[._]/g, " ");
+  const getKindBadge = (kind?: string | null) => {
+    const k = kind ? kind.toLowerCase().replace(/[._]/g, " ") : "general";
     return (
       <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-0.5 rounded-full border border-border bg-surface/40">
         {k}
@@ -117,6 +164,8 @@ function Page() {
                 key={n.id}
                 onClick={() => {
                   if (!n.read_at) void markAsRead(n.id);
+                  const targetLink = getNotificationLink(n);
+                  navigate({ to: targetLink as any });
                 }}
                 className={`py-4 flex gap-4 items-start transition-all cursor-pointer group ${
                   !n.read_at ? "bg-gold/5 px-4 rounded-xl -mx-4 border border-gold/10" : ""
@@ -147,7 +196,14 @@ function Page() {
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/75 mt-2">
                     <Clock size={11} />
                     <span>
-                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                      {(() => {
+                        // Null-safe: an invalid/missing created_at must never crash
+                        // the whole page (formatDistanceToNow throws on Invalid Date).
+                        const d = n.created_at ? new Date(n.created_at) : null;
+                        return d && !isNaN(d.getTime())
+                          ? formatDistanceToNow(d, { addSuffix: true })
+                          : "just now";
+                      })()}
                     </span>
                   </div>
                 </div>

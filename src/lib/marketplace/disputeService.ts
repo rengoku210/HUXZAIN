@@ -1,4 +1,5 @@
 import { getSupabase } from "../supabase-client";
+import { onDisputeCreated } from "@/lib/notifications/hooks";
 
 const supabase = getSupabase()!;
 
@@ -54,6 +55,20 @@ export async function openDispute(params: {
     .eq("id", params.orderId);
   if (freezeErr) {
     console.error("[DisputeService] Failed to freeze order payout on dispute open:", freezeErr);
+  }
+
+  // HX-006: notify buyer, seller and the dispute team (never blocks the flow).
+  try {
+    const { data: ord } = await supabase
+      .from("orders")
+      .select("buyer_id, seller_id")
+      .eq("id", params.orderId)
+      .maybeSingle();
+    if (ord) {
+      await onDisputeCreated(params.orderId, (data as Dispute).id, ord.buyer_id, ord.seller_id);
+    }
+  } catch (e) {
+    console.error("[DisputeService] notify on dispute open failed:", e);
   }
 
   return data as Dispute;

@@ -2,6 +2,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { getAdminClient } from "@/server/supabase-admin";
+import { onWithdrawalApproved } from "@/lib/notifications/hooks";
 
 /**
  * Fetches the seller's active subscription, matching plan configuration limits, 
@@ -434,13 +435,22 @@ export const updateWithdrawalStatus = createServerFn({ method: "POST" })
 
       if (updErr) throw new Error("Failed to update status: " + updErr.message);
 
-      // Notify user
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        kind: "withdrawal.status",
-        title: `Withdrawal Status Update: ${status.toUpperCase()}`,
-        body: `Your withdrawal request of ₹${(w.amount / 100).toLocaleString()} is now: ${status.toUpperCase()}`
-      });
+      if (status === "approved") {
+        // HX-006: withdrawal-approved notification via the engine.
+        try {
+          await onWithdrawalApproved(withdrawalId, userId);
+        } catch (notifEx) {
+          console.warn("[Withdrawal] Withdrawal-approved notification non-blocking exception:", notifEx);
+        }
+      } else {
+        // Other intermediate states (e.g. "review") keep the lightweight in-app note.
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          kind: "withdrawal.status",
+          title: `Withdrawal Status Update: ${status.toUpperCase()}`,
+          body: `Your withdrawal request of ₹${(w.amount / 100).toLocaleString()} is now: ${status.toUpperCase()}`
+        });
+      }
     }
 
     return { success: true };

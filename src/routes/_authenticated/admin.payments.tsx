@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase-client";
 import { scorePayment, type PaymentScore } from "@/lib/payment-scoring";
 import { resolveSignedUrl } from "@/lib/storage/signedUrls";
+import { onPaymentSuccess, onSubscriptionActivated } from "@/lib/notifications/hooks";
+import { triggerNotification } from "@/lib/notifications.functions";
 import {
   CreditCard,
   CheckCircle,
@@ -23,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getFinanceConfig, computeTransactionSummary } from "@/lib/finance";
 
 export const Route = createFileRoute("/_authenticated/admin/payments")({
   head: () => ({ meta: [{ title: "Payment Verifications — HUXZAIN Admin" }] }),
@@ -348,21 +351,33 @@ function AdminPayments() {
     console.log("[AdminPayments] Initiating approval for payment proof ID:", activeProof.id);
     
     try {
-      // 1. Update payment_proofs row directly
+      // 1. Update payment_proofs row directly.
+      // IDEMPOTENCY GUARD: only transition pending -> approved. The `.eq(status,
+      // pending)` makes this an atomic conditional update (row-locked), so a
+      // double-click or two concurrent admins can never re-run the downstream
+      // seller-crediting / order-approval flow twice (double-credit protection).
       const { data: updateData, error: proofErr } = await supabase
         .from("payment_proofs")
-        .update({ 
-          status: "approved", 
-          rejection_reason: null, 
-          updated_at: new Date().toISOString() 
+        .update({
+          status: "approved",
+          rejection_reason: null,
+          updated_at: new Date().toISOString()
         })
         .eq("id", activeProof.id)
+        .eq("status", "pending")
         .select("*");
 
       console.log("[AdminPayments] Supabase update response for payment_proofs:", updateData);
       if (proofErr) {
         console.error("[AdminPayments] Supabase update error for payment_proofs:", proofErr);
         throw proofErr;
+      }
+      if (!updateData || updateData.length === 0) {
+        // Row was already approved (or no longer pending) — abort before crediting.
+        toast.info("This payment has already been processed.");
+        setActioning(false);
+        setShowApproveModal(false);
+        return;
       }
 
       // Safe non-blocking sync to legacy/active tables
@@ -481,13 +496,12 @@ function AdminPayments() {
               updated_at: new Date().toISOString()
             }, { onConflict: "seller_id" });
 
-          // Notify buyer
-          await supabase.from("notifications").insert({
-            user_id: activeProof.user_id,
-            kind: "subscription.activated",
-            title: "Subscription Activated",
-            body: `Your ${planId.toUpperCase()} plan has been activated. Enjoy the premium features!`,
-          });
+          // HX-006: subscription-activated notification via the engine.
+          try {
+            await onSubscriptionActivated(activeProof.user_id, planId);
+          } catch (notifEx) {
+            console.warn("[AdminPayments] Subscription-activated notification non-blocking exception:", notifEx);
+          }
         }
 
         // Also update subscription_payment_proofs if exists (backwards compatibility)
@@ -665,7 +679,7 @@ function AdminPayments() {
     // Fetch order + listing details
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
-      .select("*, listings:listing_id(title, seller_id)")
+      .select("*, listings:listing_id(title, seller_id, category_id)")
       .eq("id", orderId)
       .limit(1);
 
@@ -679,9 +693,49 @@ function AdminPayments() {
     const sellerId = order.seller_id;
     const listingTitle = order.listings?.title || "Order";
 
-    // Commission split: 96% seller, 4% platform (rounded to integers for database compatibility)
-    const commission = Math.round(finalAmount * 0.04);
-    const sellerPayout = Math.round(finalAmount - commission);
+    let commission = order.commission_inr != null ? Number(order.commission_inr) : null;
+    let sellerPayout = order.seller_payout_inr != null ? Number(order.seller_payout_inr) : null;
+    let commissionPercent = order.commission_percent != null ? Number(order.commission_percent) : null;
+    let categoryKey = order.category_key ?? null;
+
+    // If order payout fields are missing or if the manually approved amount differs from checkout amount_inr, compute dynamically!
+    if (commission === null || sellerPayout === null || (amount && amount !== Number(order.amount_inr))) {
+      // Fetch seller plan
+      let sellerTier = "standard";
+      const { data: sellerSub } = await supabase
+        .from("seller_subscriptions")
+        .select("plan")
+        .eq("seller_id", sellerId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (sellerSub?.plan) {
+        sellerTier = sellerSub.plan;
+      }
+
+      // Fetch category slug from listing if needed
+      let catSlug = null;
+      if (order.listings?.category_id) {
+        const { data: cat } = await supabase
+          .from("categories")
+          .select("slug")
+          .eq("id", order.listings.category_id)
+          .maybeSingle();
+        catSlug = cat?.slug || null;
+      }
+
+      const financeConfig = await getFinanceConfig();
+      const summary = computeTransactionSummary(financeConfig, {
+        categorySlug: catSlug,
+        tier: sellerTier,
+        priceInr: finalAmount,
+        protectionSelected: !!order.buyer_protection_selected
+      });
+
+      commission = summary.commissionInr;
+      sellerPayout = summary.sellerReceivesInr;
+      commissionPercent = summary.commissionPercent;
+      categoryKey = summary.categoryKey;
+    }
 
     // Update order status → paid
     await supabase
@@ -691,6 +745,8 @@ function AdminPayments() {
         payment_status: "paid",
         commission_inr: commission,
         seller_payout_inr: sellerPayout,
+        commission_percent: commissionPercent,
+        category_key: categoryKey,
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId);
@@ -729,21 +785,12 @@ function AdminPayments() {
       console.warn("[AdminPayments] seller_payouts insert skipped:", e);
     }
 
-    // Notifications
-    await supabase.from("notifications").insert([
-      {
-        user_id: buyerId,
-        kind: "order.paid",
-        title: "Payment Confirmed",
-        body: `Your payment for "${listingTitle}" has been confirmed. You can now access your order.`,
-      },
-      {
-        user_id: sellerId,
-        kind: "order.paid",
-        title: "Payment Received — Earnings Unlocked",
-        body: `Payment for "${listingTitle}" (₹${finalAmount}) has been verified. ₹${sellerPayout.toFixed(2)} added to your payout queue.`,
-      },
-    ]);
+    // HX-006: payment-approved notifications for buyer + seller via the engine.
+    try {
+      await onPaymentSuccess(orderId, buyerId, sellerId);
+    } catch (notifEx) {
+      console.warn("[AdminPayments] Payment-approved notification non-blocking exception:", notifEx);
+    }
 
     // Unlock chat / conversation
     try {
@@ -953,7 +1000,7 @@ function AdminPayments() {
       const { data: updateData, error } = await supabase
         .from("payment_proofs")
         .update({
-          status: "reupload_requested",
+          status: "REUPLOAD_REQUIRED",
           rejection_reason: trimmedReason,
           updated_at: new Date().toISOString(),
         })
@@ -990,7 +1037,7 @@ function AdminPayments() {
 
             const event = eventData?.[0];
             if (event) {
-              const newPayload = { ...event.payload, status: "reupload_requested", rejection_reason: trimmedReason };
+              const newPayload = { ...event.payload, status: "REUPLOAD_REQUIRED", rejection_reason: trimmedReason };
               await supabase
                 .from("payment_events")
                 .update({ payload: newPayload, processed: false })
@@ -999,6 +1046,21 @@ function AdminPayments() {
           } catch (syncEx) {
             console.warn("[AdminPayments] Non-blocking legacy re-upload sync exception:", syncEx);
           }
+        }
+      } else if (activeProof.payment_type === "subscription") {
+        // Sync legacy subscription_payment_proofs status
+        try {
+          await supabase
+            .from("subscription_payment_proofs")
+            .update({
+              status: "REUPLOAD_REQUIRED",
+              rejection_reason: trimmedReason,
+              updated_at: new Date().toISOString()
+            })
+            .eq("user_id", activeProof.user_id)
+            .eq("screenshot_url", activeProof.screenshot_url);
+        } catch (subErr) {
+          console.warn("[AdminPayments] Legacy subscription status sync error:", subErr);
         }
       }
 
@@ -1010,19 +1072,46 @@ function AdminPayments() {
           target_type: "payment_proof",
           target_id: activeProof.id,
           previous_value: activeProof.status,
-          new_value: "reupload_requested"
+          new_value: "REUPLOAD_REQUIRED"
         });
       } catch (logErr) {
         console.warn("[AdminPayments] Failed to write staff action log:", logErr);
       }
 
-      // 4. Notify buyer
-      await supabase.from("notifications").insert({
-        user_id: activeProof.user_id,
-        kind: "payment.reupload_requested",
-        title: "Re-upload Payment Proof Requested",
-        body: `We requested you to re-upload your payment proof. Reason: ${trimmedReason}. Please upload a clear screenshot.`,
-      });
+      // 4. Notify user via triggerNotification (in-app + email)
+      const siteUrl = window.location.origin;
+      const isSubscription = activeProof.payment_type === "subscription";
+      let uploadAgainUrl = "";
+      if (isSubscription) {
+        const planId = activeProof.payment_reference?.replace(/^subscription:/, "") || "pro";
+        uploadAgainUrl = `${siteUrl}/seller/subscription/payment?plan=${planId}`;
+      } else {
+        uploadAgainUrl = `${siteUrl}/checkout/verify-payment?orderId=${activeProof.order_id || activeProof.payment_reference}`;
+      }
+
+      try {
+        await triggerNotification({
+          data: {
+            userId: activeProof.user_id,
+            kind: "payment.reupload_required",
+            title: "Payment Screenshot Re-upload Required",
+            body: `Your payment screenshot requires another upload. Reason: "${trimmedReason}". Please upload a clearer screenshot to continue verification.`,
+            link: isSubscription ? "/seller/subscription" : `/checkout/verify-payment?orderId=${activeProof.order_id || activeProof.payment_reference}`,
+            category: "finance",
+            emailPayload: {
+              template: "paymentReuploadRequired",
+              args: [
+                activeProof.payment_reference || "N/A",
+                activeProof.order_id || activeProof.payment_reference || "N/A",
+                trimmedReason,
+                uploadAgainUrl
+              ]
+            }
+          }
+        });
+      } catch (notifErr) {
+        console.error("[AdminPayments] Failed to dispatch notifications:", notifErr);
+      }
 
       toast.success("Payment proof re-upload requested successfully.");
 
@@ -1030,7 +1119,7 @@ function AdminPayments() {
       setProofs(prevProofs => 
         prevProofs.map(p => 
           p.id === activeProof.id 
-            ? { ...p, status: "reupload_requested", rejection_reason: trimmedReason } 
+            ? { ...p, status: "REUPLOAD_REQUIRED", rejection_reason: trimmedReason } 
             : p
         )
       );
@@ -1701,6 +1790,25 @@ function AdminPayments() {
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
               Request the buyer to re-upload their payment proof. Please specify exactly what is wrong (e.g. cropped image, wrong amount, incorrect UPI ID).
             </p>
+            <div className="flex flex-wrap gap-1 mb-3">
+              {[
+                "Screenshot is blurry",
+                "UTR missing",
+                "Amount not visible",
+                "Wrong payment",
+                "QR cropped",
+                "Bank reference missing"
+              ].map(reason => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setReuploadReason(reason)}
+                  className="px-2 py-1 rounded bg-surface border border-border/40 text-[9px] text-muted-foreground hover:border-gold hover:text-foreground transition-all cursor-pointer"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
             <textarea
               rows={3}
               value={reuploadReason}

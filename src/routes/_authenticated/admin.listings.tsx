@@ -4,6 +4,7 @@ import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
 import { Loader2, Trash2, EyeOff, AlertCircle, Check, X, Search, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { onListingApproved, onListingRejected } from "@/lib/notifications/hooks";
 
 export const Route = createFileRoute("/_authenticated/admin/listings")({
   head: () => ({ meta: [{ title: "Manage Listings — HUXZAIN Admin" }] }),
@@ -89,12 +90,28 @@ function Page() {
       if (newStatus === "active") {
         updates.risk_score = 0;
         updates.suspicious_keywords = null;
+        // Universal Listing Expiry (Doc 1, Part 4): validity is 30 days FROM APPROVAL,
+        // not from draft creation. Stamp the window when the listing goes live.
+        updates.expiry_date = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       }
-      
+
       const { error } = await supabase.from("listings").update(updates).eq("id", id);
       if (error) {
         toast.error(error.message);
       } else {
+        // HX-006: notify the seller when a listing is approved (active) or rejected.
+        const row = listings.find((l) => l.id === id);
+        if (row) {
+          try {
+            if (newStatus === "active") {
+              await onListingApproved(id, row.seller_id, row.title);
+            } else if (newStatus === "rejected") {
+              await onListingRejected(id, row.seller_id, row.title, row.moderator_notes || "");
+            }
+          } catch (notifEx) {
+            console.warn("[AdminListings] Listing-status notification non-blocking exception:", notifEx);
+          }
+        }
         toast.success(`Listing status updated to ${newStatus}.`);
         fetchListings();
       }

@@ -134,12 +134,37 @@ export const getAdminOrderDetails = createServerFn({ method: "POST" })
       .eq("order_id", data.order_id)
       .maybeSingle();
 
+    // 6. Fetch category engine delivery settings separately
+    let deliveryEngine = "Manual";
+    let deliveryType = "manual";
+    if (order.listing?.category_id) {
+      const { data: cat } = await supabase
+        .from("categories")
+        .select("slug")
+        .eq("id", order.listing.category_id)
+        .maybeSingle();
+
+      if (cat?.slug) {
+        const { data: eng } = await supabase
+          .from("category_engine_config")
+          .select("delivery_type, delivery_engine")
+          .eq("category_slug", cat.slug)
+          .maybeSingle();
+        if (eng) {
+          deliveryEngine = eng.delivery_engine;
+          deliveryType = eng.delivery_type;
+        }
+      }
+    }
+
     return {
       order,
       buyer_total_orders: buyerOrderCount || 0,
       seller_total_sales: sellerSalesCount || 0,
       payment_proofs: paymentProofs || [],
       dispute: dispute || null,
+      delivery_engine: deliveryEngine,
+      delivery_type: deliveryType
     };
   });
 
@@ -203,6 +228,123 @@ export const addOrderInvestigationNote = createServerFn({ method: "POST" })
       console.error("[Orders] Add investigation note error:", error.message);
       throw new Error("Failed to add investigation note.");
     }
+
+    return { success: true };
+  });
+
+/**
+ * Force complete an order by admin override.
+ */
+export const adminForceCompleteOrder = createServerFn({ method: "POST" })
+  .inputValidator((d: { order_id: string; staff_user_id: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    const { completeOrderAndCreditSeller } = await import("../wallet.functions");
+    await completeOrderAndCreditSeller(data.order_id, { bypassDisputeCheck: true });
+
+    // Log audit to history
+    await supabase.from("order_status_history").insert({
+      order_id: data.order_id,
+      status: "completed",
+      changed_by: data.staff_user_id,
+      notes: "Force completed by Admin override."
+    });
+
+    return { success: true };
+  });
+
+/**
+ * Force cancel an order by admin override.
+ */
+export const adminForceCancelOrder = createServerFn({ method: "POST" })
+  .inputValidator((d: { order_id: string; staff_user_id: string; reason?: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    // Update order status to cancelled
+    const { error } = await supabase.from("orders").update({
+      status: "cancelled",
+      payout_status: "refunded",
+      updated_at: new Date().toISOString()
+    }).eq("id", data.order_id);
+
+    if (error) throw new Error("Failed to update order status to cancelled.");
+
+    // Log audit to history
+    await supabase.from("order_status_history").insert({
+      order_id: data.order_id,
+      status: "cancelled",
+      changed_by: data.staff_user_id,
+      notes: data.reason || "Force cancelled by Admin override."
+    });
+
+    return { success: true };
+  });
+
+/**
+ * Restart order delivery by admin override.
+ */
+export const adminRestartOrderDelivery = createServerFn({ method: "POST" })
+  .inputValidator((d: { order_id: string; staff_user_id: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    // Reset order status back to order_active
+    const { error } = await supabase.from("orders").update({
+      status: "order_active",
+      delivered_at: null,
+      delivery_payload: null,
+      updated_at: new Date().toISOString()
+    }).eq("id", data.order_id);
+
+    if (error) throw new Error("Failed to restart delivery.");
+
+    // Log audit to history
+    await supabase.from("order_status_history").insert({
+      order_id: data.order_id,
+      status: "order_active",
+      changed_by: data.staff_user_id,
+      notes: "Delivery restarted by Admin override."
+    });
+
+    return { success: true };
+  });
+
+/**
+ * Extend inspection period by admin override.
+ */
+export const adminExtendInspection = createServerFn({ method: "POST" })
+  .inputValidator((d: { order_id: string; hours: number; staff_user_id: string }) => d)
+  .handler(async ({ data }) => {
+    const supabase = getAdminClient();
+    if (!supabase) throw new Error("Database service is offline.");
+
+    // Fetch order
+    const { data: order } = await supabase.from("orders").select("delivered_at").eq("id", data.order_id).single();
+    if (!order) throw new Error("Order not found");
+    if (!order.delivered_at) throw new Error("Order has not been delivered yet; inspection timer cannot be extended.");
+
+    const newDeliveredAt = new Date(new Date(order.delivered_at).getTime() + data.hours * 60 * 60 * 1000);
+
+    // Update delivered_at
+    const { error } = await supabase.from("orders").update({
+      delivered_at: newDeliveredAt.toISOString(),
+      updated_at: new Date().toISOString()
+    }).eq("id", data.order_id);
+
+    if (error) throw new Error("Failed to extend inspection.");
+
+    // Log audit to history
+    await supabase.from("order_status_history").insert({
+      order_id: data.order_id,
+      status: "buyer_reviewing",
+      changed_by: data.staff_user_id,
+      notes: `Inspection period extended by ${data.hours} hours by Admin override.`
+    });
 
     return { success: true };
   });
