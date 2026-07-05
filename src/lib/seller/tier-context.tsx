@@ -17,6 +17,7 @@ export type TierMeta = {
   label: string;
   tagline: string;
   monthly: number;
+  commission_rate: number; // Platform commission % per sale
   accent: string; // tailwind text color util
   ring: string; // tailwind ring utility
   badgeGradient: string; // css gradient
@@ -32,6 +33,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     label: "Standard",
     tagline: "For new sellers building their reputation.",
     monthly: 0,
+    commission_rate: 30,
     accent: "text-zinc-300",
     ring: "ring-zinc-500/30",
     badgeGradient: "linear-gradient(135deg, #6b7280, #3f3f46)",
@@ -49,6 +51,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     label: "Verified",
     tagline: "For verified sellers with trust benefits.",
     monthly: 499,
+    commission_rate: 28,
     accent: "text-emerald-400",
     ring: "ring-emerald-400/30",
     badgeGradient: "linear-gradient(135deg, #34d399, #059669)",
@@ -66,6 +69,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     label: "Pro",
     tagline: "Serious sellers ready to scale.",
     monthly: 2999,
+    commission_rate: 25,
     accent: "text-sky-300",
     ring: "ring-sky-400/30",
     badgeGradient: "linear-gradient(135deg, #38bdf8, #2563eb)",
@@ -73,7 +77,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     glow: "0 0 30px oklch(0.7 0.15 240 / 0.18)",
     rank: 2,
     unlocked: [
-      "Up to 6 listings per category",
+      "Up to 5 listings per category",
       "Advanced analytics dashboard",
       "Featured listing manager",
       "10 boost tokens monthly",
@@ -84,6 +88,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     label: "Elite",
     tagline: "Top performers with verified excellence.",
     monthly: 4999,
+    commission_rate: 20,
     accent: "text-gold",
     ring: "ring-gold/40",
     badgeGradient: "linear-gradient(135deg, oklch(0.88 0.13 88), oklch(0.62 0.13 70))",
@@ -91,7 +96,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     glow: "0 0 40px oklch(0.82 0.13 82 / 0.25)",
     rank: 3,
     unlocked: [
-      "Up to 11 listings per category",
+      "Up to 10 listings per category",
       "Elite seller badge on listings",
       "Featured homepage spotlight",
       "20 boost tokens monthly",
@@ -104,6 +109,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     tagline: "White-glove infrastructure for large studios.",
     // Per official spec (Seller subscription plans full detail — Enterprise): ₹9,999/mo.
     monthly: 9999,
+    commission_rate: 15,
     accent: "text-violet-300",
     ring: "ring-violet-400/40",
     badgeGradient: "linear-gradient(135deg, #c4b5fd, #7c3aed)",
@@ -111,7 +117,7 @@ export const TIERS: Record<SellerTier, TierMeta> = {
     glow: "0 0 50px oklch(0.6 0.2 300 / 0.28)",
     rank: 4,
     unlocked: [
-      "Unlimited listings",
+      "Up to 30 listings per category",
       "Bulk upload & inventory tools",
       "Team accounts & staff permissions",
       "Dedicated premium support",

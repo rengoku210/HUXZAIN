@@ -7,6 +7,12 @@ import { getSupabase } from "@/lib/supabase-client";
 import { submitKYCVerification } from "@/lib/seller/subscription.functions";
 import { toast } from "sonner";
 
+const govtIdTypes = [
+  { value: "passport", label: "Passport" },
+  { value: "driving_license", label: "Driving License" },
+  { value: "national_id", label: "National ID Card" }
+];
+
 export const Route = createFileRoute("/_authenticated/seller/verification")({
   head: () => ({ meta: [{ title: "Verification — HUXZAIN Seller" }] }),
   component: Page,
@@ -19,8 +25,12 @@ function Page() {
 
   // Upload States
   const [govtFile, setGovtFile] = useState<string>("");
+  const [govtFile2, setGovtFile2] = useState<string>("");
   const [selfieFile, setSelfieFile] = useState<string>("");
   const [addrFile, setAddrFile] = useState<string>("");
+  
+  const [govtIdType1, setGovtIdType1] = useState<string>("");
+  const [govtIdType2, setGovtIdType2] = useState<string>("");
   
   // Payout Verification Form States
   // Bank transfer is the only supported payout method. UPI payouts were removed per platform policy.
@@ -59,6 +69,8 @@ function Page() {
         if (error) console.error("Error loading verification details:", error);
         if (data) {
           setVerification(data);
+          if (data.government_id_type_1) setGovtIdType1(data.government_id_type_1);
+          if (data.government_id_type_2) setGovtIdType2(data.government_id_type_2);
           if (data.payout_details) {
             const pd = data.payout_details;
             // Bank transfer only — UPI payout fields are no longer loaded into the form.
@@ -105,7 +117,7 @@ function Page() {
     loadData();
   }, [user]);
 
-  async function handleFileRead(file: File, type: "govt" | "selfie" | "addr") {
+  async function handleFileRead(file: File, type: "govt" | "govt2" | "selfie" | "addr") {
     if (!file) return;
 
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
@@ -123,9 +135,20 @@ function Page() {
       const reader = new FileReader();
       reader.onloadend = () => {
         if (type === "govt") setGovtFile(reader.result as string);
+        else if (type === "govt2") setGovtFile2(reader.result as string);
         else if (type === "selfie") setSelfieFile(reader.result as string);
         else setAddrFile(reader.result as string);
-        toast.success(`${type === "govt" ? "Government ID" : type === "selfie" ? "Selfie Photo" : "Address Proof"} loaded successfully!`);
+        toast.success(
+          `${
+            type === "govt"
+              ? "Government ID 1"
+              : type === "govt2"
+                ? "Government ID 2"
+                : type === "selfie"
+                  ? "Selfie Photo"
+                  : "Address Proof"
+          } loaded successfully!`
+        );
       };
       reader.readAsDataURL(file);
     } catch (err: any) {
@@ -137,7 +160,23 @@ function Page() {
     if (isSubmittingKYCRef.current) return;
     if (!user) return;
     if (!govtFile && !verification?.government_id_url) {
-      toast.error("Please upload your government ID.");
+      toast.error("Please upload your first government ID.");
+      return;
+    }
+    if (!govtIdType1) {
+      toast.error("Please select a document type for your first government ID.");
+      return;
+    }
+    if (!govtFile2 && !verification?.government_id_2_url) {
+      toast.error("Please upload your second government ID.");
+      return;
+    }
+    if (!govtIdType2) {
+      toast.error("Please select a document type for your second government ID.");
+      return;
+    }
+    if (govtIdType1 === govtIdType2) {
+      toast.error("The two government IDs must be of different types.");
       return;
     }
     if (!selfieFile && !verification?.selfie_url) {
@@ -161,6 +200,9 @@ function Page() {
         data: {
           sellerId: user.id,
           govtIdUrl: govtFile || verification?.government_id_url || "",
+          govtIdType1,
+          govtIdType2,
+          govtId2Url: govtFile2 || verification?.government_id_2_url || "",
           selfieUrl: selfieFile || verification?.selfie_url || "",
           addressProofUrl: addrFile || verification?.address_proof_url || "",
           payoutDetails: {
@@ -175,6 +217,7 @@ function Page() {
 
       toast.success("Verification documents and payout details submitted! Usually reviewed within 24–48 hours.");
       setGovtFile("");
+      setGovtFile2("");
       setSelfieFile("");
       setAddrFile("");
       await loadData();
@@ -279,7 +322,6 @@ function Page() {
       setBadgeUploading(false);
     }
   };
-
   function getDocStatus(
     localFile: string, 
     dbUrl: string | null | undefined, 
@@ -294,15 +336,17 @@ function Page() {
   }
 
   const govtStatus = getDocStatus(govtFile, verification?.government_id_url, verification?.government_id_status);
+  const govtStatus2 = getDocStatus(govtFile2, verification?.government_id_2_url, verification?.government_id_2_status);
   const selfieStatus = getDocStatus(selfieFile, verification?.selfie_url, verification?.selfie_status);
   const addrStatus = getDocStatus(addrFile, verification?.address_proof_url, verification?.address_proof_status);
 
   let approvedCount = 0;
   if (govtStatus === "APPROVED") approvedCount++;
+  if (govtStatus2 === "APPROVED") approvedCount++;
   if (selfieStatus === "APPROVED") approvedCount++;
   if (addrStatus === "APPROVED") approvedCount++;
 
-  const progressPercent = verification?.status === "approved" ? 100 : (approvedCount === 1 ? 33 : approvedCount === 2 ? 66 : approvedCount === 3 ? 100 : 0);
+  const progressPercent = verification?.status === "approved" ? 100 : (approvedCount === 1 ? 25 : approvedCount === 2 ? 50 : approvedCount === 3 ? 75 : approvedCount === 4 ? 100 : 0);
 
   function getDocPillStatus(status: string) {
     if (status === "APPROVED") return "Completed";
@@ -362,33 +406,92 @@ function Page() {
       ) : (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* ID & Uploads Panel */}
             <PanelCard title="Identity Document uploads">
-              <div className="space-y-4 text-sm">
-                <div>
-                  <span className="text-xs text-muted-foreground">1. Upload Government ID</span>
-                  <label className="mt-1.5 flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
-                    <div className="flex flex-col items-center justify-center pt-3 pb-3">
-                      <Upload className="size-5 text-gold mb-1" />
-                      <p className="text-[11px] text-muted-foreground text-center px-4">Upload Passport, Driver License or National ID card</p>
+              <div className="space-y-5 text-sm">
+                {/* Government ID 1 */}
+                <div className="space-y-2.5">
+                  <span className="text-xs text-muted-foreground block">1. First Government ID</span>
+                  <div className="grid sm:grid-cols-2 gap-3 items-end bg-surface/10 p-3.5 rounded-xl border border-border/50">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-muted-foreground block">ID Document Type</label>
+                      <select
+                        value={govtIdType1}
+                        onChange={(e) => setGovtIdType1(e.target.value)}
+                        className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground"
+                      >
+                        <option value="">Select Type...</option>
+                        {govtIdTypes.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
                     </div>
-                    <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt")} className="hidden" />
-                  </label>
+                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
+                      <div className="flex items-center gap-1.5 justify-center py-2 text-xs text-muted-foreground">
+                        <Upload className="size-4 text-gold" />
+                        <span className="font-semibold">{govtFile ? "Change File..." : "Choose File..."}</span>
+                      </div>
+                      <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt")} className="hidden" />
+                    </label>
+                  </div>
                   {govtFile && (
-                    <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
-                      ✓ Government ID loaded successfully!
+                    <div className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded flex items-center gap-1">
+                      <span>✓ Loaded First ID: {govtIdTypes.find(t => t.value === govtIdType1)?.label || govtIdType1}</span>
                     </div>
                   )}
                   {!govtFile && verification?.government_id_url && (
-                    <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate">
-                      ✓ Government ID already uploaded
+                    <div className="text-[11px] text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
+                      <span>✓ First ID ({govtIdTypes.find(t => t.value === govtIdType1)?.label || govtIdType1}) uploaded</span>
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
+                        {verification?.government_id_status}
+                      </span>
                     </div>
                   )}
                 </div>
 
-                <div>
-                  <span className="text-xs text-muted-foreground">2. Upload Selfie for Verification</span>
-                  <label className="mt-1.5 flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
+                {/* Government ID 2 */}
+                <div className="space-y-2.5">
+                  <span className="text-xs text-muted-foreground block">2. Second Government ID</span>
+                  <div className="grid sm:grid-cols-2 gap-3 items-end bg-surface/10 p-3.5 rounded-xl border border-border/50">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-muted-foreground block">ID Document Type</label>
+                      <select
+                        value={govtIdType2}
+                        onChange={(e) => setGovtIdType2(e.target.value)}
+                        className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground"
+                      >
+                        <option value="">Select Type...</option>
+                        {govtIdTypes.map(t => (
+                          <option key={t.value} value={t.value} disabled={t.value === govtIdType1}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
+                      <div className="flex items-center gap-1.5 justify-center py-2 text-xs text-muted-foreground">
+                        <Upload className="size-4 text-gold" />
+                        <span className="font-semibold">{govtFile2 ? "Change File..." : "Choose File..."}</span>
+                      </div>
+                      <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt2")} className="hidden" />
+                    </label>
+                  </div>
+                  {govtFile2 && (
+                    <div className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded flex items-center gap-1">
+                      <span>✓ Loaded Second ID: {govtIdTypes.find(t => t.value === govtIdType2)?.label || govtIdType2}</span>
+                    </div>
+                  )}
+                  {!govtFile2 && verification?.government_id_2_url && (
+                    <div className="text-[11px] text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
+                      <span>✓ Second ID ({govtIdTypes.find(t => t.value === govtIdType2)?.label || govtIdType2}) uploaded</span>
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
+                        {verification?.government_id_2_status}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Selfie */}
+                <div className="space-y-2.5">
+                  <span className="text-xs text-muted-foreground block">3. Upload Selfie for Verification</span>
+                  <label className="flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
                     <div className="flex flex-col items-center justify-center pt-3 pb-3">
                       <Upload className="size-5 text-gold mb-1" />
                       <p className="text-[11px] text-muted-foreground text-center px-4">Upload a clear selfie holding your government ID next to your face</p>
@@ -401,15 +504,19 @@ function Page() {
                     </div>
                   )}
                   {!selfieFile && verification?.selfie_url && (
-                    <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate">
-                      ✓ Selfie already uploaded
+                    <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
+                      <span>✓ Selfie already uploaded</span>
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
+                        {verification?.selfie_status}
+                      </span>
                     </div>
                   )}
                 </div>
 
-                <div>
-                  <span className="text-xs text-muted-foreground">3. Upload Address Proof</span>
-                  <label className="mt-1.5 flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
+                {/* Address Proof */}
+                <div className="space-y-2.5">
+                  <span className="text-xs text-muted-foreground block">4. Upload Address Proof</span>
+                  <label className="flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
                     <div className="flex flex-col items-center justify-center pt-3 pb-3">
                       <Upload className="size-5 text-gold mb-1" />
                       <p className="text-[11px] text-muted-foreground text-center px-4">Upload Utility Bill or Bank Statement (under 3 months old)</p>
@@ -422,15 +529,16 @@ function Page() {
                     </div>
                   )}
                   {!addrFile && verification?.address_proof_url && (
-                    <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate">
-                      ✓ Address Proof already uploaded
+                    <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
+                      <span>✓ Address Proof already uploaded</span>
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
+                        {verification?.address_proof_status}
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
             </PanelCard>
-
-            {/* Payout Details Card */}
             <PanelCard title="Withdrawal Payout Details Verification" action={<Wallet className="text-gold size-4" />}>
               <div className="space-y-4 text-sm">
                 <div>

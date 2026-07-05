@@ -19,7 +19,17 @@ import {
   Loader2,
   Star,
   AlertCircle,
-  Shield
+  Shield,
+  Copy,
+  Rocket,
+  Activity,
+  FileText,
+  Check,
+  Gavel,
+  Flag,
+  Scale,
+  HelpCircle,
+  Lock
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/marketplace/listing-adapter";
@@ -66,7 +76,9 @@ type Conversation = {
     cover_image_url: string | null;
     category_id: string;
     category_slug?: string;
+    delivery_type?: string | null;
   } | null;
+
   order?: {
     id: string;
     order_number: string;
@@ -106,39 +118,98 @@ function MessagesPage() {
   const [securedCreds, setSecuredCreds] = useState<any | null>(null);
   const [loadingSecuredCreds, setLoadingSecuredCreds] = useState(false);
 
+  const [warningModalOpen, setWarningModalOpen] = useState(false);
+  const [warningModalChecked, setWarningModalChecked] = useState(false);
+
+  const activeOtherName = activeConv?.otherUser?.display_name || activeConv?.otherUser?.username || "Participant";
+  const activeOtherInitials = activeOtherName.slice(0, 2).toUpperCase();
+
+  // Secure delivery manual reveal states
+  const [revealWarningModalOpen, setRevealWarningModalOpen] = useState(false);
+  const [recScreenTicked, setRecScreenTicked] = useState(false);
+  const [verifyDetailsTicked, setVerifyDetailsTicked] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Clear credentials when active conversation changes to prevent leakage
   useEffect(() => {
-    if (!activeConv || !activeConv.order || !activeConv.listing) {
-      setSecuredCreds(null);
-      return;
+    setSecuredCreds(null);
+    setRevealWarningModalOpen(false);
+    setRecScreenTicked(false);
+    setVerifyDetailsTicked(false);
+    setCopiedField(null);
+    if (activeConv?.order) {
+      setWarningModalOpen(true);
+      setWarningModalChecked(false);
+    } else {
+      setWarningModalOpen(false);
     }
+  }, [activeConv?.id]);
 
-    const orderStatus = activeConv.order.status;
-    const catSlug = activeConv.listing.category_slug || "";
-    const isGameAcc = getCategoryTypeFromSlug(catSlug) === "game-accounts";
+  // Copy helper with visual feedback
+  const handleCopyText = (text: string, fieldKey: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldKey);
+    toast.success(`${fieldKey} copied to clipboard!`);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
-    const canSee = isGameAcc && ["paid", "buyer_reviewing", "completed"].includes(orderStatus);
-
-    if (!canSee) {
-      setSecuredCreds(null);
-      return;
-    }
-
+  async function handleRevealInventory() {
+    if (!activeConv || !activeConv.order) return;
     const supabase = getSupabase();
     if (!supabase) return;
 
     setLoadingSecuredCreds(true);
-    supabase
-      .rpc("reveal_listing_credentials", { p_listing_id: activeConv.listing_id })
-      .then(({ data, error }) => {
-        const row = Array.isArray(data) ? data[0] : data;
-        if (row && !error) {
-          setSecuredCreds(row);
-        } else {
-          setSecuredCreds(null);
-        }
-        setLoadingSecuredCreds(false);
+    try {
+      const ua = navigator.userAgent;
+      const os = navigator.platform || "Unknown OS";
+      const device = /Mobi|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop";
+      const browser = ua.split(" ").pop() || "Unknown Browser";
+
+      // Call reveal_order_inventory RPC
+      const { data, error } = await supabase.rpc("reveal_order_inventory", {
+        p_order_id: activeConv.order_id,
+        p_ip: "Client Request",
+        p_browser: browser,
+        p_os: os,
+        p_device: device,
+        p_country: "IN"
       });
-  }, [activeConv?.id, activeConv?.order?.status]);
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row) {
+          setSecuredCreds(row);
+          toast.success("Secure delivery details decrypted successfully!");
+
+          // Save audit log to timeline in order table
+          const currentTimeline = (activeConv.order as any).timeline || [];
+          const newEvent = {
+            date: new Date().toISOString(),
+            title: "Secure Delivery Revealed",
+            description: `Credentials decrypted by buyer. OS: ${os}, Device: ${device}.`
+          };
+          await supabase
+            .from("orders")
+            .update({
+              timeline: [...currentTimeline, newEvent]
+            })
+            .eq("id", activeConv.order_id);
+
+          // Refresh inbox list to sync status
+          void loadConversations(activeConv.id);
+        } else {
+          toast.error("No secure credentials available for this order yet.");
+        }
+      }
+    } catch (err: any) {
+      toast.error("Failed to decrypt secure details: " + err.message);
+    } finally {
+      setLoadingSecuredCreds(false);
+      setRevealWarningModalOpen(false);
+    }
+  }
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loadingList, setLoadingList] = useState(true);
@@ -186,6 +257,9 @@ function MessagesPage() {
   const [disputeNotes, setDisputeNotes] = useState("");
   const [disputeFiles, setDisputeFiles] = useState<File[]>([]);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+
+  // Complete Order confirmation modal state
+  const [completeOrderModalOpen, setCompleteOrderModalOpen] = useState(false);
 
   // Inspection countdown tick
   const [nowTime, setNowTime] = useState(Date.now());
@@ -288,7 +362,8 @@ function MessagesPage() {
 
       const [profilesRes, listingsRes, ordersRes, categoriesRes] = await Promise.all([
         supabase.from("profiles").select("id, display_name, username, avatar_url, subscription_tier").in("id", allUserIds),
-        supabase.from("listings").select("id, title, cover_image_url, category_id, price_inr").in("id", listingIds),
+        supabase.from("listings").select("id, title, cover_image_url, category_id, price_inr, delivery_type").in("id", listingIds),
+
         supabase.from("orders").select("id, order_number, buyer_id, seller_id, listing_id, status, amount_inr, delivered_at, completed_at").in("id", orderIds),
         supabase.from("categories").select("id, name, slug"),
       ]);
@@ -935,10 +1010,14 @@ function MessagesPage() {
   // Complete Order (Buyer action to release funds)
   async function handleCompleteOrder() {
     if (!activeConv) return;
-    try {
-      const confirmed = window.confirm("Are you sure you want to approve delivery and release escrow funds to the seller? This action cannot be reversed.");
-      if (!confirmed) return;
+    // Show confirmation modal instead of bare window.confirm
+    setCompleteOrderModalOpen(true);
+  }
 
+  async function executeCompleteOrder() {
+    if (!activeConv) return;
+    setCompleteOrderModalOpen(false);
+    try {
       await completeOrderAndCreditSeller(activeConv.order_id);
       toast.success("Order marked completed. Escrow balance released to seller wallet!");
       void loadConversations(activeConv.id);
@@ -1048,8 +1127,6 @@ function MessagesPage() {
     return Math.max(0, targetTime - nowTime);
   }, [orderData?.delivered_at, listingData, activeConv?.sellerProfile, nowTime]);
 
-  const activeOtherName = activeConv?.otherUser?.display_name || activeConv?.otherUser?.username || "Participant";
-  const activeOtherInitials = activeOtherName.slice(0, 2).toUpperCase();
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-background">
@@ -1253,6 +1330,14 @@ function MessagesPage() {
                       Report Chat
                     </button>
                   </div>
+                </div>
+
+                {/* Seller Chat Rules Warning Banner */}
+                <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-300 flex items-center justify-between gap-3 text-left">
+                  <span className="flex items-center gap-1.5 leading-normal">
+                    <AlertCircle size={14} className="shrink-0 text-amber-400" />
+                    <strong>Safety Rules:</strong> Do not share personal email/phone numbers or accept offsite payment methods. Always use secure escrow delivery.
+                  </span>
                 </div>
 
                 {/* Messages List */}
@@ -1972,39 +2057,104 @@ function MessagesPage() {
                         <ShieldCheck size={14} className="text-gold" /> Hybrid Delivery Flow
                       </div>
 
-                      {/* PHASE 1 */}
+                      {/* PHASE 1: Credentials Release */}
                       <div className={`p-3 rounded-xl border ${activeConv.order.status === "buyer_reviewing" || activeConv.order.status === "completed" ? "border-emerald-500/20 bg-emerald-500/5" : "border-gold/20 bg-gold/5"}`}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-[10px] uppercase tracking-wider text-gold">Phase 1: Credentials Release</span>
                           <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${securedCreds ? "bg-emerald-500/20 text-emerald-400" : "bg-gold/20 text-gold animate-pulse"}`}>
-                            {securedCreds ? "Released" : "Awaiting Release"}
+                            {securedCreds ? "Released" : "Vault Sealed"}
                           </span>
                         </div>
                         {securedCreds ? (
-                          <div className="space-y-1.5 font-mono text-[10px] bg-background/40 p-2.5 rounded-lg border border-border/40">
-                            <div>
-                              <span className="text-muted-foreground">Login ID:</span> <span className="font-bold text-white select-all">{securedCreds.login_id}</span>
+                          <div className="space-y-2 font-mono text-[10px] bg-background/40 p-2.5 rounded-lg border border-border/40 text-left">
+                            <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-1 mb-1">
+                              <span className="text-muted-foreground uppercase text-[8px] font-bold">Secure Credentials</span>
+                              <Shield size={10} className="text-emerald-400" />
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Password:</span> <span className="font-bold text-white select-all">{securedCreds.password}</span>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="truncate">
+                                <span className="text-muted-foreground">Login ID:</span> <span className="font-bold text-white select-all">{securedCreds.login_id || "Nil"}</span>
+                              </div>
+                              {securedCreds.login_id && (
+                                <button
+                                  onClick={() => handleCopyText(securedCreds.login_id, "Login ID")}
+                                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer"
+                                >
+                                  {copiedField === "Login ID" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                                </button>
+                              )}
                             </div>
+                            {securedCreds.password && (
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="truncate">
+                                  <span className="text-muted-foreground">Password:</span> <span className="font-bold text-white select-all">{securedCreds.password}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleCopyText(securedCreds.password, "Password")}
+                                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer"
+                                >
+                                  {copiedField === "Password" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                                </button>
+                              </div>
+                            )}
+                            {securedCreds.credentials_data && (
+                              <div className="flex items-center justify-between gap-1.5 pt-1 mt-1 border-t border-white/5">
+                                <div className="truncate">
+                                  <span className="text-muted-foreground">Activation Key:</span> <span className="font-bold text-white select-all">{securedCreds.credentials_data}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleCopyText(securedCreds.credentials_data, "Activation Key")}
+                                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer"
+                                >
+                                  {copiedField === "Activation Key" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                                </button>
+                              </div>
+                            )}
                             {securedCreds.instructions && (
-                              <div className="pt-1 mt-1 border-t border-border/20 text-left font-sans text-[9px] text-muted-foreground">
+                              <div className="pt-1.5 mt-1.5 border-t border-white/10 text-left font-sans text-[9px] text-muted-foreground">
                                 <span className="font-semibold text-gold block mb-0.5">Instructions:</span>
                                 {securedCreds.instructions}
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="text-[10px] text-muted-foreground leading-relaxed">
-                            {isSeller 
-                              ? "Click 'Release Secure Credentials' below to share the credentials vault with the buyer."
-                              : "Once the seller releases the details, the account credentials will be automatically populated here."}
+                          <div className="space-y-3">
+                            {/* Secure Delivery Status Card — shown before reveal */}
+                            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <ShieldCheck size={13} className="text-emerald-400 shrink-0" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Secure Delivery</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                                <div className="bg-background/40 rounded-lg p-1.5">
+                                  <div className="text-muted-foreground">Status</div>
+                                  <div className="font-bold text-emerald-300 mt-0.5">✓ Ready</div>
+                                </div>
+                                <div className="bg-background/40 rounded-lg p-1.5">
+                                  <div className="text-muted-foreground">Delivery Type</div>
+                                  <div className="font-bold text-white mt-0.5 capitalize">{activeConv.listing?.delivery_type || "Instant"}</div>
+                                </div>
+                              </div>
+                              <p className="text-[9px] text-muted-foreground leading-relaxed">
+                                {isSeller
+                                  ? "Your credentials have been securely stored and will be delivered to the buyer upon payment clearance."
+                                  : "Your delivery is ready. Click \"Reveal Secure Delivery\" to view your confidential delivery details."}
+                              </p>
+                            </div>
+                            {isBuyer && ["paid", "buyer_reviewing"].includes(activeConv.order.status) && (
+                              <button
+                                type="button"
+                                onClick={() => setRevealWarningModalOpen(true)}
+                                className="w-full h-8 rounded-lg bg-emerald-500 text-black font-bold text-[10px] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer flex items-center justify-center gap-1"
+                              >
+                                <ShieldCheck size={12} /> Reveal Secure Delivery
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
 
-                      {/* PHASE 2 */}
+                      {/* PHASE 2: Transfer & OTP Migration */}
                       <div className={`p-3 rounded-xl border ${securedCreds ? "border-gold/20 bg-gold/5" : "border-border/40 bg-background/10 opacity-50"}`}>
                         <div className="font-bold text-[10px] uppercase tracking-wider text-gold mb-1.5">Phase 2: Transfer & OTP Migration</div>
                         <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -2016,20 +2166,36 @@ function MessagesPage() {
                           </div>
                         )}
                         {securedCreds && securedCreds.recovery_details && (
-                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px]">
-                            <span className="font-sans font-bold text-gold block mb-0.5">Recovery Information:</span>
-                            {securedCreds.recovery_details}
+                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px] flex items-center justify-between gap-2">
+                            <div className="truncate">
+                              <span className="font-sans font-bold text-gold block mb-0.5">Recovery Information:</span>
+                              {securedCreds.recovery_details}
+                            </div>
+                            <button
+                              onClick={() => handleCopyText(securedCreds.recovery_details, "Recovery Info")}
+                              className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer shrink-0"
+                            >
+                              {copiedField === "Recovery Info" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                            </button>
                           </div>
                         )}
                         {securedCreds && securedCreds.email_transfer_details && (
-                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px]">
-                            <span className="font-sans font-bold text-gold block mb-0.5">Email Transfer Details:</span>
-                            {securedCreds.email_transfer_details}
+                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px] flex items-center justify-between gap-2">
+                            <div className="truncate">
+                              <span className="font-sans font-bold text-gold block mb-0.5">Email Transfer Details:</span>
+                              {securedCreds.email_transfer_details}
+                            </div>
+                            <button
+                              onClick={() => handleCopyText(securedCreds.email_transfer_details, "Email Info")}
+                              className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer shrink-0"
+                            >
+                              {copiedField === "Email Info" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                            </button>
                           </div>
                         )}
                       </div>
 
-                      {/* PHASE 3 */}
+                      {/* PHASE 3: Escrow Safety Hold Period */}
                       <div className={`p-3 rounded-xl border border-border/40 bg-background/10 ${securedCreds ? "opacity-100" : "opacity-50"}`}>
                         <div className="font-bold text-[10px] uppercase tracking-wider text-gold mb-1">Phase 3: Escrow Safety Hold Period</div>
                         <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -2037,7 +2203,7 @@ function MessagesPage() {
                         </p>
                       </div>
 
-                      {/* Buyer post-purchase safety instructions (DEL-09) — shown to the buyer once credentials are released */}
+                      {/* Buyer post-purchase safety instructions — shown to the buyer once credentials are released */}
                       {isBuyer && securedCreds && (
                         <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1.5">
                           <div className="font-bold text-[10px] uppercase tracking-wider text-amber-400 flex items-center gap-1">
@@ -2053,6 +2219,26 @@ function MessagesPage() {
                           </ul>
                         </div>
                       )}
+
+                      {/* Order Audit Timeline Log */}
+                      <div className="p-3 bg-[#0a0b0d]/50 border border-white/5 rounded-xl space-y-2">
+                        <div className="font-bold text-[10px] uppercase tracking-wider text-gold flex items-center gap-1">
+                          <Activity size={12} /> Order Event Log
+                        </div>
+                        <div className="space-y-2 pl-2 border-l border-white/10 relative">
+                          {((activeConv.order as any).timeline || [
+                            { date: (activeConv.order as any).created_at, title: "Order Placed", description: "Buyer placed order and escrow pending." },
+                            activeConv.order.status !== 'pending' && { date: (activeConv.order as any).created_at, title: "Payment Cleared", description: "Escrow funds locked by administrator." },
+                            securedCreds && { date: new Date().toISOString(), title: "Secure Delivery Revealed", description: "Buyer decrypted secure vault details." }
+                          ].filter(Boolean)).map((evt: any, i: number) => (
+                            <div key={i} className="relative pl-3 text-[9px] text-left">
+                              <div className="absolute left-[-11px] top-1.5 size-1.5 rounded-full bg-gold/70" />
+                              <div className="font-bold text-white leading-tight">{evt.title}</div>
+                              <div className="text-[8px] text-muted-foreground leading-tight">{evt.description}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
                       {/* Seller Action Button to release credentials */}
                       {isSeller && ["order_active", "seller_delivering", "payment_approved"].includes(activeConv.order.status) && !securedCreds && (
@@ -2180,8 +2366,62 @@ function MessagesPage() {
         </div>
       </main>
 
+      {/* ─── Confirm Order Completion Modal ─── */}
+      {completeOrderModalOpen && activeConv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#0b0c0f] border border-white/10 w-full max-w-md rounded-3xl p-6 relative shadow-2xl flex flex-col gap-5">
+            <button
+              onClick={() => setCompleteOrderModalOpen(false)}
+              className="absolute top-4 right-4 size-8 rounded-full hover:bg-white/5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-all border-none bg-transparent cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div className="text-center space-y-2">
+              <div className="size-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                <ShieldCheck className="size-6" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-foreground">Confirm Order Completion</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Please confirm that you have successfully inspected your purchase.
+              </p>
+            </div>
+
+            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 space-y-2 text-xs text-muted-foreground">
+              <p className="leading-relaxed">
+                By marking this order as completed, you confirm that the delivered product matches the listing and that you are satisfied with the delivery.
+              </p>
+              <p className="leading-relaxed text-amber-400/80">
+                ⚠ If you have not yet verified your purchase, we strongly recommend doing so before completing this order.
+              </p>
+              <p className="leading-relaxed">
+                Once completed, the seller's settlement process will begin according to HUXZAIN's Escrow Policy.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCompleteOrderModalOpen(false)}
+                className="flex-1 h-10 text-xs font-semibold rounded-xl border border-border hover:bg-surface transition-all cursor-pointer bg-transparent text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeCompleteOrder}
+                className="flex-1 h-10 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer"
+              >
+                <ShieldCheck className="size-3.5" /> Mark Order Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dispute Modal */}
       {disputeOpen && activeConv && (
+
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-surface border border-border/80 w-full max-w-md rounded-3xl p-6 relative shadow-2xl flex flex-col gap-4">
             <button
@@ -2215,14 +2455,16 @@ function MessagesPage() {
                   className="w-full h-10 px-3 text-xs bg-surface-elevated border border-border rounded-xl focus:border-gold/50 outline-none text-foreground cursor-pointer"
                 >
                   <option value="">Select a reason...</option>
-                  <option value="Incorrect Delivery">Incorrect Delivery</option>
-                  <option value="Seller Not Responding">Seller Not Responding</option>
-                  <option value="Account Recovered">Account Recovered</option>
-                  <option value="Invalid Product">Invalid Product</option>
-                  <option value="Service Not Delivered">Service Not Delivered</option>
-                  <option value="Incomplete Work">Incomplete Work</option>
-                  <option value="Fraudulent Activity">Fraudulent Activity</option>
-                  <option value="Other">Other</option>
+                  <option value="activation_code_not_working">The activation code does not work</option>
+                  <option value="invalid_credentials">The credentials are incorrect / login details wrong</option>
+                  <option value="product_not_as_described">The delivered product does not match the listing</option>
+                  <option value="missing_delivery">Part of the delivery is missing</option>
+                  <option value="seller_not_responding">The seller has stopped responding</option>
+                  <option value="manual_delivery_incomplete">The seller has not completed the manual part of the delivery</option>
+                  <option value="product_key_used">Product Key / Code already redeemed or used</option>
+                  <option value="account_recovered">Account reclaimed / recovered by seller after purchase</option>
+                  <option value="service_not_as_described">Service not as described / tier mismatch / boost not completed</option>
+                  <option value="other">Other issues</option>
                 </select>
               </div>
 
@@ -2254,6 +2496,10 @@ function MessagesPage() {
                     Selected {disputeFiles.length} file(s): {disputeFiles.map(f => f.name).join(", ")}
                   </div>
                 )}
+              </div>
+
+              <div className="p-2.5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-[10px] text-rose-300 leading-normal text-left">
+                ⚠️ <strong>Critical Evidence Requirement:</strong> You are strongly advised to attach a continuous video recording of the reveal and activation attempt. Disputes without video evidence are significantly harder to resolve in your favor.
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -2444,6 +2690,340 @@ function MessagesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reveal Secure Delivery Warning Modal Overlay */}
+      {revealWarningModalOpen && activeConv && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-surface border border-border/80 w-full max-w-md rounded-3xl p-6 relative shadow-2xl flex flex-col gap-4 text-left">
+            <button
+              onClick={() => {
+                setRevealWarningModalOpen(false);
+                setRecScreenTicked(false);
+                setVerifyDetailsTicked(false);
+              }}
+              className="absolute top-4 right-4 size-8 rounded-full hover:bg-surface-elevated text-muted-foreground hover:text-foreground flex items-center justify-center transition-all border-none bg-transparent cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div>
+              <h3 className="font-display font-bold text-base text-gold flex items-center gap-1.5 uppercase tracking-wider">
+                <ShieldCheck className="text-emerald-400 size-5 animate-pulse" /> Decryption & Screen Recording Warning
+              </h3>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                Before you reveal the secure delivery details (accounts/keys), please ensure you review these critical guidelines.
+              </p>
+            </div>
+
+            <div className="bg-rose-500/5 border border-rose-500/20 p-3.5 rounded-xl text-xs space-y-2 text-rose-300">
+              <span className="font-bold flex items-center gap-1"><AlertCircle size={12} /> Recommending Continuous Video Recording</span>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                We strongly advise that you start a continuous screen recording capturing the exact moment you click "Reveal" until your activation/login attempt. This serves as irrefutable evidence in the event of a dispute.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2 text-xs">
+              <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={recScreenTicked}
+                  onChange={(e) => setRecScreenTicked(e.target.checked)}
+                  className="rounded border-border text-emerald-500 focus:ring-emerald-500/30 mt-0.5"
+                />
+                <span>I understand HUXZAIN recommends recording my screen during reveal and product activation.</span>
+              </label>
+
+              <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={verifyDetailsTicked}
+                  onChange={(e) => setVerifyDetailsTicked(e.target.checked)}
+                  className="rounded border-border text-emerald-500 focus:ring-emerald-500/30 mt-0.5"
+                />
+                <span>I agree that HUXZAIN will capture my OS, Browser, and audit location when decrypting.</span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setRevealWarningModalOpen(false);
+                  setRecScreenTicked(false);
+                  setVerifyDetailsTicked(false);
+                }}
+                className="flex-1 h-9 text-xs font-semibold rounded-xl border border-border hover:bg-surface transition-all cursor-pointer bg-transparent"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRevealInventory}
+                disabled={loadingSecuredCreds || !(recScreenTicked && verifyDetailsTicked)}
+                className="flex-1 h-9 text-xs font-bold rounded-xl bg-emerald-500 text-black hover:bg-emerald-600 transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
+              >
+                {loadingSecuredCreds && <Loader2 className="size-3.5 animate-spin" />}
+                Decrypt & Reveal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Escalation/Fulfillment Order Notice Modal for Buyer/Seller */}
+      {warningModalOpen && activeConv && activeConv.order && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-[#0b0c0f] border border-white/10 w-full max-w-2xl rounded-3xl p-6 relative shadow-2xl flex flex-col gap-5 text-left my-8 max-h-[90vh] overflow-y-auto scrollbar-thin">
+            
+            {/* Header */}
+            <div className="text-center pb-3 border-b border-white/5 relative">
+              <button
+                onClick={() => setWarningModalOpen(false)}
+                className="absolute top-0 right-0 size-8 rounded-full hover:bg-white/5 text-muted-foreground hover:text-foreground flex items-center justify-center transition-all border-none bg-transparent cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+              
+              {isSeller ? (
+                <>
+                  <h3 className="font-display font-black text-xl lg:text-2xl text-gold flex items-center justify-center gap-2 uppercase tracking-wider">
+                    <AlertCircle className="text-gold size-6 animate-pulse" /> IMPORTANT NOTICE FOR SELLERS
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 font-sans">
+                    Please read the following carefully before continuing this conversation.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-display font-black text-xl lg:text-2xl text-blue-400 flex items-center justify-center gap-2 uppercase tracking-wider">
+                    <Lock className="text-blue-400 size-6" /> IMPORTANT NOTICE FOR BUYERS
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 font-sans">
+                    Please read the following carefully before continuing this conversation.
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Content Body */}
+            {isSeller ? (
+              <div className="space-y-4 font-sans text-xs text-muted-foreground">
+                {/* REPRESENTING HUXZAIN CARD */}
+                <div className="bg-gold/5 border border-gold/20 p-4 rounded-2xl flex gap-3 items-start">
+                  <ShieldCheck className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">You are representing HUXZAIN as a seller.</h4>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                      Your every action, message and delivery affects your reputation, reviews and future sales. Maintain professionalism and integrity at all times.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 1. KEEP ALL COMMUNICATION INSIDE HUXZAIN */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <MessageCircle className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">1. KEEP ALL COMMUNICATION INSIDE HUXZAIN</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      All communication, payments, file transfers and delivery must remain within the HUXZAIN Order Room. Do not share or ask for personal information such as phone numbers, WhatsApp, Telegram, Discord, Facebook, Instagram, email addresses or any other contact details. Attempting to move a transaction outside the platform may result in warnings, seller strikes, listing restrictions, suspension or permanent termination of your account.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. DELIVER ONLY WHAT WAS PROMISED */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <ShieldCheck className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">2. DELIVER ONLY WHAT WAS PROMISED</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      The product or service you deliver must exactly match your listing description, screenshots, specifications and any representations made before purchase. Providing incorrect, incomplete or misleading products is a violation of HUXZAIN Marketplace Policies.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. RECOVERY FRAUD IS STRICTLY PROHIBITED */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <AlertCircle className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">3. RECOVERY FRAUD IS STRICTLY PROHIBITED</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      Once ownership or access has been transferred, any attempt to recover, reclaim, disable or interfere with the buyer's access through any method is a serious violation. Recovery attempts will lead to immediate suspension and legal action.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. LEGAL ACTION & KYC DISCLOSURE */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <Gavel className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">4. LEGAL ACTION & KYC DISCLOSURE</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      Fraudulent activity, recovery scams, false promises or any form of cheating may result in legal action. Where fraud is reasonably established, HUXZAIN reserves the right to preserve and disclose your KYC documents, transaction records, chat logs and other evidence to law enforcement agencies, competent authorities and, where permitted by applicable law, to the affected buyer for pursuing legal action. You will be fully responsible for any losses, damages or legal consequences.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 5. EVIDENCE IS MANDATORY IN DISPUTES */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <FileText className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">5. EVIDENCE IS MANDATORY IN DISPUTES</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      If a dispute is opened, you must provide relevant evidence such as screenshots, delivery proof, chat history or any other supporting documents. Without proper evidence, we may not be able to review or resolve the dispute fairly.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 6. YOUR REPUTATION MATTERS */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <Star className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">6. YOUR REPUTATION MATTERS</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      Good behaviour, accurate listings, timely delivery and respectful communication build trust, more positive reviews and higher sales growth on HUXZAIN.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 7. REPORT SUSPICIOUS BUYERS */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <Flag className="text-gold size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">7. REPORT SUSPICIOUS BUYERS</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      If a buyer asks for off-platform communication, external payment or behaves suspiciously, report them immediately using the Report User option.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Alert warning footer block */}
+                <div className="bg-amber-500/5 border border-amber-500/20 p-3.5 rounded-xl flex gap-2.5 items-center text-amber-300">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <p className="text-[10px] leading-relaxed">
+                    Violating these policies may result in account restrictions, suspension, permanent ban and legal action as per HUXZAIN Marketplace Policies.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 font-sans text-xs text-muted-foreground">
+                {/* 1. KEEP ALL COMMUNICATION INSIDE HUXZAIN */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <MessageCircle className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">1. KEEP ALL COMMUNICATION INSIDE HUXZAIN</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      For your protection, keep all communication, payments, file transfers and ownership transfers inside the HUXZAIN Order Room. Do not share personal contact information such as phone numbers, WhatsApp, Telegram, Discord, Facebook, Instagram, email addresses or any other external contact details. Do not agree to make payments or continue the transaction outside HUXZAIN. Off-platform transactions are not covered by our protection and may limit our ability to assist you.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. INSPECT YOUR PURCHASE CAREFULLY */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <Search className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">2. INSPECT YOUR PURCHASE CAREFULLY</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      Verify that the delivered product or service matches the listing description and that you have received everything promised. <strong className="text-white">Only click "Mark Order Complete" after you are 100% satisfied with the delivery.</strong> Once completed, the seller's settlement process will begin.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. REPORT ISSUES IMMEDIATELY */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <AlertCircle className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">3. REPORT ISSUES IMMEDIATELY</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      If you receive incorrect credentials, incomplete delivery, misleading information, face recovery attempts or observe any suspicious behaviour, immediately open a dispute or report the seller. Report as early as possible and preserve all relevant evidence.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. DISPUTE EVIDENCE IS MANDATORY */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <FileText className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">4. DISPUTE EVIDENCE IS MANDATORY</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      To ensure fair resolution for both buyers and sellers, evidence is mandatory for any dispute. Provide clear and relevant evidence such as screenshots, screen recordings, chat history, delivery proof, order details or any other supporting documents. Without sufficient evidence, we may not be able to take action or provide a fair resolution.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 5. FAIRNESS FOR BOTH SIDES */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <Scale className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">5. FAIRNESS FOR BOTH SIDES</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      HUXZAIN takes care of both buyers and sellers. We make decisions based on facts and evidence, not opinions. Providing truthful information helps us protect genuine buyers and maintain a trustworthy marketplace.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 6. FALSE CLAIMS & DISPUTE ABUSE */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <Lock className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">6. FALSE CLAIMS & DISPUTE ABUSE</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      Submitting false claims, fake evidence or abusing the dispute system is a serious violation of our policies. Such behaviour may result in warnings, restrictions, suspension or permanent termination of your account.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 7. NEED HELP? */}
+                <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                  <HelpCircle className="text-blue-400 size-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">7. NEED HELP?</h4>
+                    <p className="text-[10px] mt-1 leading-relaxed">
+                      If you are unsure about something, contact our support team. We are here to help. Use the "Report Seller" or "Open Dispute" options if you face any problem.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Alert warning footer block */}
+                <div className="bg-blue-500/5 border border-blue-500/20 p-3.5 rounded-xl flex gap-2.5 items-center text-blue-300">
+                  <ShieldCheck size={16} className="shrink-0" />
+                  <p className="text-[10px] leading-relaxed">
+                    Your safety is our priority. Keep everything inside HUXZAIN and follow all marketplace policies for a secure and smooth experience.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Checkbox and Agreement */}
+            <div className="space-y-4 pt-2 border-t border-white/5">
+              <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={warningModalChecked}
+                  onChange={(e) => setWarningModalChecked(e.target.checked)}
+                  className="rounded border-border text-gold focus:ring-gold/30 mt-0.5 cursor-pointer size-4"
+                />
+                <span className="text-[10px] leading-relaxed text-muted-foreground">
+                  I have read, understood and agree to follow all HUXZAIN Marketplace Policies.
+                </span>
+              </label>
+
+              <button
+                type="button"
+                disabled={!warningModalChecked}
+                onClick={() => setWarningModalOpen(false)}
+                className={`w-full h-11 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer ${
+                  warningModalChecked
+                    ? "bg-gold text-black hover:bg-gold-light shadow-lg shadow-gold/10"
+                    : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                }`}
+              >
+                I AGREE & PROCEED TO ORDER ROOM <span className="text-sm">➔</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}

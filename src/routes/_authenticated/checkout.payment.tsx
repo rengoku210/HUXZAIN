@@ -59,6 +59,35 @@ function UnifiedPaymentPage() {
   const isSubscription = !!planParam;
   const selectedPlanId = (planParam?.replace(/"/g, "")?.toLowerCase() || "pro") as SellerTier;
   const planMeta = TIERS[selectedPlanId] || TIERS.pro;
+
+  const [dbPlan, setDbPlan] = useState<any | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(isSubscription);
+
+  useEffect(() => {
+    if (!isSubscription) return;
+    async function loadPlan() {
+      const supabase = getSupabase();
+      if (!supabase) {
+        setLoadingPrice(false);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("subscription_plans_config")
+          .select("*")
+          .eq("id", selectedPlanId)
+          .maybeSingle();
+        if (!error && data) {
+          setDbPlan(data);
+        }
+      } catch (err) {
+        console.warn("Failed to load dynamic plan price:", err);
+      } finally {
+        setLoadingPrice(false);
+      }
+    }
+    loadPlan();
+  }, [selectedPlanId, isSubscription]);
  
   // Listing State
   const [listing, setListing] = useState<any>(null);
@@ -68,6 +97,7 @@ function UnifiedPaymentPage() {
   const [loadingListing, setLoadingListing] = useState(false);
   const { config: financeConfig } = useFinanceConfig();
   const [orderId, setOrderId] = useState<string | null>(orderIdParam || null);
+  const [buyerProtectionSelected, setBuyerProtectionSelected] = useState<boolean>(true);
  
   // Flow & Upload State
   const [step, setStep] = useState<StepType>("pay");
@@ -145,7 +175,7 @@ function UnifiedPaymentPage() {
     : titleParam || listing?.title || "Marketplace Product Checkout";
  
   const rawPrice = isSubscription
-    ? planMeta.monthly
+    ? (dbPlan ? dbPlan.monthly_price_inr : planMeta.monthly)
     : priceParam
       ? parseFloat(priceParam)
       : listing
@@ -161,8 +191,11 @@ function UnifiedPaymentPage() {
           categorySlug,
           tier: sellerTier,
           priceInr: checkoutPrice,
+          protectionSelected: buyerProtectionSelected,
         })
       : null;
+
+  const paymentAmount = transactionSummary ? transactionSummary.buyerPaysInr : checkoutPrice;
  
   const sellerName = isSubscription
     ? "HUXZAIN Platform"
@@ -175,7 +208,7 @@ function UnifiedPaymentPage() {
     ? `Huxzain ${planMeta.label} Subscription Upgrade`
     : `Huxzain Order ${orderId ? orderId.slice(0, 8) : "Checkout"}`;
  
-  const upiUri = `upi://pay?pa=${upiId}&pn=HUXZAIN&am=${checkoutPrice}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+  const upiUri = `upi://pay?pa=${upiId}&pn=HUXZAIN&am=${paymentAmount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
 
   // Handle Clipboard Copy
   const copyToClipboard = (text: string, type: "id" | "amount") => {
@@ -240,7 +273,7 @@ function UnifiedPaymentPage() {
             seller_id: listing.seller_id,
             listing_id: listing.id,
             listing_title: listing.title,
-            amount_inr: checkoutPrice,
+            amount_inr: paymentAmount,
             payment_method: "manual",
             payment_status: "created",
             status: "pending_payment",
@@ -252,6 +285,8 @@ function UnifiedPaymentPage() {
                   seller_payout_inr: transactionSummary.sellerReceivesInr,
                   commission_percent: transactionSummary.commissionPercent,
                   category_key: transactionSummary.categoryKey,
+                  buyer_protection_selected: transactionSummary.protectionSelected,
+                  buyer_protection_fee_inr: transactionSummary.protectionFeeInr,
                 }
               : {}),
           })
@@ -268,7 +303,7 @@ function UnifiedPaymentPage() {
           await supabase.from("wallet_transactions").insert({
             wallet_id: user.id,
             type: "sale",
-            amount: checkoutPrice,
+            amount: paymentAmount,
             status: "pending",
             reference_id: finalOrderId,
             description: `Pending purchase for "${listing.title}"`,
@@ -289,6 +324,7 @@ function UnifiedPaymentPage() {
           await supabase
             .from("orders")
             .update({
+              amount_inr: paymentAmount,
               // HX-007: lock the engine-computed fee breakdown on the pre-created
               // order (e.g. from the product-page Buy Now flow) at confirmation.
               ...(transactionSummary
@@ -297,6 +333,8 @@ function UnifiedPaymentPage() {
                     seller_payout_inr: transactionSummary.sellerReceivesInr,
                     commission_percent: transactionSummary.commissionPercent,
                     category_key: transactionSummary.categoryKey,
+                    buyer_protection_selected: transactionSummary.protectionSelected,
+                    buyer_protection_fee_inr: transactionSummary.protectionFeeInr,
                   }
                 : {}),
             })
@@ -355,7 +393,7 @@ function UnifiedPaymentPage() {
             order_id: isSubscription ? null : finalOrderId,
             listing_id: isSubscription ? null : listingIdParam,
             payment_type: isSubscription ? "subscription" : "listing",
-            amount: checkoutPrice,
+            amount: paymentAmount,
             screenshot_url: screenshotUrl,
             payment_reference: isSubscription ? `subscription:${planMeta.id}` : `order:${finalOrderId}`,
             status: "pending",
@@ -370,7 +408,7 @@ function UnifiedPaymentPage() {
             await supabase.from("subscription_payment_proofs").insert({
               user_id: user.id,
               selected_plan: planMeta.label,
-              amount: checkoutPrice,
+              amount: paymentAmount,
               screenshot_url: screenshotUrl,
               status: "pending"
             });
@@ -387,7 +425,7 @@ function UnifiedPaymentPage() {
                 order_id: finalOrderId,
                 screenshot_url: screenshotUrl,
                 screenshot_hash: `hash_${Date.now()}`,
-                amount: checkoutPrice,
+                amount: paymentAmount,
                 status: "pending",
                 note: paymentNote.trim() || null,
                 payment_reference: `order:${finalOrderId}`,
@@ -459,7 +497,7 @@ function UnifiedPaymentPage() {
             </button>
           )}
 
-          {loadingListing ? (
+          {loadingListing || loadingPrice ? (
             <div className="h-96 flex flex-col items-center justify-center gap-3">
               <Loader2 className="size-8 animate-spin text-gold" />
               <p className="text-sm text-muted-foreground">Loading checkout details...</p>
@@ -502,7 +540,7 @@ function UnifiedPaymentPage() {
                     </div>
                     <div className="text-left md:text-right border-t md:border-t-0 border-border/40 pt-3 md:pt-0">
                       <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Amount Payable</div>
-                      <div className="text-2xl font-display font-extrabold text-gold mt-0.5">₹{checkoutPrice.toLocaleString()}</div>
+                      <div className="text-2xl font-display font-extrabold text-gold mt-0.5">₹{paymentAmount.toLocaleString()}</div>
                     </div>
                   </div>
 
@@ -540,9 +578,9 @@ function UnifiedPaymentPage() {
                       </div>
 
                       <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-surface/80 border border-border text-xs">
-                        <span className="font-mono text-muted-foreground pl-1">Amount: ₹{checkoutPrice}</span>
+                        <span className="font-mono text-muted-foreground pl-1">Amount: ₹{paymentAmount}</span>
                         <button
-                          onClick={() => copyToClipboard(String(checkoutPrice), "amount")}
+                          onClick={() => copyToClipboard(String(paymentAmount), "amount")}
                           className="h-8 px-3 rounded-lg bg-border/60 hover:bg-border text-[11px] font-semibold flex items-center gap-1.5 transition-colors border-none cursor-pointer"
                         >
                           <Copy size={12} /> {copiedAmount ? "Copied" : "Copy Amount"}
@@ -557,7 +595,7 @@ function UnifiedPaymentPage() {
                     <div className="space-y-1">
                       <h4 className="text-xs font-bold text-foreground">Important Payment Instructions</h4>
                       <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-1 leading-relaxed">
-                        <li>Pay exact amount only: <span className="text-gold font-bold">₹{checkoutPrice}</span></li>
+                        <li>Pay exact amount only: <span className="text-gold font-bold">₹{paymentAmount}</span></li>
                         <li>Do not pay less or more than shown amount</li>
                         <li>Upload valid payment screenshot after payment</li>
                         <li>Orders verified manually by HUXZAIN administrators</li>
@@ -566,6 +604,34 @@ function UnifiedPaymentPage() {
                       </ul>
                     </div>
                   </div>
+
+                  {/* Buyer Protection Selection Card */}
+                  {!isSubscription && transactionSummary?.protectionAvailable && (
+                    <div className="rounded-2xl border border-gold/30 bg-gold/5 p-4 flex items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          id="buyer-protection-toggle"
+                          checked={buyerProtectionSelected}
+                          onChange={(e) => setBuyerProtectionSelected(e.target.checked)}
+                          className="rounded border-border bg-background text-gold focus:ring-gold size-4.5 accent-gold cursor-pointer mt-1"
+                        />
+                        <div>
+                          <label htmlFor="buyer-protection-toggle" className="text-xs font-bold text-foreground cursor-pointer flex items-center gap-1.5">
+                            <ShieldCheck className="size-4 text-emerald-400 shrink-0" />
+                            Add Buyer Protection
+                          </label>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                            Secures your order with full escrow refund protection, dispute resolution assistance, and continuous merchant monitoring.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">Fee</div>
+                        <div className="text-sm font-bold text-emerald-400 font-mono">₹{transactionSummary.protectionFeeInr}</div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* HX-007: Transaction Summary for listing purchases */}
                   {transactionSummary && (

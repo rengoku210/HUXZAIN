@@ -23,11 +23,14 @@ export const Route = createFileRoute("/_authenticated/admin/verifications")({
   head: () => ({ meta: [{ title: "KYC Verifications — HUXZAIN Admin" }] }),
   component: KYCVerifications,
 });
-
 interface VerificationRecord {
   id: string;
   government_id_url: string | null;
   government_id_status?: string;
+  government_id_type_1?: string | null;
+  government_id_type_2?: string | null;
+  government_id_2_url?: string | null;
+  government_id_2_status?: string;
   selfie_url: string | null;
   selfie_status?: string;
   address_proof_url: string | null;
@@ -64,9 +67,9 @@ function KYCVerifications() {
   const [notesDecision, setNotesDecision] = useState<"rejected" | "action_required">("rejected");
   const [adminNotes, setAdminNotes] = useState("");
   const [govtDecision, setGovtDecision] = useState<"approved" | "rejected" | "under_review">("under_review");
+  const [govt2Decision, setGovt2Decision] = useState<"approved" | "rejected" | "under_review">("under_review");
   const [selfieDecision, setSelfieDecision] = useState<"approved" | "rejected" | "under_review">("under_review");
   const [addrDecision, setAddrDecision] = useState<"approved" | "rejected" | "under_review">("under_review");
-
   const supabase = getSupabase();
 
   const loadKYC = async () => {
@@ -128,6 +131,13 @@ function KYCVerifications() {
           ? "rejected" 
           : "under_review"
     );
+    setGovt2Decision(
+      existing?.government_id_2_status === "APPROVED" 
+        ? "approved" 
+        : existing?.government_id_2_status === "REJECTED" 
+          ? "rejected" 
+          : "under_review"
+    );
     setSelfieDecision(
       existing?.selfie_status === "APPROVED" 
         ? "approved" 
@@ -152,6 +162,7 @@ function KYCVerifications() {
     notes = "",
     docResubmissions?: {
       government_id?: "approved" | "rejected" | "under_review";
+      government_id_2?: "approved" | "rejected" | "under_review";
       selfie?: "approved" | "rejected" | "under_review";
       address_proof?: "approved" | "rejected" | "under_review";
     }
@@ -166,21 +177,28 @@ function KYCVerifications() {
       const existing = verifications.find(v => v.id === id);
       
       let govtStatus = "APPROVED";
+      let govt2Status = "APPROVED";
       let selfieStatus = "APPROVED";
       let addrStatus = "APPROVED";
 
       if (decision === "approved") {
         govtStatus = "APPROVED";
+        govt2Status = "APPROVED";
         selfieStatus = "APPROVED";
         addrStatus = "APPROVED";
       } else if (decision === "rejected") {
         govtStatus = "REJECTED";
+        govt2Status = "REJECTED";
         selfieStatus = "REJECTED";
         addrStatus = "REJECTED";
       } else if (decision === "action_required" && docResubmissions) {
         govtStatus = !existing?.government_id_url 
           ? "NOT_STARTED" 
           : (docResubmissions.government_id === "approved" ? "APPROVED" : docResubmissions.government_id === "rejected" ? "REJECTED" : "UNDER_REVIEW");
+
+        govt2Status = !existing?.government_id_2_url 
+          ? "NOT_STARTED" 
+          : (docResubmissions.government_id_2 === "approved" ? "APPROVED" : docResubmissions.government_id_2 === "rejected" ? "REJECTED" : "UNDER_REVIEW");
           
         selfieStatus = !existing?.selfie_url 
           ? "NOT_STARTED" 
@@ -193,7 +211,7 @@ function KYCVerifications() {
 
       let overallStatus: "approved" | "rejected" | "action_required" | "pending" = decision;
       if (decision === "action_required" && docResubmissions) {
-        const statuses = [govtStatus, selfieStatus, addrStatus];
+        const statuses = [govtStatus, govt2Status, selfieStatus, addrStatus];
         if (statuses.includes("REJECTED")) {
           overallStatus = "action_required";
         } else if (statuses.every(s => s === "APPROVED" || s === "NOT_STARTED")) {
@@ -210,6 +228,7 @@ function KYCVerifications() {
           status: overallStatus, 
           admin_notes: notes || null,
           government_id_status: govtStatus,
+          government_id_2_status: govt2Status,
           selfie_status: selfieStatus,
           address_proof_status: addrStatus,
           reviewed_at: new Date().toISOString(),
@@ -377,7 +396,8 @@ function KYCVerifications() {
               <thead>
                 <tr className="border-b border-border bg-surface/60 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="px-5 py-4">Seller</th>
-                  <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Government ID</span></th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Government ID 1</span></th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Government ID 2</span></th>
                   <th className="px-5 py-4"><span className="flex items-center gap-1"><UserSquare2 size={12}/> Verification Selfie</span></th>
                   <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Address Proof</span></th>
                   <th className="px-5 py-4"><span className="flex items-center gap-1"><Wallet size={12}/> Payout Account Details</span></th>
@@ -398,11 +418,16 @@ function KYCVerifications() {
                       {v.government_id_url ? (
                         <div className="space-y-1">
                           <button
-                            onClick={() => setViewingDocUrl(v.government_id_url)}
+                            onClick={() => setViewingDocUrl(v.government_id_url || null)}
                             className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
                           >
-                            <Eye size={12} /> View Document
+                            <Eye size={12} /> View ID 1
                           </button>
+                          {v.government_id_type_1 && (
+                            <div className="text-[9px] uppercase font-bold text-muted-foreground">
+                              Type: {v.government_id_type_1}
+                            </div>
+                          )}
                           <div>
                             <StatusPill 
                               status={
@@ -422,10 +447,42 @@ function KYCVerifications() {
                       )}
                     </td>
                     <td className="px-5 py-4">
+                      {v.government_id_2_url ? (
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => setViewingDocUrl(v.government_id_2_url || null)}
+                            className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
+                          >
+                            <Eye size={12} /> View ID 2
+                          </button>
+                          {v.government_id_type_2 && (
+                            <div className="text-[9px] uppercase font-bold text-muted-foreground">
+                              Type: {v.government_id_type_2}
+                            </div>
+                          )}
+                          <div>
+                            <StatusPill 
+                              status={
+                                v.government_id_2_status === "APPROVED" 
+                                  ? "Completed" 
+                                  : v.government_id_2_status === "REJECTED" 
+                                    ? "Rejected" 
+                                    : v.government_id_2_status === "UNDER_REVIEW" 
+                                      ? "Review" 
+                                      : "Pending"
+                              } 
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/60">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
                       {v.selfie_url ? (
                         <div className="space-y-1">
                           <button
-                            onClick={() => setViewingDocUrl(v.selfie_url)}
+                            onClick={() => setViewingDocUrl(v.selfie_url || null)}
                             className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
                           >
                             <Eye size={12} /> View Selfie
@@ -452,7 +509,7 @@ function KYCVerifications() {
                       {v.address_proof_url ? (
                         <div className="space-y-1">
                           <button
-                            onClick={() => setViewingDocUrl(v.address_proof_url)}
+                            onClick={() => setViewingDocUrl(v.address_proof_url || null)}
                             className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline bg-transparent border-none cursor-pointer font-semibold"
                           >
                             <Eye size={12} /> View Address
@@ -567,10 +624,25 @@ function KYCVerifications() {
                 
                 {selectedRecord.government_id_url && (
                   <div className="space-y-1">
-                    <label className="text-[11px] text-muted-foreground block">Government ID Status</label>
+                    <label className="text-[11px] text-muted-foreground block">Government ID 1 Status</label>
                     <select
                       value={govtDecision}
                       onChange={(e) => setGovtDecision(e.target.value as any)}
+                      className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:border-gold outline-none"
+                    >
+                      <option value="under_review">Under Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected (Needs Resubmit)</option>
+                    </select>
+                  </div>
+                )}
+
+                {selectedRecord.government_id_2_url && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground block">Government ID 2 Status</label>
+                    <select
+                      value={govt2Decision}
+                      onChange={(e) => setGovt2Decision(e.target.value as any)}
                       className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs text-foreground focus:border-gold outline-none"
                     >
                       <option value="under_review">Under Review</option>
@@ -621,7 +693,7 @@ function KYCVerifications() {
               </button>
               <button
                 type="button"
-                onClick={() => handleDecision(selectedRecordId!, notesDecision, adminNotes, { government_id: govtDecision, selfie: selfieDecision, address_proof: addrDecision })}
+                onClick={() => handleDecision(selectedRecordId!, notesDecision, adminNotes, { government_id: govtDecision, government_id_2: govt2Decision, selfie: selfieDecision, address_proof: addrDecision })}
                 disabled={actioningId !== null || !adminNotes.trim()}
                 className="flex-1 h-10 rounded-xl bg-gold text-black text-xs font-bold hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-50"
               >

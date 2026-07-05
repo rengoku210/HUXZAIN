@@ -19,6 +19,8 @@ import {
   Rocket,
   RotateCcw,
   Clock,
+  ChevronRight,
+  ShieldCheck
 } from "lucide-react";
 import { PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
@@ -112,6 +114,41 @@ function ListingModal({
   const [emailTransferDetails, setEmailTransferDetails] = useState("");
   const [uploadingProof, setUploadingProof] = useState<Record<string, boolean>>({});
 
+  // Dynamic secure delivery state variables
+  const [inventoryItems, setInventoryItems] = useState<{
+    id?: string;
+    login_id: string;
+    password?: string;
+    credentials_data?: string;
+    instructions?: string;
+    notes?: string;
+    status: 'available' | 'assigned' | 'hold';
+  }[]>([]);
+  const [newInvLoginId, setNewInvLoginId] = useState("");
+  const [newInvPassword, setNewInvPassword] = useState("");
+  const [newInvCredentialsData, setNewInvCredentialsData] = useState("");
+  const [newInvInstructions, setNewInvInstructions] = useState("");
+  const [newInvNotes, setNewInvNotes] = useState("");
+
+  const [secureNoticeAcknowledged, setSecureNoticeAcknowledged] = useState(false);
+
+  // Declarations checkboxes (5 of them)
+  const [decl1, setDecl1] = useState(false);
+  const [decl2, setDecl2] = useState(false);
+  const [decl3, setDecl3] = useState(false);
+  const [decl4, setDecl4] = useState(false);
+  const [decl5, setDecl5] = useState(false);
+
+  // Multi-level Category selection states
+  const [selectedParentId, setSelectedParentId] = useState("");
+  const [selectedSubId, setSelectedSubId] = useState("");
+  const [selectedBoostId, setSelectedBoostId] = useState("");
+
+  const [subCategorySearch, setSubCategorySearch] = useState("");
+  const [subCategorySearchFocused, setSubCategorySearchFocused] = useState(false);
+  const [boostTypeSearch, setBoostTypeSearch] = useState("");
+  const [boostTypeSearchFocused, setBoostTypeSearchFocused] = useState(false);
+
   // HX-007: seller plan + finance config drive the live Transaction Summary.
   const [sellerTier, setSellerTier] = useState<string>("standard");
   const { config: financeConfig } = useFinanceConfig();
@@ -119,6 +156,82 @@ function ListingModal({
   // Load Category Engine config dynamically
   const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
   const { fields: dynamicFields, engine: dynamicEngine, loading: configLoading } = useCategoryConfig(catSlug);
+
+  // Resolve hierarchy on category select
+  useEffect(() => {
+    if (!categoryId || categories.length === 0) return;
+    const cat = categories.find(c => c.id === categoryId);
+    if (!cat) return;
+
+    const catAny = cat as any;
+    if (catAny.parent_id) {
+      const parent = categories.find(c => c.id === catAny.parent_id);
+      const parentAny = parent as any;
+      if (parent && parentAny.parent_id) {
+        // 3 levels (boosting -> game -> boost-type)
+        setSelectedParentId(parentAny.parent_id);
+        setSelectedSubId(parent.id);
+        setSubCategorySearch(parent.name);
+        setSelectedBoostId(cat.id);
+        setBoostTypeSearch(cat.name);
+      } else {
+        // 2 levels (parent -> sub)
+        setSelectedParentId(catAny.parent_id);
+        setSelectedSubId(cat.id);
+        setSubCategorySearch(cat.name);
+        setSelectedBoostId("");
+        setBoostTypeSearch("");
+      }
+    } else {
+      // 1 level
+      setSelectedParentId(cat.id);
+      setSelectedSubId("");
+      setSubCategorySearch("");
+      setSelectedBoostId("");
+      setBoostTypeSearch("");
+    }
+  }, [categoryId, categories]);
+
+  const isBoosting = () => {
+    if (!categoryId) return false;
+    let cur = categories.find(c => c.id === categoryId);
+    while (cur) {
+      if (cur.slug === 'boosting') return true;
+      cur = categories.find(x => x.id === (cur as any).parent_id);
+    }
+    return false;
+  };
+
+  // Calculation of Listing Health Score
+  const calculateHealthScore = () => {
+    let score = 0;
+    // Cover image (+5)
+    if (gallery.length > 0) score += 5;
+    // Additional gallery images (+5)
+    if (gallery.length > 1) score += 5;
+    // Detailed description (+10)
+    if (description.trim().length > 100) score += 10;
+    // Activation instructions (+10)
+    if (instructions.trim() || attributes.instructions || newInvInstructions.trim()) score += 10;
+    // Compatibility Information (+10)
+    if (attributes.region || attributes.platform || attributes.server) score += 10;
+    // Additional delivery notes (+5)
+    if (attributes.deliveryNotes || attributes.notes || newInvNotes.trim()) score += 5;
+    // Screenshots (+5)
+    if (gallery.length > 2) score += 5;
+    // Tags (+5)
+    if (tags.length > 0) score += 5;
+    // SEO Information (+5)
+    if (seoTitle || seoDescription) score += 5;
+    // Secure delivery specific (+45)
+    if (deliveryType === 'instant' || deliveryType === 'hybrid') {
+      if (inventoryItems.length > 0) score += 20;
+      if (decl1 && decl2 && decl3 && decl4 && decl5) score += 25;
+    } else {
+      score += 45;
+    }
+    return Math.min(score, 100);
+  };
 
   // Handle Category Switching: preserve compatible values, clear stale metadata, reload delivery engine
   useEffect(() => {
@@ -167,22 +280,40 @@ function ListingModal({
 
   useEffect(() => {
     if (!listing?.id) return;
-    const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
-    if (getCategoryTypeFromSlug(catSlug) !== "game-accounts") return;
-
     const supabase = getSupabase();
     if (!supabase) return;
-    
+
+    // Load standard credentials if game account
+    const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
+    if (getCategoryTypeFromSlug(catSlug) === "game-accounts") {
+      supabase
+        .rpc("reveal_listing_credentials", { p_listing_id: listing.id })
+        .then(({ data, error }) => {
+          const row = Array.isArray(data) ? data[0] : data;
+          if (row && !error) {
+            setLoginId(row.login_id || "");
+            setLoginPassword(row.password || "");
+            setInstructions(row.instructions || "");
+            setRecoveryDetails(row.recovery_details || "");
+            setEmailTransferDetails(row.email_transfer_details || "");
+          }
+        });
+    }
+
+    // Load multi-item inventory
     supabase
-      .rpc("reveal_listing_credentials", { p_listing_id: listing.id })
+      .rpc("reveal_listing_inventory", { p_listing_id: listing.id })
       .then(({ data, error }) => {
-        const row = Array.isArray(data) ? data[0] : data;
-        if (row && !error) {
-          setLoginId(row.login_id || "");
-          setLoginPassword(row.password || "");
-          setInstructions(row.instructions || "");
-          setRecoveryDetails(row.recovery_details || "");
-          setEmailTransferDetails(row.email_transfer_details || "");
+        if (!error && Array.isArray(data)) {
+          setInventoryItems(data.map(item => ({
+            id: item.id,
+            login_id: item.login_id || "",
+            password: item.password || "",
+            credentials_data: item.credentials_data || "",
+            instructions: item.instructions || "",
+            notes: item.notes || "",
+            status: item.status || "available"
+          })));
         }
       });
   }, [listing?.id, categoryId, categories]);
@@ -313,9 +444,104 @@ function ListingModal({
 
     // Resolve category UUID early
     let finalCategoryId = categoryId;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId);
+    
+    // Duplicate detection helper function
+    const findSimilarCategory = (name: string, parentId: string | null, allCats: any[]) => {
+      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const targetNorm = normalize(name);
+      
+      const aliases: Record<string, string[]> = {
+        "gta5": ["grandtheftautov", "grandtheftauto5", "gtav", "gta5"],
+        "grandtheftautov": ["grandtheftautov", "grandtheftauto5", "gtav", "gta5"],
+        "grandtheftauto5": ["grandtheftautov", "grandtheftauto5", "gtav", "gta5"],
+        "gtav": ["grandtheftautov", "grandtheftauto5", "gtav", "gta5"],
+        
+        "chatgpt": ["chatgpt", "chatgptplus", "chatgptpro"],
+        "chatgptplus": ["chatgpt", "chatgptplus", "chatgptpro"],
+        "chatgptpro": ["chatgpt", "chatgptplus", "chatgptpro"],
+      };
+
+      const checkAlias = (n1: string, n2: string) => {
+        const norm1 = normalize(n1);
+        const norm2 = normalize(n2);
+        if (aliases[norm1] && aliases[norm1].includes(norm2)) return true;
+        if (aliases[norm2] && aliases[norm2].includes(norm1)) return true;
+        return norm1 === norm2;
+      };
+
+      const siblings = allCats.filter(c => c.parent_id === parentId);
+      return siblings.find(c => checkAlias(c.name, name) || normalize(c.name) === targetNorm);
+    };
+
+    // If sub category is a custom typed string, insert/select it
+    if (selectedSubId === "CUSTOM_CAT" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedSubId)) {
+      const normSub = subCategorySearch.trim();
+      if (!normSub) {
+        toast.error("Sub Category name cannot be empty.");
+        return;
+      }
+      
+      // Perform duplicate detection
+      const existing = findSimilarCategory(normSub, selectedParentId, categories);
+      if (existing) {
+        finalCategoryId = existing.id;
+        setSelectedSubId(existing.id);
+      } else {
+        const slugVal = normSub.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const { data: newCat, error: insertErr } = await supabase
+          .from("categories")
+          .insert({
+            name: normSub,
+            slug: `${slugVal}-${Date.now().toString().slice(-4)}`,
+            parent_id: selectedParentId || null,
+            sort_order: 100
+          })
+          .select()
+          .single();
+        if (insertErr) {
+          toast.error(`Failed to create custom subcategory: ${insertErr.message}`);
+          return;
+        }
+        finalCategoryId = newCat.id;
+        setSelectedSubId(newCat.id);
+      }
+    }
+
+    // If boost type is a custom typed string, insert/select it under the resolved subcategory
+    if (selectedBoostId === "CUSTOM_BOOST" || (boostTypeSearch.trim() !== "" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedBoostId))) {
+      const normBoost = boostTypeSearch.trim();
+      if (normBoost) {
+        const parentIdForBoost = finalCategoryId;
+        const existingBoost = findSimilarCategory(normBoost, parentIdForBoost, categories);
+        if (existingBoost) {
+          finalCategoryId = existingBoost.id;
+          setSelectedBoostId(existingBoost.id);
+        } else {
+          const slugVal = normBoost.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+          const { data: newBoost, error: insertErr } = await supabase
+            .from("categories")
+            .insert({
+              name: normBoost,
+              slug: `${slugVal}-${Date.now().toString().slice(-4)}`,
+              parent_id: parentIdForBoost,
+              sort_order: 100
+            })
+            .select()
+            .single();
+          if (insertErr) {
+            toast.error(`Failed to create custom boost type: ${insertErr.message}`);
+            return;
+          }
+          finalCategoryId = newBoost.id;
+          setSelectedBoostId(newBoost.id);
+        }
+      }
+    }
+
+    // Fallback if UUID validation fails
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalCategoryId);
     if (!isUuid) {
-      const matched = categories.find(c => c.slug === categoryId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id));
+      const matched = categories.find(c => c.slug === finalCategoryId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id));
       if (matched) {
         finalCategoryId = matched.id;
       } else if (categories.length > 0) {
@@ -492,7 +718,9 @@ function ListingModal({
         tags: tags,
         risk_score: payloadRiskScore,
         suspicious_keywords: payloadKeywords,
-        moderator_notes: payloadNotes
+        moderator_notes: payloadNotes,
+        health_score: calculateHealthScore(),
+        declarations_accepted: (deliveryType === 'instant' || deliveryType === 'hybrid') ? (decl1 && decl2 && decl3 && decl4 && decl5) : false
       };
 
       console.log("[Rebuild Listing Flow] Database payload:", JSON.stringify(payload, null, 2));
@@ -539,22 +767,41 @@ function ListingModal({
         savedListingId = data.id;
       }
 
-      // Upsert secure credentials
-      const requiresCredentials = dynamicFields.length > 0 ? (dynamicEngine?.delivery_engine === 'Credentials') : (getCategoryTypeFromSlug(catSlug) === "game-accounts");
-      if (requiresCredentials) {
-        const { error: credsErr } = await supabase
-          .rpc("set_listing_credentials", {
-            p_listing_id: savedListingId,
-            p_login_id: loginId.trim(),
-            p_password: loginPassword,
-            p_instructions: instructions.trim() || null,
-            p_recovery_details: recoveryDetails.trim() || null,
-            p_email_transfer_details: emailTransferDetails.trim() || null
-          });
+      // Upsert secure credentials / multi-item inventory
+      if (deliveryType === 'instant' || deliveryType === 'hybrid') {
+        const { error: invErr } = await supabase.rpc("save_listing_inventory", {
+          p_listing_id: savedListingId,
+          p_items: inventoryItems.map(item => ({
+            login_id: item.login_id,
+            password: item.password || null,
+            credentials_data: item.credentials_data || null,
+            instructions: item.instructions || null,
+            notes: item.notes || null
+          }))
+        });
 
-        if (credsErr) {
-          console.error("[ListingModal] Failed to save credentials:", credsErr);
-          throw new Error(`Failed to save secure credentials: ${credsErr.message}`);
+        if (invErr) {
+          console.error("[ListingModal] Failed to save inventory:", invErr);
+          throw new Error(`Failed to save inventory: ${invErr.message}`);
+        }
+      } else {
+        // Fallback set single listing credentials
+        const requiresCredentials = dynamicFields.length > 0 ? (dynamicEngine?.delivery_engine === 'Credentials') : (getCategoryTypeFromSlug(catSlug) === "game-accounts");
+        if (requiresCredentials && loginId.trim()) {
+          const { error: credsErr } = await supabase
+            .rpc("set_listing_credentials", {
+              p_listing_id: savedListingId,
+              p_login_id: loginId.trim(),
+              p_password: loginPassword,
+              p_instructions: instructions.trim() || null,
+              p_recovery_details: recoveryDetails.trim() || null,
+              p_email_transfer_details: emailTransferDetails.trim() || null
+            });
+
+          if (credsErr) {
+            console.error("[ListingModal] Failed to save credentials:", credsErr);
+            throw new Error(`Failed to save secure credentials: ${credsErr.message}`);
+          }
         }
       }
 
@@ -581,172 +828,661 @@ function ListingModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl rounded-3xl border border-border bg-background shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
-
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-display text-lg font-bold">
-              {isNew ? "Create New Listing" : "Edit Listing"}
-            </h2>
-            <button
-              onClick={onClose}
-              className="size-8 rounded-full border border-border flex items-center justify-center hover:border-gold/40"
-            >
-              <X className="size-4" />
-            </button>
+    <div className="w-full space-y-6 max-w-4xl mx-auto">
+      {/* ─── TITLE & STEP TRACKER HEADER ─── */}
+      <div className="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-white/5 mb-6">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-white">
+            {isNew ? "Create Marketplace Listing" : "Edit Marketplace Listing"}
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1 font-sans">
+            Provide accurate information about your product or service. Category-specific fields will appear automatically.
+          </p>
+        </div>
+        
+        {/* Stepper (Image 1 Mockup) */}
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider font-display">
+          <div className="flex items-center gap-1.5 text-gold">
+            <span className="size-5 rounded-full bg-gold text-black flex items-center justify-center text-[10px] font-black">1</span>
+            <span>Listing Details</span>
           </div>
+          <div className="w-8 h-px bg-white/10" />
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="size-5 rounded-full border border-white/10 flex items-center justify-center text-[10px] font-black">2</span>
+            <span>Review Listing</span>
+          </div>
+          <div className="w-8 h-px bg-white/10" />
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="size-5 rounded-full border border-white/10 flex items-center justify-center text-[10px] font-black">3</span>
+            <span>Publish Listing</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6 pb-24">
 
           {/* Image gallery upload */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Gallery Images (First is Cover)</label>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {gallery.map((item, i) => (
-                <div key={item.id} className="relative w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden border border-border group">
-                  <img src={item.url} alt="Gallery item" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    {i > 0 && (
-                      <button onClick={() => moveImage(i, -1)} className="p-1 bg-white/20 rounded hover:bg-white/40 text-white text-xs">&lt;</button>
-                    )}
-                    <button onClick={() => removeImage(item.id)} className="p-1 bg-red-500/80 rounded hover:bg-red-500 text-white text-xs">Del</button>
-                    {i < gallery.length - 1 && (
-                      <button onClick={() => moveImage(i, 1)} className="p-1 bg-white/20 rounded hover:bg-white/40 text-white text-xs">&gt;</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div
-                className="w-32 h-32 flex-shrink-0 border-2 border-dashed border-border hover:border-gold/50 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gold/5 transition-all"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload className="size-6 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Add Image</span>
-              </div>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+        {/* ─── CARD 1: LISTING MEDIA ─── */}
+        <div className="rounded-2xl border border-white/5 bg-[#0c0d10]/40 p-6 space-y-4 shadow-xl">
+          <div className="flex items-center gap-2 text-gold">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M20.4 20.4L15 15L10 20"/></svg>
+            <h3 className="text-sm font-bold uppercase tracking-wider font-display">Listing Media</h3>
           </div>
+          <p className="text-xs text-muted-foreground font-sans">
+            Upload clear, high-quality images that represent your product or service. The first image will be used as the marketplace cover.
+          </p>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {gallery.map((item, i) => (
+              <div key={item.id} className="relative w-36 h-36 flex-shrink-0 rounded-2xl overflow-hidden border border-white/10 group bg-surface">
+                <img src={item.url} alt="Gallery item" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
+                  {i > 0 && (
+                    <button type="button" onClick={() => moveImage(i, -1)} className="p-1.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg text-white text-xs cursor-pointer transition-colors">&larr;</button>
+                  )}
+                  <button type="button" onClick={() => removeImage(item.id)} className="p-1.5 bg-red-500/20 hover:bg-red-500 border border-red-500/30 rounded-lg text-red-400 hover:text-white text-xs cursor-pointer transition-colors">Del</button>
+                  {i < gallery.length - 1 && (
+                    <button type="button" onClick={() => moveImage(i, 1)} className="p-1.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg text-white text-xs cursor-pointer transition-colors">&rarr;</button>
+                  )}
+                </div>
+                {i === 0 && (
+                  <span className="absolute top-2 left-2 bg-gold/90 text-black text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-md font-display">Cover</span>
+                )}
+              </div>
+            ))}
+            <div
+              className="w-36 h-36 border-2 border-dashed border-white/10 hover:border-gold/40 hover:bg-gold/[0.02] rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all shrink-0"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="size-6 text-muted-foreground animate-bounce" />
+              <span className="text-xs font-bold text-white font-sans">Upload Images</span>
+              <span className="text-[10px] text-muted-foreground font-sans">PNG, JPG or WEBP (Max 10MB each)</span>
+            </div>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
 
+        {/* ─── CARD 2: BASIC INFORMATION ─── */}
+        <div className="rounded-2xl border border-white/5 bg-[#0c0d10]/40 p-6 space-y-4 shadow-xl">
+          <div className="flex items-center gap-2 text-gold">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <h3 className="text-sm font-bold uppercase tracking-wider font-display">Basic Information</h3>
+          </div>
+          
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Title <span className="text-red-400">*</span>
+            <div className="relative">
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                Listing Title <span className="text-red-400">*</span>
               </label>
               <input
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Premium WordPress Theme"
-                className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                onChange={(e) => setTitle(e.target.value.slice(0, 100))}
+                placeholder="Enter a clear, descriptive title for your listing"
+                className="w-full h-11 px-4 pr-16 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 transition-colors font-sans"
               />
+              <span className="absolute right-4 bottom-3.5 text-[10px] text-muted-foreground font-sans font-bold select-none">
+                {title.length}/100
+              </span>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Description</label>
+            
+            <div className="relative">
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                Listing Description <span className="text-red-400">*</span>
+              </label>
               <textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Describe your listing..."
-                className="w-full px-4 py-3 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50 resize-none"
+                onChange={(e) => setDescription(e.target.value.slice(0, 2000))}
+                placeholder="Provide a detailed description of your product or service, including key features, requirements, and delivery information"
+                rows={5}
+                className="w-full p-4 pr-16 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 transition-colors resize-none font-sans"
               />
+              <span className="absolute right-4 bottom-3 text-[10px] text-muted-foreground font-sans font-bold select-none">
+                {description.length}/2000
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+          </div>
+        </div>
+        {/* ─── LISTING HEALTH SCORE ─── */}
+        <div className="rounded-2xl border border-gold/30 bg-[#0c0d10]/40 p-6 space-y-4 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gold/5 rounded-full blur-2xl -z-10" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gold">
+              <Sparkles className="size-5 text-gold animate-pulse" />
+              <h3 className="text-sm font-bold uppercase tracking-wider font-display">Listing Health Score</h3>
+            </div>
+            <span className="text-sm font-extrabold text-gold font-mono">{calculateHealthScore()}/100</span>
+          </div>
+          <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden border border-white/5">
+            <div 
+              className="h-full bg-gradient-to-r from-red-500 via-amber-500 to-emerald-500 transition-all duration-500" 
+              style={{ width: `${calculateHealthScore()}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-normal font-sans">
+            Listings with a higher Listing Health Score are generally easier for buyers to understand and create a better buying experience. Complete description, instructions, compatibility info, tags, and secure inventory to maximize your score.
+          </p>
+        </div>
+
+        {/* ─── CARD 3: MARKETPLACE SETTINGS ─── */}
+        <div className="rounded-2xl border border-white/5 bg-[#0c0d10]/40 p-6 space-y-5 shadow-xl">
+          <div className="flex items-center gap-2 text-gold">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <h3 className="text-sm font-bold uppercase tracking-wider font-display">Marketplace Settings</h3>
+          </div>
+          
+          {/* Dynamic Category Hierarchy Dropdowns */}
+          <div className="space-y-4 border border-white/5 bg-[#0a0b0d]/50 p-4 rounded-xl">
+            <h4 className="text-xs font-bold text-gold uppercase tracking-wider">Select Category Pathway</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5">Category</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Parent Category <span className="text-red-400">*</span></label>
                 <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                  value={selectedParentId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedParentId(val);
+                    setSelectedSubId("");
+                    setSelectedBoostId("");
+                    if (val) {
+                      const subCats = categories.filter(c => (c as any).parent_id === val);
+                      if (subCats.length > 0) {
+                        setCategoryId(subCats[0].id);
+                      } else {
+                        setCategoryId(val);
+                      }
+                    } else {
+                      setCategoryId("");
+                    }
+                  }}
+                  className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-xs text-white focus:outline-none focus:border-gold/40 cursor-pointer font-sans"
                 >
-                  <option value="">Select category</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
+                  <option value="">Choose Parent Category</option>
+                  {categories.filter(c => 
+                    c.slug !== 'gaming-entertainment' && 
+                    ((c as any).parent_id === null || (c as any).parent_id === categories.find(x => x.slug === 'gaming-entertainment')?.id)
+                  ).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Delivery Type</label>
-                <select
-                  value={deliveryType}
-                  onChange={(e) => setDeliveryType(e.target.value as "instant" | "manual" | "hybrid")}
-                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
-                >
-                  <option value="instant">Automatic / Instant (keys, gift cards, subscriptions)</option>
-                  <option value="manual">Manual (coaching, services, accounts)</option>
-                  <option value="hybrid">Hybrid (initial access + manual ownership transfer)</option>
-                </select>
-              </div>
+
+              {selectedParentId && (
+                <div className="relative">
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Sub Category (e.g. Game/Brand) <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={subCategorySearch}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSubCategorySearch(val);
+                      setSelectedSubId(val ? "CUSTOM_CAT" : "");
+                      setSelectedBoostId("");
+                      setCategoryId(val ? "CUSTOM_CAT" : "");
+                    }}
+                    onFocus={() => setSubCategorySearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSubCategorySearchFocused(false), 250)}
+                    placeholder="Search or type custom name..."
+                    className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-xs text-white focus:outline-none focus:border-gold/40 font-sans"
+                  />
+                  {subCategorySearchFocused && (
+                    <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-surface-elevated border border-white/10 rounded-xl shadow-2xl z-50 text-left text-xs divide-y divide-white/5 scrollbar-thin">
+                      {subCategorySearch.trim() !== "" && !categories.some(c => (c as any).parent_id === selectedParentId && c.name.toLowerCase() === subCategorySearch.toLowerCase()) && (
+                        <div
+                          onMouseDown={() => {
+                            setSelectedSubId("CUSTOM_CAT");
+                            setCategoryId("CUSTOM_CAT");
+                            setSubCategorySearchFocused(false);
+                          }}
+                          className="p-2.5 text-gold hover:bg-gold/10 cursor-pointer font-bold flex items-center gap-1.5"
+                        >
+                          <span>+ Create new category:</span>
+                          <span className="text-white italic">"{subCategorySearch}"</span>
+                        </div>
+                      )}
+                      {categories
+                        .filter(c => (c as any).parent_id === selectedParentId && c.name.toLowerCase().includes(subCategorySearch.toLowerCase()))
+                        .map(c => (
+                          <div
+                            key={c.id}
+                            onMouseDown={() => {
+                              setSelectedSubId(c.id);
+                              setSubCategorySearch(c.name);
+                              const subCats = categories.filter(x => (x as any).parent_id === c.id);
+                              if (subCats.length > 0) {
+                                setCategoryId(subCats[0].id);
+                              } else {
+                                setCategoryId(c.id);
+                              }
+                              setSubCategorySearchFocused(false);
+                            }}
+                            className="p-2.5 text-white hover:bg-white/5 cursor-pointer flex justify-between items-center"
+                          >
+                            <span>{c.name}</span>
+                            <span className="text-[8px] font-mono text-muted-foreground uppercase">Existing</span>
+                          </div>
+                        ))}
+                      {categories.filter(c => (c as any).parent_id === selectedParentId && c.name.toLowerCase().includes(subCategorySearch.toLowerCase())).length === 0 && subCategorySearch.trim() === "" && (
+                        <div className="p-2.5 text-muted-foreground italic text-center">Start typing to search...</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedSubId && (selectedSubId === "CUSTOM_CAT" || categories.filter(c => (c as any).parent_id === selectedSubId).length > 0 || boostTypeSearch !== "") && (
+                <div className="relative">
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Boost / Sub Type <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={boostTypeSearch}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBoostTypeSearch(val);
+                      setSelectedBoostId(val ? "CUSTOM_BOOST" : "");
+                      setCategoryId(val ? "CUSTOM_BOOST" : selectedSubId);
+                    }}
+                    onFocus={() => setBoostTypeSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setBoostTypeSearchFocused(false), 250)}
+                    placeholder="Search or type custom type..."
+                    className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-xs text-white focus:outline-none focus:border-gold/40 font-sans"
+                  />
+                  {boostTypeSearchFocused && (
+                    <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-surface-elevated border border-white/10 rounded-xl shadow-2xl z-50 text-left text-xs divide-y divide-white/5 scrollbar-thin">
+                      {boostTypeSearch.trim() !== "" && !categories.some(c => (c as any).parent_id === selectedSubId && c.name.toLowerCase() === boostTypeSearch.toLowerCase()) && (
+                        <div
+                          onMouseDown={() => {
+                            setSelectedBoostId("CUSTOM_BOOST");
+                            setCategoryId("CUSTOM_BOOST");
+                            setBoostTypeSearchFocused(false);
+                          }}
+                          className="p-2.5 text-gold hover:bg-gold/10 cursor-pointer font-bold flex items-center gap-1.5"
+                        >
+                          <span>+ Create new type:</span>
+                          <span className="text-white italic">"{boostTypeSearch}"</span>
+                        </div>
+                      )}
+                      {categories
+                        .filter(c => (c as any).parent_id === selectedSubId && c.name.toLowerCase().includes(boostTypeSearch.toLowerCase()))
+                        .map(c => (
+                          <div
+                            key={c.id}
+                            onMouseDown={() => {
+                              setSelectedBoostId(c.id);
+                              setBoostTypeSearch(c.name);
+                              setCategoryId(c.id);
+                              setBoostTypeSearchFocused(false);
+                            }}
+                            className="p-2.5 text-white hover:bg-white/5 cursor-pointer flex justify-between items-center"
+                          >
+                            <span>{c.name}</span>
+                            <span className="text-[8px] font-mono text-muted-foreground uppercase">Existing</span>
+                          </div>
+                        ))}
+                      {categories.filter(c => (c as any).parent_id === selectedSubId && c.name.toLowerCase().includes(boostTypeSearch.toLowerCase())).length === 0 && boostTypeSearch.trim() === "" && (
+                        <div className="p-2.5 text-muted-foreground italic text-center">Start typing to search...</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                Delivery Method <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={deliveryType}
+                onChange={(e) => setDeliveryType(e.target.value as any)}
+                className="w-full h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 cursor-pointer font-sans"
+              >
+                <option value="instant">Automatic / Instant Delivery</option>
+                <option value="manual">Manual Delivery</option>
+                <option value="hybrid">Hybrid Delivery</option>
+              </select>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Delivery Time (Hours)</label>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                Estimated Delivery Time <span className="text-red-400">*</span>
+              </label>
+              <div className="flex gap-2">
                 <input
                   type="number"
                   min="1"
                   value={deliveryTime}
                   onChange={(e) => setDeliveryTime(e.target.value)}
-                  placeholder="24"
-                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                  className="w-2/3 h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 font-sans"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  Price (₹) <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
-                />
+                <select className="w-1/3 h-11 px-3 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 cursor-pointer font-sans">
+                  <option>Hours</option>
+                  <option>Days</option>
+                </select>
               </div>
             </div>
-
-            {/* HX-007: Transaction Summary — live, right below pricing (client mockup). */}
-            {summaryPrice > 0 && (
-              <TransactionSummaryPanel summary={transactionSummary} variant="listing" />
-            )}
-
+            
             <div>
-              <label className="block text-sm font-medium mb-1.5">Tags (Press Enter to add)</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {tags.map(tag => (
-                  <span key={tag} className="inline-flex items-center gap-1 bg-surface border border-border px-2 py-1 rounded text-xs">
-                    {tag}
-                    <button type="button" onClick={() => removeTag(tag)} className="text-muted-foreground hover:text-foreground">
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                Listing Price (₹) <span className="text-red-400">*</span>
+              </label>
               <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={addTag}
-                placeholder="Add tag..."
-                className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
+                type="number"
+                min="0"
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="0.00"
+                className="w-full h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 font-sans"
               />
             </div>
+          </div>
 
-            <div className="border border-border rounded-2xl p-4 bg-surface/30 space-y-4">
-              <span className="text-sm font-semibold text-white">
-                {dynamicFields.length > 0
-                  ? `${categories.find((c) => c.id === categoryId)?.name || "Listing"} Details`
-                  : "Listing Attributes (Auto-updates based on Category)"}
-              </span>
+          {/* Custom Boosting Service Fields if Boosting Category Selected */}
+          {isBoosting() && (
+            <div className="border border-gold/20 bg-gold/[0.02] p-5 rounded-2xl space-y-4 text-left">
+              <h4 className="text-xs font-bold uppercase text-gold tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
+                <Rocket size={14} /> Boosting Services Custom Configuration
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Server / Region</label>
+                  <select
+                    value={attributes.region || ""}
+                    onChange={(e) => setAttributes({ ...attributes, region: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0c0d10] text-xs text-white"
+                  >
+                    <option value="">Select Region</option>
+                    <option value="Asia">Asia Pacific / India</option>
+                    <option value="Europe">Europe</option>
+                    <option value="NA">North America</option>
+                    <option value="SA">South America</option>
+                    <option value="Global">Global</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Platform</label>
+                  <select
+                    value={attributes.platform || ""}
+                    onChange={(e) => setAttributes({ ...attributes, platform: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0c0d10] text-xs text-white"
+                  >
+                    <option value="">Select Platform</option>
+                    <option value="PC">PC</option>
+                    <option value="PS5">PlayStation 5</option>
+                    <option value="Xbox">Xbox Series X/S</option>
+                    <option value="Mobile">Mobile (iOS / Android)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Pricing Model</label>
+                  <select
+                    value={attributes.boostingPricingModel || "fixed_price"}
+                    onChange={(e) => setAttributes({ ...attributes, boostingPricingModel: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0c0d10] text-xs text-white"
+                  >
+                    <option value="fixed_price">Fixed Price</option>
+                    <option value="per_rank">Price Per Rank</option>
+                    <option value="per_division">Price Per Division</option>
+                    <option value="per_win">Price Per Match / Win</option>
+                    <option value="per_hour">Price Per Hour</option>
+                    <option value="custom_quote">Starting From (Custom quote)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Current Queue Limit (Max Active Orders)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={attributes.queueLimit || 5}
+                    onChange={(e) => setAttributes({ ...attributes, queueLimit: parseInt(e.target.value) || 5 })}
+                    className="w-full h-10 px-3 rounded-xl border border-white/5 bg-[#0c0d10] text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-6 pt-2">
+                <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!attributes.boostingDuoBoost}
+                    onChange={(e) => setAttributes({ ...attributes, boostingDuoBoost: e.target.checked })}
+                    className="rounded border-border text-gold focus:ring-gold/30"
+                  />
+                  Duo Boost Available (Play with booster)
+                </label>
+                <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!attributes.boostingStreaming}
+                    onChange={(e) => setAttributes({ ...attributes, boostingStreaming: e.target.checked })}
+                    className="rounded border-border text-gold focus:ring-gold/30"
+                  />
+                  Live Stream Available
+                </label>
+                <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!attributes.boostingVpn}
+                    onChange={(e) => setAttributes({ ...attributes, boostingVpn: e.target.checked })}
+                    className="rounded border-border text-gold focus:ring-gold/30"
+                  />
+                  VPN Usage Toggled (For account security)
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Secure Delivery notice & Multi-item Inventory Upload */}
+          {(deliveryType === 'instant' || deliveryType === 'hybrid') && (
+            <div className="border border-emerald-500/20 bg-emerald-500/[0.01] p-5 rounded-2xl space-y-4 text-left">
+              <h4 className="text-xs font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
+                <ShieldCheck size={14} /> Secure Delivery Vault & Inventory Manager
+              </h4>
+
+              {!secureNoticeAcknowledged && (
+                <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl space-y-3">
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-emerald-400 animate-bounce" /> Secure Delivery Requirements Notice
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    The credentials and keys uploaded here are stored in our secure, symmetric PGP-encrypted rest vault. They are only decrypted and shown to the buyer once their payment is verified and cleared by the HUXZAIN team.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSecureNoticeAcknowledged(true)}
+                    className="px-3.5 h-8 text-[11px] font-bold rounded-lg bg-emerald-500 text-black cursor-pointer hover:brightness-110"
+                  >
+                    Continue to Inventory Setup
+                  </button>
+                </div>
+              )}
+
+              {secureNoticeAcknowledged && (
+                <div className="space-y-4">
+                  {/* Add New Stock Item form */}
+                  <div className="bg-[#0b0c0f] border border-white/5 p-4 rounded-xl space-y-3">
+                    <h5 className="text-[10px] font-extrabold uppercase text-gold">Upload New Inventory Item</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[9px] text-muted-foreground uppercase mb-0.5">Username / Login ID</label>
+                        <input
+                          value={newInvLoginId}
+                          onChange={(e) => setNewInvLoginId(e.target.value)}
+                          placeholder="e.g. game_username or login_email"
+                          className="w-full h-8 px-2.5 rounded-lg border border-white/5 bg-[#0c0d10] text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-muted-foreground uppercase mb-0.5">Password</label>
+                        <input
+                          type="password"
+                          value={newInvPassword}
+                          onChange={(e) => setNewInvPassword(e.target.value)}
+                          placeholder="e.g. login_password"
+                          className="w-full h-8 px-2.5 rounded-lg border border-white/5 bg-[#0c0d10] text-xs text-white"
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-[9px] text-muted-foreground uppercase mb-0.5">Activation Code / Key / Redemption Token</label>
+                        <input
+                          value={newInvCredentialsData}
+                          onChange={(e) => setNewInvCredentialsData(e.target.value)}
+                          placeholder="Paste product key, activation code, or gift card pin here..."
+                          className="w-full h-8 px-2.5 rounded-lg border border-white/5 bg-[#0c0d10] text-xs text-white"
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-[9px] text-muted-foreground uppercase mb-0.5">Special Instructions for Buyer (Only visible after purchase)</label>
+                        <textarea
+                          value={newInvInstructions}
+                          onChange={(e) => setNewInvInstructions(e.target.value)}
+                          placeholder="Provide steps for downloading, redeeming, or securing..."
+                          rows={2}
+                          className="w-full p-2.5 rounded-lg border border-white/5 bg-[#0c0d10] text-xs text-white resize-none"
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-[9px] text-muted-foreground uppercase mb-0.5">Private Notes (Only visible to you, the seller)</label>
+                        <input
+                          value={newInvNotes}
+                          onChange={(e) => setNewInvNotes(e.target.value)}
+                          placeholder="Internal SKU, supplier notes, cost, etc."
+                          className="w-full h-8 px-2.5 rounded-lg border border-white/5 bg-[#0c0d10] text-xs text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newInvLoginId.trim() && !newInvCredentialsData.trim()) {
+                          toast.error("You must enter either a Login ID or an Activation Code.");
+                          return;
+                        }
+                        setInventoryItems(prev => [
+                          ...prev,
+                          {
+                            login_id: newInvLoginId.trim(),
+                            password: newInvPassword || undefined,
+                            credentials_data: newInvCredentialsData.trim() || undefined,
+                            instructions: newInvInstructions.trim() || undefined,
+                            notes: newInvNotes.trim() || undefined,
+                            status: 'available'
+                          }
+                        ]);
+                        setNewInvLoginId("");
+                        setNewInvPassword("");
+                        setNewInvCredentialsData("");
+                        setNewInvInstructions("");
+                        setNewInvNotes("");
+                        toast.success("Item added to temporary inventory. Click Save to publish.");
+                      }}
+                      className="w-full h-8 text-[11px] font-bold rounded-lg bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500 hover:text-black cursor-pointer text-emerald-400 transition-all"
+                    >
+                      + Add Item to Inventory
+                    </button>
+                  </div>
+
+                  {/* Stock List and Counts */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-white">Stock List ({inventoryItems.length} items)</span>
+                      <span className="text-muted-foreground font-mono text-[10px]">
+                        Available: {inventoryItems.filter(i => i.status === 'available').length} | Assigned: {inventoryItems.filter(i => i.status === 'assigned').length}
+                      </span>
+                    </div>
+
+                    {inventoryItems.length === 0 ? (
+                      <div className="text-center py-4 border border-dashed border-white/5 rounded-xl text-xs text-muted-foreground">
+                        No inventory items added yet. Please add stock above.
+                      </div>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                        {inventoryItems.map((item, index) => (
+                          <div key={index} className="flex items-center justify-between bg-surface/35 border border-white/5 p-2 rounded-xl text-[10px]">
+                            <div className="space-y-0.5 text-left font-mono">
+                              <div>
+                                <span className="text-muted-foreground">ID/Login:</span> <span className="text-white select-all">{item.login_id || "Nil"}</span>
+                              </div>
+                              {item.credentials_data && (
+                                <div>
+                                  <span className="text-muted-foreground">Code:</span> <span className="text-white select-all">{item.credentials_data.substring(0, 10)}...</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${
+                                item.status === 'available' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gold/20 text-gold'
+                              }`}>
+                                {item.status}
+                              </span>
+                              {item.status === 'available' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setInventoryItems(prev => prev.filter((_, i) => i !== index))}
+                                  className="text-red-400 hover:text-red-300 font-bold bg-transparent border-none cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground select-none opacity-50 font-bold">Locked</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">Search Keywords</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {tags.map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1.5 bg-surface border border-white/5 px-2.5 py-1 rounded-lg text-xs text-white font-sans">
+                  {tag}
+                  <button type="button" onClick={() => removeTag(tag)} className="text-muted-foreground hover:text-white transition-colors border-none bg-transparent cursor-pointer">
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={addTag}
+              placeholder="Add keywords and press Enter"
+              className="w-full h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 font-sans"
+            />
+          </div>
+        </div>
+
+        {/* ─── CARD 5: CATEGORY SPECIFICATIONS ─── */}
+        <div className="rounded-2xl border border-white/5 bg-[#0c0d10]/40 p-6 space-y-4 shadow-xl">
+          <div className="flex items-center gap-2 text-gold">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l-7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <h3 className="text-sm font-bold uppercase tracking-wider font-display">
+              {dynamicFields.length > 0
+                ? `${categories.find((c) => c.id === categoryId)?.name || "Listing"} Details`
+                : "Category Specifications"}
+            </h3>
+          </div>
+          <p className="text-xs text-muted-foreground font-sans font-sans">
+            Fields below will update automatically based on your selected category.
+          </p>
+
+          <div className="pt-2">
               <div className="space-y-4">
                 {(() => {
                   const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
@@ -1765,122 +2501,220 @@ function ListingModal({
                       </div>
                     );
                   }
-                  
-                  return <p className="text-xs text-muted-foreground">Standard generic product. No special attributes required.</p>;
                 })()}
               </div>
             </div>
+          </div>
+                  
+              {/* ─── CARD 6: MARKETPLACE VISIBILITY (SEO) ─── */}
+        <div className="rounded-2xl border border-white/5 bg-[#0c0d10]/40 p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-2">
+            <div className="flex items-center gap-2 text-gold">
+              <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <h3 className="text-sm font-bold uppercase tracking-wider font-display">Marketplace Visibility & SEO</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const categoryObj = categories.find(c => c.id === categoryId);
+                const categoryName = categoryObj ? categoryObj.name : "Digital Product";
+                setSeoTitle(title ? `${title.slice(0, 40)} | Buy ${categoryName} on HUXZAIN` : "");
+                setSeoDescription(description ? `${description.slice(0, 120)}... Buy secure digital items on HUXZAIN.` : "");
+                setSeoKeywords(title ? `${title.toLowerCase().split(" ").join(", ")}, huxzain, buy ${categoryName.toLowerCase()}` : "");
+                toast.success("Listing SEO fields generated!");
+              }}
+              className="h-8 px-3 rounded-lg border border-gold/30 hover:bg-gold/10 text-gold text-xs font-bold transition-all flex items-center gap-1 cursor-pointer bg-transparent"
+            >
+              <span>✨</span> Generate Automatically
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground font-sans">
+            Improve your listing visibility in search results and on the marketplace.
+          </p>
+          
+          <div className="space-y-4 font-sans">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Listing URL Preview</label>
+              <div className="w-full h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/40 flex items-center text-xs text-muted-foreground select-all font-mono truncate">
+                https://huxzain.shop/product/<span className="text-gold font-semibold">{title ? slugify(title) : "url-slug"}</span>
+              </div>
+            </div>
 
-            <div className="border border-border rounded-2xl p-4 bg-surface/30 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-white">Search Engine Optimization (SEO)</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const categoryObj = categories.find(c => c.id === categoryId);
-                    const categoryName = categoryObj ? categoryObj.name : "Digital Product";
-                    setSeoTitle(title ? `${title} | Buy ${categoryName} on HUXZAIN` : "");
-                    setSeoDescription(description ? `${description.slice(0, 150)}... Buy secure digital items on HUXZAIN.` : "");
-                    setSeoKeywords(title ? `${title.toLowerCase().split(" ").join(", ")}, huxzain, buy ${categoryName.toLowerCase()}` : "");
-                    toast.success("Listing SEO fields generated!");
-                  }}
-                  className="text-xs text-gold hover:underline font-bold cursor-pointer"
-                >
-                  Auto Generate SEO
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Search Result Title</label>
+                  <span className={`text-[10px] font-bold ${seoTitle.length > 60 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoTitle.length}/60</span>
+                </div>
+                <input
+                  value={seoTitle}
+                  onChange={(e) => setSeoTitle(e.target.value.slice(0, 60))}
+                  placeholder="Enter a title for search results"
+                  className={`w-full h-11 px-4 rounded-xl border ${seoTitle.length > 60 ? 'border-red-500/50 focus:border-red-500' : 'border-white/5 focus:border-gold/40'} bg-[#0d0e11]/80 text-sm text-white focus:outline-none transition-colors font-sans`}
+                />
               </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">SEO Slug Preview</label>
-                  <div className="px-3 py-1.5 rounded-lg bg-background text-[10px] text-muted-foreground select-all border border-border/40 font-mono truncate">
-                    https://huxzain.shop/product/<span className="text-gold font-semibold">{title ? slugify(title) : "url-slug"}</span>
-                  </div>
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Search Keywords</label>
+                  <span className={`text-[10px] font-bold ${seoKeywords.length > 120 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoKeywords.length}/120</span>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-xs text-muted-foreground">SEO Meta Title</label>
-                      <span className={`text-[10px] ${seoTitle.length > 60 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoTitle.length}/60</span>
-                    </div>
-                    <input
-                      value={seoTitle}
-                      onChange={(e) => setSeoTitle(e.target.value)}
-                      maxLength={60}
-                      placeholder="e.g. Valorant Account | HUXZAIN"
-                      className={`w-full h-10 px-3 rounded-xl border ${seoTitle.length > 60 ? 'border-red-500/50 focus:border-red-500' : 'border-border focus:border-gold/50'} bg-surface/60 text-xs text-foreground focus:outline-none`}
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-xs text-muted-foreground">SEO Keywords</label>
-                    </div>
-                    <input
-                      value={seoKeywords}
-                      onChange={(e) => setSeoKeywords(e.target.value)}
-                      placeholder="e.g. skin, valorant, account"
-                      className="w-full h-10 px-3 rounded-xl border border-border bg-surface/60 text-xs text-foreground focus:outline-none focus:border-gold/50"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-xs text-muted-foreground">SEO Description</label>
-                    <span className={`text-[10px] ${seoDescription.length > 160 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoDescription.length}/160</span>
-                  </div>
-                  <textarea
-                    value={seoDescription}
-                    onChange={(e) => setSeoDescription(e.target.value)}
-                    maxLength={160}
-                    rows={2}
-                    placeholder="Search engine meta description..."
-                    className={`w-full px-3 py-2 rounded-xl border ${seoDescription.length > 160 ? 'border-red-500/50 focus:border-red-500' : 'border-border focus:border-gold/50'} bg-surface/60 text-xs text-foreground focus:outline-none resize-none`}
-                  />
-                </div>
+                <input
+                  value={seoKeywords}
+                  onChange={(e) => setSeoKeywords(e.target.value.slice(0, 120))}
+                  placeholder="e.g. digital product, premium license, 12 month"
+                  className={`w-full h-11 px-4 rounded-xl border ${seoKeywords.length > 120 ? 'border-red-500/50 focus:border-red-500' : 'border-white/5 focus:border-gold/40'} bg-[#0d0e11]/80 text-sm text-white focus:outline-none transition-colors font-sans`}
+                />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full h-10 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:outline-none focus:border-gold/50"
-              >
-                <option value="draft">Draft</option>
-                <option value="active">Active (Published)</option>
-              </select>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Search Preview Description</label>
+                <span className={`text-[10px] font-bold ${seoDescription.length > 160 ? 'text-red-400' : 'text-muted-foreground'}`}>{seoDescription.length}/160</span>
+              </div>
+              <textarea
+                value={seoDescription}
+                onChange={(e) => setSeoDescription(e.target.value.slice(0, 160))}
+                placeholder="Enter a short description to appear in search results"
+                rows={3}
+                className={`w-full p-4 rounded-xl border ${seoDescription.length > 160 ? 'border-red-500/50 focus:border-red-500' : 'border-white/5 focus:border-gold/40'} bg-[#0d0e11]/80 text-sm text-white focus:outline-none transition-colors resize-none font-sans`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ─── CARD 7: PUBLISHING ─── */}
+        <div className="rounded-2xl border border-white/5 bg-[#0c0d10]/40 p-6 space-y-4 shadow-xl text-left">
+          <div className="flex items-center gap-2 text-gold">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <h3 className="text-sm font-bold uppercase tracking-wider font-display">Publishing</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">Listing Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 cursor-pointer font-sans"
+                >
+                  <option value="draft">Draft (Not Visible)</option>
+                  <option value="active">Active (Published)</option>
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-2 font-sans leading-relaxed">
+                  Draft listings are not visible to buyers until you publish. You can edit and publish anytime.
+                </p>
+              </div>
+            </div>
+
+            {/* Important Reminder Card */}
+            <div className="rounded-xl border border-gold/15 bg-gold/[0.02] p-4 space-y-2">
+              <div className="flex items-center gap-2 text-gold font-bold text-xs uppercase tracking-wider font-display">
+                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Important Reminder
+              </div>
+              <ul className="space-y-1.5 text-xs text-muted-foreground font-sans">
+                <li className="flex items-center gap-2">
+                  <span className="text-gold">✓</span> Ensure all information is accurate before publishing.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-gold">✓</span> You can edit most details after publishing.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-gold">✓</span> Some categories may require admin approval.
+                </li>
+              </ul>
             </div>
           </div>
 
-          {errorMsg && (
-            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-medium">
-              {errorMsg}
+          {/* Secure Delivery Declarations Checklist */}
+          {(deliveryType === 'instant' || deliveryType === 'hybrid') && (
+            <div className="border border-red-500/20 bg-red-500/[0.01] p-4 rounded-xl space-y-3 mt-4">
+              <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
+                <AlertCircle size={14} /> Mandatory Seller Declarations Checklist
+              </h4>
+              <p className="text-[10px] text-muted-foreground leading-normal">
+                You must read and tick all of the following declarations before you can publish a secure delivery listing:
+              </p>
+              <div className="space-y-2 text-xs">
+                <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={decl1}
+                    onChange={(e) => setDecl1(e.target.checked)}
+                    className="rounded border-border text-red-500 focus:ring-red-500/30 mt-0.5"
+                  />
+                  <span>I declare that the credentials/keys uploaded are 100% accurate, operational, and owned by me.</span>
+                </label>
+                <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={decl2}
+                    onChange={(e) => setDecl2(e.target.checked)}
+                    className="rounded border-border text-red-500 focus:ring-red-500/30 mt-0.5"
+                  />
+                  <span>I agree that I will not attempt to recover, change, or modify the account credentials after they are purchased.</span>
+                </label>
+                <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={decl3}
+                    onChange={(e) => setDecl3(e.target.checked)}
+                    className="rounded border-border text-red-500 focus:ring-red-500/30 mt-0.5"
+                  />
+                  <span>I understand that recovering or pulling back this listing after sale will result in an immediate permanent ban and HUXZAIN legal intervention.</span>
+                </label>
+                <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={decl4}
+                    onChange={(e) => setDecl4(e.target.checked)}
+                    className="rounded border-border text-red-500 focus:ring-red-500/30 mt-0.5"
+                  />
+                  <span>I declare that this listing does not contain any minors' details or sensitive information.</span>
+                </label>
+                <label className="flex items-start gap-2.5 text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={decl5}
+                    onChange={(e) => setDecl5(e.target.checked)}
+                    className="rounded border-border text-red-500 focus:ring-red-500/30 mt-0.5"
+                  />
+                  <span>I agree to HUXZAIN's seller terms and secure escrow release hold procedures.</span>
+                </label>
+              </div>
             </div>
           )}
+        </div>
 
-          <div className="flex gap-3 mt-6">
-            <button
-              onClick={onClose}
-              className="flex-1 h-11 rounded-xl border border-border text-sm hover:border-gold/40 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 h-11 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2"
-            >
-              {saving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="size-4" />
-              )}
-              {saving ? "Saving..." : isNew ? "Create Listing" : "Save Changes"}
-            </button>
+        {/* ─── ERROR CONTAINER ─── */}
+        {errorMsg && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-medium font-sans">
+            {errorMsg}
           </div>
+        )}
+
+        {/* ─── FORM ACTIONS FOOTER BAR ─── */}
+        <div className="flex items-center justify-between pt-6 border-t border-white/5 gap-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 px-6 rounded-xl border border-white/10 hover:bg-white/[0.02] hover:text-white text-xs font-bold text-muted-foreground transition-all cursor-pointer flex items-center gap-2 bg-transparent"
+          >
+            <Trash2 className="size-4" /> Discard
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || ((deliveryType === 'instant' || deliveryType === 'hybrid') && !(decl1 && decl2 && decl3 && decl4 && decl5))}
+            className="h-11 px-8 rounded-xl bg-gold text-[#0a0b0d] text-xs font-black uppercase tracking-wider hover:brightness-110 disabled:opacity-60 transition-all flex items-center gap-2 cursor-pointer border-none font-display"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <ChevronRight className="size-4" />}
+            {saving ? "Saving..." : isNew ? "Continue to Review" : "Save Changes"}
+          </button>
         </div>
       </div>
     </div>
@@ -2016,6 +2850,21 @@ function Page() {
     if (!supabase) return;
     setDeleting(deleteTarget);
     try {
+      // Check for active orders
+      const { data: activeOrders, error: checkError } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("listing_id", deleteTarget)
+        .not("status", "in", '("completed","cancelled","refunded")');
+
+      if (checkError) throw checkError;
+
+      if (activeOrders && activeOrders.length > 0) {
+        toast.error("Listings with active orders cannot be deleted. Please archive/draft the listing instead.");
+        setDeleting(null);
+        return;
+      }
+
       const { error } = await supabase.from("listings").update({ status: "deleted" }).eq("id", deleteTarget);
       if (error) {
         toast.error(error.message);
@@ -2147,7 +2996,14 @@ function Page() {
 
   return (
     <>
-      {editTarget !== undefined && (
+      {showPublishSuccess && (
+        <PublishSuccessModal
+          message={successMessage}
+          onClose={() => setShowPublishSuccess(false)}
+        />
+      )}
+
+      {editTarget !== undefined ? (
         <ListingModal
           listing={editTarget}
           userId={user?.id ?? ""}
@@ -2162,16 +3018,8 @@ function Page() {
           }}
           categories={categories}
         />
-      )}
-
-      {showPublishSuccess && (
-        <PublishSuccessModal
-          message={successMessage}
-          onClose={() => setShowPublishSuccess(false)}
-        />
-      )}
-
-      <div className="space-y-6">
+      ) : (
+        <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="font-display text-2xl font-bold">My Listings</h1>
@@ -2463,6 +3311,7 @@ function Page() {
           )}
         </PanelCard>
       </div>
+      )}
 
       {/* ─── CUSTOM DELETE CONFIRMATION MODAL ─── */}
       {deleteTarget && (

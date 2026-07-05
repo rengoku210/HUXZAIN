@@ -33,7 +33,10 @@ export type CategoryKey =
   | "freelance_services"
   | "digital_products"
   | "subscription_services"
-  | "advertising_promotion_services";
+  | "advertising_promotion_services"
+  | "hosting_web_services"
+  | "business_services"
+  | "boosting_services";
 
 export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   gaming_accounts: "Gaming Accounts",
@@ -46,6 +49,9 @@ export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   digital_products: "Digital Products",
   subscription_services: "Subscription Services",
   advertising_promotion_services: "Advertising & Promotion Services",
+  hosting_web_services: "Hosting & Web Services",
+  business_services: "Business Services",
+  boosting_services: "Boosting Services",
 };
 
 const PLANS: CommissionPlan[] = ["standard", "pro", "elite", "enterprise"];
@@ -62,6 +68,9 @@ const COMMISSION_ROWS: Record<CategoryKey, [number, number, number, number]> = {
   digital_products: [10, 9, 8, 7],
   subscription_services: [5, 4, 3.5, 3],
   advertising_promotion_services: [10, 9, 8, 7],
+  hosting_web_services: [10, 9, 8, 7],
+  business_services: [10, 9, 8, 7],
+  boosting_services: [30, 25, 20, 15],
 };
 
 /** Escrow hold days [standard, pro, elite, enterprise] per category (0 = Instant). */
@@ -76,6 +85,9 @@ const ESCROW_ROWS: Record<CategoryKey, [number, number, number, number]> = {
   digital_products: [7, 5, 3, 2],
   subscription_services: [3, 2, 1, 0],
   advertising_promotion_services: [3, 2, 1, 0],
+  hosting_web_services: [7, 5, 3, 2],
+  business_services: [7, 5, 3, 2],
+  boosting_services: [3, 2, 2, 1],
 };
 
 export type SettlementRule = {
@@ -154,6 +166,8 @@ const SLUG_TO_KEY: Record<string, CategoryKey> = {
   "gift-cards": "gift_cards",
   coaching: "coaching_services",
   subscriptions: "subscription_services",
+  boosting: "boosting_services",
+  "boosting-services": "boosting_services",
   // Anticipated Module-H slugs (harmless until those categories exist)
   "gaming-accounts": "gaming_accounts",
   "game-accounts": "gaming_accounts",
@@ -166,6 +180,9 @@ const SLUG_TO_KEY: Record<string, CategoryKey> = {
   "digital-products": "digital_products",
   "advertising-services": "advertising_promotion_services",
   "advertising-promotion-services": "advertising_promotion_services",
+  "hosting-services": "hosting_web_services",
+  "hosting-web-services": "hosting_web_services",
+  "business-services": "business_services",
   // NOTE: `boosting` intentionally absent → unmapped → legacy fallback + flag.
 };
 

@@ -209,6 +209,14 @@ function Page() {
       setLoading(true);
       try {
         // 1. Platform general settings
+        let loadedPricing: Record<string, any> = {
+          free: { monthly: 0 },
+          verified: { monthly: 499 },
+          pro: { monthly: 2999 },
+          elite: { monthly: 4999 },
+          enterprise: { monthly: 9999 }
+        };
+
         const { data: dbSettings } = await supabase.from("platform_settings").select("*");
         if (dbSettings) {
           dbSettings.forEach((item) => {
@@ -226,7 +234,7 @@ function Page() {
               setDormancyDays(String(item.value.dormancy_days ?? "365"));
               setDormancyFee(String(item.value.dormancy_monthly_fee ?? "150"));
             } else if (item.key === "subscription_pricing_terms") {
-              setPricingTerms(item.value);
+              loadedPricing = { ...loadedPricing, ...item.value };
             } else if (item.key === "subscription_plan_features") {
               setPlanFeatures(item.value);
             } else if (item.key === "promo_prices") {
@@ -283,14 +291,13 @@ function Page() {
 
         // Update plans prices from plans config
         if (plansConfig.length > 0) {
-          const updatedPricing = { ...pricingTerms };
           plansConfig.forEach((p) => {
-            if (updatedPricing[p.id]) {
-              updatedPricing[p.id].monthly = p.monthly_price_inr;
+            if (loadedPricing[p.id]) {
+              loadedPricing[p.id].monthly = p.monthly_price_inr;
             }
           });
-          setPricingTerms(updatedPricing);
         }
+        setPricingTerms(loadedPricing);
 
         // 3. Fetch Buyer Protection Ranges
         const { data: bpData } = await supabase

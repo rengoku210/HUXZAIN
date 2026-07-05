@@ -77,6 +77,8 @@ export function TransactionSummaryPanel({
   className?: string;
 }) {
   const isCheckout = variant === "checkout";
+  const hasValues = summary.priceInr > 0 && summary.categoryKey !== null;
+
   const orderTotal = isCheckout ? summary.buyerPaysInr : summary.priceInr;
   const totalLabel = isCheckout ? "Total amount charged for this order." : "Total value of this order.";
 
@@ -92,11 +94,11 @@ export function TransactionSummaryPanel({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-lg font-bold text-white">Transaction Summary</h3>
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-gold bg-gold/10 border border-gold/20 px-2 py-0.5 rounded-full font-bold">
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-gold bg-gold/10 border border-gold/20 px-2 py-0.5 rounded-full font-bold font-sans">
               <ShieldCheck className="size-3" /> Protected by HUXZAIN
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed font-sans">
             Every order is secured with escrow protection, fraud prevention and dispute assistance to
             ensure a safe experience for both buyers and sellers.
           </p>
@@ -106,62 +108,62 @@ export function TransactionSummaryPanel({
       {/* Hero cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.07] p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300 font-sans">
             <Wallet className="size-3.5" /> Estimated Seller Payout
           </div>
           <div className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-emerald-400 tabular-nums">
-            {formatPrice(summary.sellerReceivesInr)}
+            {hasValues ? formatPrice(summary.sellerReceivesInr) : "Nil"}
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
-            Estimated amount you&apos;ll receive after applicable marketplace services.
+          <p className="mt-1 text-[11px] text-muted-foreground leading-snug font-sans">
+            The estimated amount you'll receive after applicable marketplace services.
           </p>
         </div>
         <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.07] p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-300">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-300 font-sans">
             <Landmark className="size-3.5" /> Order Total
           </div>
           <div className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-sky-400 tabular-nums">
-            {formatPrice(orderTotal)}
+            {hasValues ? formatPrice(orderTotal) : "Nil"}
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{totalLabel}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground leading-snug font-sans">{totalLabel}</p>
         </div>
       </div>
 
       {/* Fee breakdown */}
       <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-2">
-        <Row label="Item Price" value={formatPrice(summary.priceInr)} />
+        <Row label="Item Price" value={hasValues ? formatPrice(summary.priceInr) : "Nil"} />
         <Row
-          label={`Platform Commission (${summary.commissionPercent}%)`}
-          value={`− ${formatPrice(summary.commissionInr)}`}
+          label={`Platform Commission (${hasValues ? summary.commissionPercent : 0}%)`}
+          value={hasValues ? `− ${formatPrice(summary.commissionInr)}` : "Nil"}
           tone="deduct"
         />
         {isCheckout && summary.protectionSelected && (
           <Row
             label="Buyer Protection"
-            value={`+ ${formatPrice(summary.protectionFeeInr)}`}
+            value={hasValues ? `+ ${formatPrice(summary.protectionFeeInr)}` : "Nil"}
             tone="add"
           />
         )}
         {isCheckout && summary.processingFeeInr > 0 && summary.processingFeePayer === "buyer" && (
-          <Row label="Processing Fee" value={`+ ${formatPrice(summary.processingFeeInr)}`} tone="add" />
+          <Row label="Processing Fee" value={hasValues ? `+ ${formatPrice(summary.processingFeeInr)}` : "Nil"} tone="add" />
         )}
         {summary.processingFeeInr > 0 && summary.processingFeePayer === "seller" && (
-          <Row label="Processing Fee" value={`− ${formatPrice(summary.processingFeeInr)}`} tone="deduct" />
+          <Row label="Processing Fee" value={hasValues ? `− ${formatPrice(summary.processingFeeInr)}` : "Nil"} tone="deduct" />
         )}
         <div className="h-px bg-border my-1" />
-        <Row label="Estimated Seller Payout" value={formatPrice(summary.sellerReceivesInr)} strong />
-        <Row label={isCheckout ? "Order Total" : "Buyer Pays"} value={formatPrice(orderTotal)} strong />
+        <Row label="Estimated Seller Payout" value={hasValues ? formatPrice(summary.sellerReceivesInr) : "Nil"} strong />
+        <Row label={isCheckout ? "Order Total" : "Buyer Pays"} value={hasValues ? formatPrice(orderTotal) : "Nil"} strong />
       </div>
 
       {/* What you get */}
       <div>
-        <h4 className="text-sm font-semibold text-white mb-3">What You Get With Every Order</h4>
+        <h4 className="text-sm font-semibold text-white mb-3 font-sans">What You Get With Every Order</h4>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {FEATURES.map((f) => (
             <div key={f.title} className="rounded-xl border border-border bg-surface/20 p-3">
               <f.icon className="size-4 text-gold mb-1.5" />
-              <div className="text-xs font-semibold text-white leading-tight">{f.title}</div>
-              <p className="text-[10px] text-muted-foreground mt-1 leading-snug">{f.body}</p>
+              <div className="text-xs font-semibold text-white leading-tight font-sans">{f.title}</div>
+              <p className="text-[10px] text-muted-foreground mt-1 leading-snug font-sans">{f.body}</p>
             </div>
           ))}
         </div>
@@ -171,8 +173,8 @@ export function TransactionSummaryPanel({
       <div className="rounded-xl border border-gold/20 bg-gold/5 p-3 flex items-start gap-2.5">
         <CheckCircle2 className="size-4 text-gold shrink-0 mt-0.5" />
         <div>
-          <div className="text-xs font-semibold text-white">No Hidden Charges</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <div className="text-xs font-semibold text-white font-sans">No Hidden Charges</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 font-sans">
             The amount shown above is exactly what you will receive after a successful transaction.
           </p>
         </div>
@@ -180,8 +182,8 @@ export function TransactionSummaryPanel({
 
       {/* Settlement timeline */}
       <div>
-        <h4 className="text-sm font-semibold text-white mb-1">Settlement Timeline</h4>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <h4 className="text-sm font-semibold text-white mb-1 font-sans">Settlement Timeline</h4>
+        <p className="text-[11px] text-muted-foreground mb-3 font-sans">
           Funds follow a structured process to ensure safety for both buyers and sellers.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -189,7 +191,7 @@ export function TransactionSummaryPanel({
             index={1}
             icon={ShieldCheck}
             title="Escrow Hold Period"
-            value={daysLabel(summary.escrowHoldDays)}
+            value={hasValues ? daysLabel(summary.escrowHoldDays) : "−"}
             body="Funds remain securely held during this period to allow delivery verification, buyer inspection and dispute resolution if required."
             tone="text-violet-300"
           />
@@ -197,7 +199,7 @@ export function TransactionSummaryPanel({
             index={2}
             icon={CalendarCheck}
             title="Settlement Eligibility"
-            value="Immediately"
+            value={hasValues ? "Immediately" : "−"}
             body="Once the escrow hold period ends, your earnings become eligible for settlement."
             tone="text-sky-300"
           />
@@ -205,7 +207,7 @@ export function TransactionSummaryPanel({
             index={3}
             icon={Clock}
             title="Settlement Processing"
-            value={daysLabel(summary.settlementProcessingDays)}
+            value={hasValues ? daysLabel(summary.settlementProcessingDays) : "−"}
             body="After you request a withdrawal, our finance team processes the payout to your account."
             tone="text-emerald-300"
           />
@@ -213,17 +215,17 @@ export function TransactionSummaryPanel({
             index={4}
             icon={Landmark}
             title="Payout Sent"
-            value="To Your Account"
+            value={hasValues ? "To Your Account" : "−"}
             body="The amount will be credited to your selected withdrawal method once processing is completed."
             tone="text-gold"
           />
         </div>
         <div className="mt-3 rounded-lg border border-border bg-surface/20 p-2.5 flex items-start gap-2">
           <Info className="size-3.5 text-gold shrink-0 mt-0.5" />
-          <p className="text-[10px] text-muted-foreground leading-snug">
+          <p className="text-[10px] text-muted-foreground leading-snug font-sans">
             <span className="text-foreground font-medium">Note:</span> Timings vary based on your Seller
             Plan and the category of this listing
-            {summary.categoryKey ? ` (${summary.categoryLabel}, ${planLabel(summary.plan)} plan)` : ""}. You can
+            {hasValues && summary.categoryKey ? ` (${summary.categoryLabel}, ${planLabel(summary.plan)} plan)` : ""}. You can
             view detailed timings in your plan benefits.
           </p>
         </div>

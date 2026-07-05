@@ -711,6 +711,7 @@ interface SellerProfile {
   reviews: number;
   orders: string;
   successRate: string;
+  onTimeRate?: string;
   tier: "Top Seller" | "Rising Star" | "Elite Trader";
   colorRing: string;
 }
@@ -798,67 +799,51 @@ const mockTrendingSellers: SellerProfile[] = [
   }
 ];
 
-interface SellerProfile {
-  name: string;
-  avatar: string;
-  rating: number;
-  reviews: number;
-  orders: string;
-  successRate: string;
-  tier: "Top Seller" | "Rising Star" | "Elite Trader";
-  colorRing: string;
-}
 
 const mockTopRatedSellers: SellerProfile[] = [
   {
-    name: "ProBoosters",
-    avatar: "https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&h=150&fit=crop",
+    name: "u49839498",
+    avatar: "",
     rating: 5.0,
-    reviews: 312,
-    orders: "560+",
+    reviews: 189,
+    orders: "172+",
+    successRate: "98.4%",
+    onTimeRate: "99%",
+    tier: "Top Seller",
+    colorRing: "border-gold",
+  },
+  {
+    name: "Testing 123",
+    avatar: "",
+    rating: 5.0,
+    reviews: 30,
+    orders: "329+",
     successRate: "100%",
-    tier: "Top Seller",
-    colorRing: "ring-gold",
-  },
-  {
-    name: "EliteStore",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
-    rating: 4.9,
-    reviews: 128,
-    orders: "320+",
-    successRate: "99.4%",
+    onTimeRate: "100%",
     tier: "Rising Star",
-    colorRing: "ring-blue-500",
+    colorRing: "border-blue-500",
   },
   {
-    name: "DigitalHub",
-    avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&h=150&fit=crop",
-    rating: 4.8,
-    reviews: 96,
-    orders: "210+",
-    successRate: "99.8%",
+    name: "ProGamer",
+    avatar: "",
+    rating: 5.0,
+    reviews: 156,
+    orders: "245+",
+    successRate: "97.6%",
+    onTimeRate: "98%",
     tier: "Top Seller",
-    colorRing: "ring-emerald-500",
+    colorRing: "border-amber-500",
   },
   {
-    name: "CoachMaster",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-    rating: 4.8,
-    reviews: 184,
-    orders: "330+",
-    successRate: "99.1%",
-    tier: "Top Seller",
-    colorRing: "ring-amber-500",
-  },
-  {
-    name: "GameSquad",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-    rating: 4.7,
-    reviews: 86,
-    orders: "150+",
-    successRate: "98.5%",
+    name: "BoostMaster",
+    avatar: "",
+    rating: 5.0,
+    reviews: 82,
+    orders: "189+",
+    successRate: "96.9%",
+    onTimeRate: "97%",
     tier: "Rising Star",
-    colorRing: "ring-purple-500",
+    colorRing: "border-[#9333ea]",
   }
 ];
 
@@ -895,12 +880,13 @@ function TopRatedSellers() {
             reviews: p.rating_count || Math.floor(Math.random() * 200) + 10,
             orders: `${Math.floor(Math.random() * 300) + 50}+`,
             successRate: `${(96 + Math.random() * 4).toFixed(1)}%`,
-            tier: idx % 3 === 0 ? "Top Seller" : idx % 3 === 1 ? "Rising Star" : "Elite Trader",
-            colorRing: fallback.colorRing
+            onTimeRate: `${(97 + Math.random() * 3).toFixed(0)}%`,
+            tier: idx % 2 === 0 ? "Top Seller" : "Rising Star",
+            colorRing: idx % 2 === 0 ? "border-gold" : "border-blue-500"
           };
         });
 
-        while (mapped.length < 5) {
+        while (mapped.length < 4) {
           mapped.push(mockTopRatedSellers[mapped.length % mockTopRatedSellers.length]);
         }
         
@@ -914,11 +900,11 @@ function TopRatedSellers() {
   }, []);
 
   const nextSlide = () => {
-    setStartIndex((prev) => (prev + 1 > sellers.length - 5 ? 0 : prev + 1));
+    setStartIndex((prev) => (prev + 1 > sellers.length - 4 ? 0 : prev + 1));
   };
 
   const prevSlide = () => {
-    setStartIndex((prev) => (prev - 1 < 0 ? sellers.length - 5 : prev - 1));
+    setStartIndex((prev) => (prev - 1 < 0 ? sellers.length - 4 : prev - 1));
   };
 
   if (sellers.length === 0) return null;
@@ -946,73 +932,102 @@ function TopRatedSellers() {
       <div className="relative group/carousel">
         <button 
           onClick={prevSlide}
-          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 size-9 rounded-full border border-gold/30 bg-background/90 text-gold flex items-center justify-center hover:bg-gold hover:text-primary-foreground hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,160,23,0.15)] cursor-pointer"
+          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 size-9 rounded-full border border-gold/30 bg-background/90 text-gold flex items-center justify-center hover:bg-gold hover:text-primary-foreground hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,160,23,0.15)] cursor-pointer border-none"
         >
           ‹
         </button>
         <button 
           onClick={nextSlide}
-          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 size-9 rounded-full border border-gold/30 bg-background/90 text-gold flex items-center justify-center hover:bg-gold hover:text-primary-foreground hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,160,23,0.15)] cursor-pointer"
+          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 size-9 rounded-full border border-gold/30 bg-background/90 text-gold flex items-center justify-center hover:bg-gold hover:text-primary-foreground hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,160,23,0.15)] cursor-pointer border-none"
         >
           ›
         </button>
 
-        <div className="flex overflow-x-auto gap-5 py-2 scrollbar-none">
-          {sellers.slice(startIndex, startIndex + 5).map((s, idx) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 py-2">
+          {sellers.slice(startIndex, startIndex + 4).map((s, idx) => (
             <div 
               key={idx}
-              className="bg-[#101114] border border-border/80 rounded-2xl p-5 flex flex-col items-center justify-between text-center transition-all hover:border-gold/40 hover:shadow-[0_0_15px_rgba(212,160,23,0.08)] hover:scale-[1.03] min-w-[190px] flex-1"
+              className="relative bg-[#101114] border border-white/5 rounded-2xl p-6 pt-8 flex flex-col items-center justify-between text-center transition-all hover:border-gold/40 hover:shadow-[0_0_20px_rgba(212,175,55,0.05)] min-h-[350px] overflow-hidden"
             >
-              <div className="relative mb-4">
-                <div className={`size-20 rounded-full ring-2 ${s.colorRing} ring-offset-2 ring-offset-background p-0.5 overflow-hidden shadow-[0_0_10px_rgba(212,160,23,0.15)]`}>
-                  <img 
-                    src={s.avatar} 
-                    alt={s.name} 
-                    className="w-full h-full rounded-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = DEFAULT_AVATAR_URL;
-                    }}
-                  />
+              {/* Corner Ribbon */}
+              <div className={`absolute top-0 left-0 px-3 py-1 text-[9px] font-bold uppercase tracking-wider rounded-br-xl flex items-center gap-1 ${
+                s.tier === "Top Seller" 
+                  ? "bg-gradient-to-r from-amber-600 to-gold text-black font-display font-extrabold" 
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-display font-extrabold"
+              }`}>
+                {s.tier === "Top Seller" ? "TOP SELLER" : "RISING STAR"}
+              </div>
+
+              {/* Avatar Double-Rings */}
+              <div className="relative mb-5 flex items-center justify-center">
+                <div className={`relative flex items-center justify-center size-24 rounded-full border-2 ${s.tier === "Top Seller" ? "border-gold" : "border-blue-500"} p-1 bg-black/60 shadow-[0_0_15px_rgba(212,175,55,0.15)]`}>
+                  <div className={`relative size-20 rounded-full border border-[#2b2f3a] bg-[#0c0d10] flex items-center justify-center overflow-hidden`}>
+                    {s.avatar ? (
+                      <img src={s.avatar} alt={s.name} className="size-full object-cover" />
+                    ) : (
+                      <div className="font-display font-black text-2xl text-gold">H</div>
+                    )}
+                  </div>
+                  {/* Status Indicator */}
+                  <span className="absolute bottom-1.5 right-1.5 size-4 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center shadow-lg" title="Online">
+                    <span className="size-1.5 bg-white rounded-full animate-pulse" />
+                  </span>
                 </div>
-                <span className="absolute bottom-0 right-0 size-4 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center shadow-lg" title="Online">
-                  <span className="size-1.5 bg-white rounded-full animate-pulse" />
-                </span>
               </div>
 
+              {/* Display Name + Check */}
               <div className="flex items-center gap-1 mb-1 justify-center w-full">
-                <span className="text-xs font-bold text-foreground truncate max-w-[95px]">{s.name}</span>
-                <BadgeCheck className="size-3.5 text-blue-400 fill-blue-500/10 shrink-0" />
+                <span className="text-xs font-bold text-white truncate max-w-[120px]">{s.name}</span>
+                <BadgeCheck className="size-4 text-blue-400 fill-blue-500/10 shrink-0" />
               </div>
 
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-3 justify-center">
+              {/* Stars & Reviews */}
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-4 justify-center">
                 <span className="text-gold font-bold">★</span>
-                <span className="text-foreground font-semibold">{s.rating.toFixed(1)}</span>
+                <span className="text-white font-bold">{s.rating.toFixed(1)}</span>
                 <span>({s.reviews})</span>
               </div>
 
-              <div className="w-full border-t border-border/50 my-2" />
+              <div className="w-full border-t border-white/5 my-2" />
 
-              <div className="grid grid-cols-2 gap-1 w-full text-[9px] text-muted-foreground mb-4">
-                <div className="border-r border-border/50 pr-1">
-                  <div className="font-bold text-foreground">{s.orders}</div>
-                  <div>Orders</div>
+              {/* 3 Metrics columns */}
+              <div className="grid grid-cols-3 gap-1 w-full text-[9px] text-[#8a8f9d] mb-5">
+                <div className="border-r border-white/5 pr-1">
+                  <div className="font-bold text-white text-[10.5px]">{s.orders}</div>
+                  <div className="mt-0.5">Orders</div>
+                </div>
+                <div className="border-r border-white/5 px-1">
+                  <div className="font-bold text-emerald-400 text-[10.5px]">{s.successRate}</div>
+                  <div className="mt-0.5">Success</div>
                 </div>
                 <div className="pl-1">
-                  <div className="font-bold text-emerald-400">{s.successRate}</div>
-                  <div>Success</div>
+                  <div className="font-bold text-sky-400 text-[10.5px]">{s.onTimeRate}</div>
+                  <div className="mt-0.5 font-sans">On-time</div>
                 </div>
               </div>
 
-              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[9px] font-bold ${
+              {/* Bottom Badge Button */}
+              <span className={`inline-flex items-center gap-1 px-4 py-1.5 rounded-xl text-[9px] font-bold tracking-wider font-display uppercase ${
                 s.tier === "Top Seller" 
-                  ? "bg-gold/10 text-gold border border-gold/20" 
-                  : s.tier === "Elite Trader"
-                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                  : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                  ? "bg-gold/10 text-gold border border-gold/25" 
+                  : "bg-blue-500/10 text-blue-400 border border-blue-500/25"
               }`}>
-                ★ {s.tier}
+                ★ {s.tier === "Top Seller" ? "Top Seller" : "Rising Star"}
               </span>
             </div>
+          ))}
+        </div>
+
+        {/* Carousel Pagination Dots */}
+        <div className="flex justify-center gap-2 mt-6">
+          {Array.from({ length: Math.max(1, sellers.length - 3) }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setStartIndex(i)}
+              className={`size-2 rounded-full transition-all cursor-pointer border-none ${
+                startIndex === i ? "bg-gold w-6" : "bg-white/20 hover:bg-white/40"
+              }`}
+            />
           ))}
         </div>
       </div>

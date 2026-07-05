@@ -359,7 +359,23 @@ function Page() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* Platform Commission Rate Badge */}
+                  <div className="mt-4 flex items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
+                    <div className="size-6 rounded-full bg-gold/10 flex items-center justify-center shrink-0">
+                      <span className="text-gold text-[9px] font-bold">%</span>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-white">
+                        {m.commission_rate}% Platform Fee
+                      </div>
+                      <div className="text-[9px] text-muted-foreground">
+                        HUXZAIN retains {m.commission_rate}% of each completed sale
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
 
                 <div className="mt-8 pt-4 border-t border-border/20">
                   {current ? (

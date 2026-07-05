@@ -162,6 +162,9 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
   .inputValidator((d: {
     sellerId: string;
     govtIdUrl: string;
+    govtIdType1?: string;
+    govtIdType2?: string;
+    govtId2Url?: string;
     selfieUrl: string;
     addressProofUrl: string;
     payoutDetails: {
@@ -176,7 +179,16 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
     const supabase = getAdminClient();
     if (!supabase) throw new Error("Database service offline.");
 
-    const { sellerId, govtIdUrl, selfieUrl, addressProofUrl, payoutDetails } = data;
+    const {
+      sellerId,
+      govtIdUrl,
+      govtIdType1,
+      govtIdType2,
+      govtId2Url,
+      selfieUrl,
+      addressProofUrl,
+      payoutDetails
+    } = data;
 
     // Fetch existing verification record to maintain already approved documents
     const { data: existing } = await supabase
@@ -192,6 +204,15 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
       }
     } else {
       governmentIdStatus = "NOT_STARTED";
+    }
+
+    let governmentId2Status = existing?.government_id_2_status || "NOT_STARTED";
+    if (govtId2Url) {
+      if (govtId2Url !== existing?.government_id_2_url || governmentId2Status === "NOT_STARTED" || governmentId2Status === "REJECTED") {
+        governmentId2Status = "UNDER_REVIEW";
+      }
+    } else {
+      governmentId2Status = "NOT_STARTED";
     }
 
     let selfieStatus = existing?.selfie_status || "NOT_STARTED";
@@ -215,9 +236,13 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
     const payload = {
       id: sellerId,
       government_id_url: govtIdUrl || null,
+      government_id_type_1: govtIdType1 || null,
+      government_id_type_2: govtIdType2 || null,
+      government_id_2_url: govtId2Url || null,
       selfie_url: selfieUrl || null,
       address_proof_url: addressProofUrl || null,
       government_id_status: governmentIdStatus,
+      government_id_2_status: governmentId2Status,
       selfie_status: selfieStatus,
       address_proof_status: addressProofStatus,
       payout_details: payoutDetails,

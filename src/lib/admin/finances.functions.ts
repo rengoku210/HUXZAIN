@@ -316,7 +316,9 @@ export const updateFinanceConfig = createServerFn({ method: "POST" })
       "freelance_services",
       "digital_products",
       "subscription_services",
-      "advertising_promotion_services"
+      "advertising_promotion_services",
+      "hosting_web_services",
+      "business_services"
     ];
     const validPlans = ["standard", "pro", "elite", "enterprise"];
     const validScopes = ["general", "gaming"];
