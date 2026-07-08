@@ -867,33 +867,28 @@ function TopRatedSellers() {
           .limit(8);
 
         if (error || !profiles || profiles.length === 0) {
-          setSellers(mockTopRatedSellers);
+          setSellers([]);
           return;
         }
 
         const mapped: SellerProfile[] = profiles.map((p, idx) => {
-          const fallback = mockTopRatedSellers[idx % mockTopRatedSellers.length];
           return {
             name: p.display_name || p.username || `Seller_${p.id.slice(0, 4)}`,
             avatar: getUserAvatar(p.avatar_url),
             rating: p.rating_avg || 5.0,
-            reviews: p.rating_count || Math.floor(Math.random() * 200) + 10,
-            orders: `${Math.floor(Math.random() * 300) + 50}+`,
-            successRate: `${(96 + Math.random() * 4).toFixed(1)}%`,
-            onTimeRate: `${(97 + Math.random() * 3).toFixed(0)}%`,
-            tier: idx % 2 === 0 ? "Top Seller" : "Rising Star",
-            colorRing: idx % 2 === 0 ? "border-gold" : "border-blue-500"
+            reviews: p.rating_count || 0,
+            orders: "—",
+            successRate: "—",
+            onTimeRate: "—",
+            tier: idx === 0 ? "Top Seller" : idx < 3 ? "Rising Star" : "Elite Trader",
+            colorRing: idx === 0 ? "border-gold" : idx < 3 ? "border-blue-500" : "border-emerald-500"
           };
         });
 
-        while (mapped.length < 4) {
-          mapped.push(mockTopRatedSellers[mapped.length % mockTopRatedSellers.length]);
-        }
-        
         setSellers(mapped);
       } catch (e) {
         console.error("Error loading sellers:", e);
-        setSellers(mockTopRatedSellers);
+        setSellers([]);
       }
     }
     void loadSellers();

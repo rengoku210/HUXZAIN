@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
+import { SecurityReminder } from "@/components/ui/HuxzainNotices";
+
 import { getStrikeHistory } from "@/lib/admin/moderation.functions";
 
 export const Route = createFileRoute("/account/")({
@@ -253,7 +255,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [showSellerSuccess, setShowSellerSuccess] = useState(false);
 
   // FIX-8: change email with OTP verification (never update without a verified code).
-  const handleSendEmailOtp = async () => {
+  const handleSendEmailOtp = async (bypassNotice = false) => {
     const target = newEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
       toast.error("Enter a valid email address.");
@@ -263,6 +265,12 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       toast.error("That is already your current email.");
       return;
     }
+
+    if (!bypassNotice) {
+      setSecurityNoticeTarget("email");
+      return;
+    }
+
     setEmailBusy(true);
     try {
       await requestOtp({ data: { email: target } });
@@ -304,6 +312,9 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordUpdating, setPasswordUpdating] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [securityNoticeTarget, setSecurityNoticeTarget] = useState<"email" | "password" | null>(null);
+  const [securityNoticeConfirmed, setSecurityNoticeConfirmed] = useState(false);
+
 
   // Notifications state
   const [notifPreferences, setNotifPreferences] = useState({
@@ -450,8 +461,8 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
       toast.error("Please choose a valid image file.");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large. Max size is 5MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("File is too large (max 15MB).");
       return;
     }
     setAvatarPreviewFile(file);
@@ -556,13 +567,18 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
     }
   }
 
-  // 8. Security & Notifications
-  async function handlePasswordChange(e: React.FormEvent) {
+  async function handlePasswordChange(e: React.FormEvent, bypassNotice = false) {
     e.preventDefault();
     if (!newPassword.trim()) return toast.error("New password required.");
     if (newPassword !== confirmPassword) return toast.error("Passwords do not match.");
 
+    if (!bypassNotice) {
+      setSecurityNoticeTarget("password");
+      return;
+    }
+
     setPasswordUpdating(true);
+
     try {
       await updatePassword(newPassword);
       toast.success("Password updated!");
@@ -791,9 +807,10 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                                   className="w-full h-11 px-4 rounded-xl border border-border bg-surface/60 text-sm focus:border-gold/50 outline-none"
                                 />
                                 <div className="flex gap-2">
-                                  <button type="button" disabled={emailBusy} onClick={handleSendEmailOtp} className="h-10 px-4 rounded-xl bg-gold hover:brightness-110 text-black text-sm font-bold transition-all border-none cursor-pointer disabled:opacity-50">
+                                  <button type="button" disabled={emailBusy} onClick={() => handleSendEmailOtp()} className="h-10 px-4 rounded-xl bg-gold hover:brightness-110 text-black text-sm font-bold transition-all border-none cursor-pointer disabled:opacity-50">
                                     {emailBusy ? "Sending..." : "Send OTP"}
                                   </button>
+
                                   <button type="button" onClick={() => { setEmailChangeOpen(false); setNewEmail(""); }} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer">
                                     Cancel
                                   </button>
@@ -816,9 +833,10 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                                   <button type="button" disabled={emailBusy} onClick={handleConfirmEmailChange} className="h-10 px-4 rounded-xl bg-gold hover:brightness-110 text-black text-sm font-bold transition-all border-none cursor-pointer disabled:opacity-50">
                                     {emailBusy ? "Verifying..." : "Verify & Update"}
                                   </button>
-                                  <button type="button" disabled={emailBusy} onClick={handleSendEmailOtp} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer disabled:opacity-50">
+                                  <button type="button" disabled={emailBusy} onClick={() => handleSendEmailOtp()} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer disabled:opacity-50">
                                     Resend
                                   </button>
+
                                   <button type="button" onClick={() => { setEmailChangeOpen(false); setEmailOtpSent(false); setNewEmail(""); setEmailOtp(""); }} className="h-10 px-4 rounded-xl border border-border text-muted-foreground hover:text-foreground text-sm font-semibold bg-transparent cursor-pointer">
                                     Cancel
                                   </button>
@@ -1114,7 +1132,25 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
             </div>
           </div>
         </main>
-        <Footer />
+      {securityNoticeTarget && (
+        <SecurityReminder
+          fieldName={securityNoticeTarget === "email" ? "email address" : "password"}
+          onContinue={() => {
+            const currentTarget = securityNoticeTarget;
+            setSecurityNoticeTarget(null);
+            if (currentTarget === "email") {
+              void handleSendEmailOtp(true);
+            } else if (currentTarget === "password") {
+              const mockEvent = { preventDefault: () => {} } as React.FormEvent;
+              void handlePasswordChange(mockEvent, true);
+            }
+          }}
+          onCancel={() => setSecurityNoticeTarget(null)}
+        />
+      )}
+
+      <Footer />
+
       </div>
     </>
   );

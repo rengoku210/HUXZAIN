@@ -472,81 +472,80 @@ function Page() {
                     params={{ id: b.id }}
                     className="block rounded-2xl border border-border bg-surface/40 p-4 hover:bg-surface/60 hover:border-gold/35 transition-all hover:shadow-[0_0_24px_rgba(212,160,23,0.10)]"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="size-14 rounded-2xl border border-border bg-background/40 overflow-hidden shrink-0">
-                        <img
-                          src={getUserAvatar(b.avatar_url)}
-                          alt={b.display_name}
-                          className="size-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = DEFAULT_AVATAR_URL;
-                          }}
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="font-semibold truncate">
-                            {b.display_name}
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                        <div className="size-14 rounded-2xl border border-border bg-background/40 overflow-hidden shrink-0">
+                          <img
+                            src={getUserAvatar(b.avatar_url)}
+                            alt={b.display_name}
+                            className="size-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = DEFAULT_AVATAR_URL;
+                            }}
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="font-semibold truncate text-sm sm:text-base">{b.display_name}</div>
+                            {b.email_verified && b.phone_verified && (
+                              <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300">
+                                <BadgeCheck className="size-3" /> Verified
+                              </span>
+                            )}
                           </div>
-                          {b.email_verified && b.phone_verified && (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300">
-                              <BadgeCheck className="size-3.5" /> Verified
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] sm:text-[11px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <Gamepad2 className="size-3.5 text-purple-350" />
+                              {b.primary_game ?? "Game Buddy"}
                             </span>
-                          )}
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <Gamepad2 className="size-3.5 text-purple-300" />{" "}
-                            {b.primary_game ?? "Game Buddy"}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Star className="size-3.5 text-gold" />{" "}
-                            {Number(b.rating_avg ?? 0).toFixed(1)}{" "}
-                            <span className="text-muted-foreground">
-                              ({b.rating_count ?? 0})
+                            <span className="inline-flex items-center gap-1">
+                              <Star className="size-3.5 text-gold" />{" "}
+                              {Number(b.rating_avg ?? 0).toFixed(1)}{" "}
+                              <span className="text-muted-foreground">
+                                ({b.rating_count ?? 0})
+                              </span>
                             </span>
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Users className="size-3.5 text-muted-foreground" />{" "}
-                            {b.sessions_completed ?? 0} sessions
-                          </span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {(b.play_styles ?? []).slice(0, 3).map((t) => (
-                            <span
-                              key={t}
-                              className="text-[10px] px-2 py-1 rounded-full border border-border bg-background/30 text-muted-foreground"
-                            >
-                              {t}
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="size-3.5 text-muted-foreground" />{" "}
+                              {b.sessions_completed ?? 0} sessions
                             </span>
-                          ))}
-                          {(b.languages ?? []).slice(0, 2).map((t) => (
-                            <span
-                              key={t}
-                              className="text-[10px] px-2 py-1 rounded-full border border-purple-400/20 bg-purple-500/10 text-purple-200"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                          {b.availability && (
-                            <span className="text-[10px] px-2 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
-                              {b.availability}
-                            </span>
-                          )}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {(b.play_styles ?? []).slice(0, 3).map((t) => (
+                              <span
+                                key={t}
+                                className="text-[9px] sm:text-[10px] px-2 py-0.5 sm:py-1 rounded-full border border-border bg-background/30 text-muted-foreground"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                            {(b.languages ?? []).slice(0, 2).map((t) => (
+                              <span
+                                key={t}
+                                className="text-[9px] sm:text-[10px] px-2 py-0.5 sm:py-1 rounded-full border border-purple-400/20 bg-purple-500/10 text-purple-200"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                            {b.availability && (
+                              <span className="text-[9px] sm:text-[10px] px-2 py-0.5 sm:py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
+                                {b.availability}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <div className="text-[10px] text-muted-foreground">
-                          Starting from
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto mt-3 sm:mt-0 pt-3 sm:pt-0 border-t border-white/5 sm:border-t-0 shrink-0 gap-3">
+                        <div className="text-left sm:text-right">
+                          <div className="text-[9px] sm:text-[10px] text-muted-foreground">Starting from</div>
+                          <div className="text-base sm:text-lg font-bold text-purple-400">
+                            ₹{Number(b.price_per_hour_inr ?? 0).toFixed(0)}
+                            <span className="text-xs text-muted-foreground font-medium">/hr</span>
+                          </div>
                         </div>
-                        <div className="text-lg font-bold text-foreground">
-                          ₹{Number(b.price_per_hour_inr ?? 0).toFixed(0)}
-                          <span className="text-xs text-muted-foreground font-medium">
-                            /hr
-                          </span>
-                        </div>
-                        <div className="mt-2 inline-flex items-center justify-center h-9 px-4 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:brightness-110 transition-all">
+                        <div className="inline-flex items-center justify-center h-8 sm:h-9 px-4 rounded-xl bg-purple-600 text-white font-semibold text-xs sm:text-sm hover:brightness-110 transition-all cursor-pointer">
                           View Profile
                         </div>
                       </div>

@@ -86,10 +86,16 @@ async function seed() {
     const listing = listings[0];
     console.log("Using listing for test order:", listing.id, listing.title);
 
+    // Make sure lullilullivabhaiva@gmail.com is marked as a seller
+    await supabase.from("profiles").update({ is_seller: true }).eq("id", vabh.id);
+
+    // Update listing's seller_id to lullilullivabhaiva@gmail.com
+    await supabase.from("listings").update({ seller_id: vabh.id }).eq("id", listing.id);
+
     // Create a new pending order
     const { data: newOrder, error: oErr } = await supabase.from("orders").insert({
       buyer_id: buyer.id,
-      seller_id: listing.seller_id,
+      seller_id: vabh.id,
       listing_id: listing.id,
       qty: 1,
       amount_total: listing.price_inr || 599,

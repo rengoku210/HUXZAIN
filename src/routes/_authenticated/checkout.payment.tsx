@@ -29,6 +29,8 @@ import { TransactionSummaryPanel } from "@/components/finance/TransactionSummary
 import { useFinanceConfig, computeTransactionSummary } from "@/lib/finance";
 import { extractPaymentDetails } from "@/lib/ai.functions";
 import { friendlyError } from "@/lib/error-messages";
+import { BeforePurchaseNotice } from "@/components/ui/HuxzainNotices";
+
 
 export const Route = createFileRoute("/_authenticated/checkout/payment")({
   validateSearch: (s: Record<string, unknown>): { plan?: string; listingId?: string; price?: string; orderId?: string; title?: string } => ({
@@ -107,6 +109,9 @@ function UnifiedPaymentPage() {
   const [copiedId, setCopiedId] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [paymentNote, setPaymentNote] = useState("");
+  const [showPurchaseNotice, setShowPurchaseNotice] = useState(false);
+  const [purchaseNoticeConfirmed, setPurchaseNoticeConfirmed] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
  
   // Fetch listing & seller info if listingId is provided
@@ -227,8 +232,8 @@ function UnifiedPaymentPage() {
     const files = e.target.files;
     if (files && files.length > 0) {
       const selectedFile = files[0];
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        toast.error("Screenshot is too large. Max size is 5MB.");
+      if (selectedFile.size > 15 * 1024 * 1024) {
+        toast.error("Screenshot is too large (max 15MB).");
         return;
       }
       setFile(selectedFile);
@@ -240,11 +245,17 @@ function UnifiedPaymentPage() {
     fileInputRef.current?.click();
   };
 
-  const handleSubmitProof = async () => {
+  const handleSubmitProof = async (bypassNotice = false) => {
     if (!file) {
       toast.error("Please select a receipt screenshot to upload.");
       return;
     }
+
+    if (!bypassNotice && !purchaseNoticeConfirmed) {
+      setShowPurchaseNotice(true);
+      return;
+    }
+
 
     const supabase = getSupabase();
     if (!supabase || !user) {
@@ -717,7 +728,8 @@ function UnifiedPaymentPage() {
 
                   {/* Action submit button */}
                   <button
-                    onClick={handleSubmitProof}
+                    onClick={() => handleSubmitProof()}
+
                     disabled={!file || uploading}
                     className="w-full h-12 rounded-xl bg-gold text-black text-sm font-bold hover:brightness-110 disabled:opacity-50 active:scale-98 transition-all inline-flex items-center justify-center gap-1.5 shadow-lg shadow-gold/10 cursor-pointer border-none"
                   >
@@ -781,7 +793,19 @@ function UnifiedPaymentPage() {
         </div>
       </main>
 
+      {showPurchaseNotice && (
+        <BeforePurchaseNotice
+          onProceed={() => {
+            setShowPurchaseNotice(false);
+            setPurchaseNoticeConfirmed(true);
+            void handleSubmitProof(true);
+          }}
+          onBack={() => setShowPurchaseNotice(false)}
+        />
+      )}
+
       <Footer />
+
     </div>
   );
 }

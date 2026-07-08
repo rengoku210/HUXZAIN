@@ -184,6 +184,22 @@ test.describe("HUXZAIN Automated QA Audit & Evidence Collector", () => {
 
     const buyNowBtn = page.locator('button:has-text("Buy Now")');
     await buyNowBtn.click();
+
+    // Acknowledge Before Purchase modal if present
+    const paymentProceedBtn = page.locator('button:has-text("Proceed To Payment")');
+    try {
+      await paymentProceedBtn.waitFor({ state: "visible", timeout: 4000 });
+      console.log("Acknowledging BeforePurchaseNotice modal...");
+      const checkboxes = page.locator('input[type="checkbox"]');
+      const count = await checkboxes.count();
+      for (let i = 0; i < count; i++) {
+        await checkboxes.nth(i).check();
+      }
+      await paymentProceedBtn.click();
+    } catch (e) {
+      console.log("BeforePurchaseNotice modal not visible or not present. Continuing...");
+    }
+
     await page.waitForURL("**/checkout/payment?*", { timeout: 15000 });
     await page.waitForTimeout(1500);
     await captureScreenshot("6_checkout_flow", false);

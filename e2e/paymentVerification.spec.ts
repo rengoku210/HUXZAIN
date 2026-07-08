@@ -127,13 +127,16 @@ test.describe("Payment Verification Flow", () => {
     // Verify Title
     await expect(page.locator("h1")).toContainText("Upload Payment Proof");
 
-    // Fill UTR input to enable button
-    await page.fill('input[placeholder*="UTR"]', "UTR123456789");
+    // Optionally fill the payment note textarea
+    const noteField = page.locator('textarea');
+    if (await noteField.count() > 0) {
+      await noteField.fill("UTR123456789 - Test payment note");
+    }
 
     // Create a mock buffer for file upload
     const fileBuffer = Buffer.from("mock-png-content");
 
-    // Upload file
+    // Upload file using the hidden file input
     await page.setInputFiles('input[type="file"]', {
       name: "receipt.png",
       mimeType: "image/png",
@@ -151,9 +154,6 @@ test.describe("Payment Verification Flow", () => {
 
   test("should handle upload cancellation using AbortController", async ({ page }) => {
     await page.goto("/checkout/verify-payment?orderId=order-999");
-
-    // Fill UTR input to enable button
-    await page.fill('input[placeholder*="UTR"]', "UTR123456789");
 
     // Upload file
     await page.setInputFiles('input[type="file"]', {

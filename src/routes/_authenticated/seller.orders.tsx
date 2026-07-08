@@ -352,12 +352,14 @@ function Page() {
                       {new Date(o.created_at).toLocaleDateString()}
                     </td>
                     <td className="py-3 text-right pr-2">
-                      <button
-                        onClick={() => setSelectedInvoice(o)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-surface border border-border text-xs hover:border-gold/50 transition-colors text-foreground"
-                      >
-                        <FileText size={12} /> Invoice
-                      </button>
+                      {o.status === "completed" && (
+                        <button
+                          onClick={() => setSelectedInvoice(o)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-surface border border-border text-xs hover:border-gold/50 transition-colors text-foreground"
+                        >
+                          <FileText size={12} /> Invoice
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

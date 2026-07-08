@@ -247,3 +247,16 @@ RTM: `HUXZAIN_FINAL_AUDIT_PASS1.md`. Verify each pass with `npx tsc -p tsconfig.
 - [ ] Badge/verification expiry automation + reminders
 - [ ] Background scheduler (pg_cron) for auto-expiry / auto-escrow-release / auto-complete
 - [!] **Client input needed:** finalized 6-/12-month prices for Pro/Elite/Enterprise.
+
+---
+
+## Production Readiness Verification Pass — Playwright E2E Bug Fixes · [x] COMPLETE
+- [x] Scope /orders status badge/CTA checks to the specific `"Premium logo designer"` card to avoid test pollution from other pending orders in the shared test user account.
+- [x] Scope status badge locator with `.first()` to resolve strict mode violations.
+- [x] Integrate `ExternalCommServiceNotice` and `MarketplaceCommunicationStandards` checkbox and button acknowledgment steps in both buyer and seller chat flows, ensuring warning modals never block inputs.
+- [x] Navigate to `/orders` page first before logging out the buyer in E2E tests, ensuring the site header is visible.
+- [x] Update database seeder `seed_passwords.js` (and the executed `.cjs` script) to assign the test listing and the test order's `seller_id` to the seller profile of `lullilullivabhaiva@gmail.com` to guarantee clean query results.
+- [x] Resolve dynamic pricing verification issue in `e2e/seller-subscription.spec.ts` by updating the Playwright router to mock single-plan config requests correctly (handling Supabase client `.maybeSingle()` queries returning single objects instead of arrays).
+- [x] Run `npx tsc --noEmit` and confirm **0 errors**.
+- [x] Run `npx playwright test` and confirm **all 22 E2E tests pass**.
+

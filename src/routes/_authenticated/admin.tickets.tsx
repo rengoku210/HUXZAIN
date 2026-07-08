@@ -2,6 +2,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { BeforeCloseTicket } from "@/components/ui/HuxzainNotices";
+
 import { 
   AlertCircle, 
   RefreshCw, 
@@ -66,7 +68,11 @@ function AdminTickets() {
   const [replyBusy, setReplyBusy] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const [showCloseTicketNotice, setShowCloseTicketNotice] = useState(false);
+  const [pendingStatusVal, setPendingStatusVal] = useState<string | null>(null);
+
   // KB articles states
+
   const [kbArticles, setKbArticles] = useState<any[]>([]);
   const [showKBForm, setShowKBForm] = useState(false);
   const [editKBId, setEditKBId] = useState<string | undefined>(undefined);
@@ -221,8 +227,13 @@ function AdminTickets() {
     }
   };
 
-  const handleStatusChange = async (statusVal: string) => {
+  const handleStatusChange = async (statusVal: string, bypassNotice = false) => {
     if (!activeTicketId) return;
+    if ((statusVal === "closed" || statusVal === "resolved") && !bypassNotice) {
+      setPendingStatusVal(statusVal);
+      setShowCloseTicketNotice(true);
+      return;
+    }
     try {
       await updateTicketStatus({
         data: {
@@ -238,6 +249,7 @@ function AdminTickets() {
       toast.error("Failed to update status: " + e.message);
     }
   };
+
 
   // KB Articles handlers
   const handleSaveKB = async (e: React.FormEvent) => {
@@ -877,6 +889,21 @@ function AdminTickets() {
           )}
         </div>
       )}
+      {showCloseTicketNotice && (
+        <BeforeCloseTicket
+          onClose={() => {
+            setShowCloseTicketNotice(false);
+            if (pendingStatusVal) {
+              void handleStatusChange(pendingStatusVal, true);
+            }
+          }}
+          onReturn={() => {
+            setShowCloseTicketNotice(false);
+            setPendingStatusVal(null);
+          }}
+        />
+      )}
     </div>
   );
 }
+

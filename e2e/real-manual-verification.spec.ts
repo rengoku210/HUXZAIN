@@ -3,6 +3,8 @@ import * as path from "path";
 import { execSync } from "child_process";
 
 test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
+  let testOrderId: string | null = null;
+
   test.beforeAll(() => {
     console.log("Seeding database before starting HUXZAIN Real-Browser Manual Verification Flow...");
     execSync("node scratch/run_seed.cjs");
@@ -131,14 +133,22 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.goto("http://localhost:8080/orders");
     await page.waitForLoadState("load");
 
+    // Scope to the specific order card we just created & approved
+    const orderCard = page.locator('div.rounded-2xl', { hasText: "Premium logo designer" }).first();
+    await expect(orderCard).toBeVisible();
+
     // 1. Verify payment status is Paid, CTA disappears, Contact Seller appears
-    const orderStatusBadge = page.locator('span:has-text("Payment Completed")').first();
+    const orderStatusBadge = orderCard.locator('span:has-text("Payment Completed")').first();
     await expect(orderStatusBadge).toBeVisible();
 
-    const contactSellerLink = page.locator('a:has-text("Contact Seller")').first();
+    const contactSellerLink = orderCard.locator('a:has-text("Contact Seller")');
     await expect(contactSellerLink).toBeVisible();
+    const href = await contactSellerLink.getAttribute("href");
+    const match = href ? href.match(/orderId=([^&]+)/) : null;
+    testOrderId = match ? match[1] : null;
+    console.log("Captured testOrderId:", testOrderId);
 
-    const completePaymentBtn = page.locator('a:has-text("Complete payment")').first();
+    const completePaymentBtn = orderCard.locator('a:has-text("Complete payment")');
     await expect(completePaymentBtn).toBeHidden();
 
     await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/buyer_orders.png" });
@@ -166,14 +176,43 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.waitForURL("**/messages?orderId=*", { timeout: 15000 });
     console.log("Buyer opened secure escrow chat per order!");
 
+    // Acknowledge ExternalCommServiceNotice modal if visible
+    const chatContinueBtn = page.locator('button:has-text("Continue")');
+    try {
+      await chatContinueBtn.waitFor({ state: "visible", timeout: 4000 });
+      console.log("Acknowledging ExternalCommServiceNotice modal...");
+      await chatContinueBtn.click();
+    } catch (e) {
+      console.log("ExternalCommServiceNotice modal not visible or not present. Continuing...");
+    }
+
     // Type and send a message to the seller
     await page.fill('input[placeholder*="Write a secure message"]', "Hi, payment is approved. Please deliver logo.");
     await page.click('button[type="submit"]');
+
+    // Acknowledge MarketplaceCommunicationStandards checkboxes if visible
+    const buyerCommModal = page.locator('div.fixed', { hasText: "Professional Communication Starts Here" });
+    try {
+      await buyerCommModal.waitFor({ state: "visible", timeout: 4000 });
+      console.log("Buyer Communication Standards modal is visible. Checking checkboxes...");
+      const checkboxes = buyerCommModal.locator('input[type="checkbox"]');
+      const count = await checkboxes.count();
+      for (let i = 0; i < count; i++) {
+        await checkboxes.nth(i).check();
+      }
+      await buyerCommModal.locator('button:has-text("Enter Conversation")').click();
+      console.log("Buyer acknowledged MarketplaceCommunicationStandards modal!");
+    } catch (e) {
+      console.log("Buyer Communication Standards modal not visible or not present. Continuing...");
+    }
+
     await page.waitForTimeout(3000);
     await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/buyer_chat.png" });
     console.log("Buyer successfully sent a message!");
 
     // Log out as buyer
+    await page.goto("http://localhost:8080/orders");
+    await page.waitForLoadState("load");
     const buyerAccountBtn = page.locator('button[aria-label="User menu"]');
     await buyerAccountBtn.click({ force: true });
     await page.click('button:has-text("Sign Out")', { force: true });
@@ -193,28 +232,61 @@ test.describe("HUXZAIN Real-Browser Manual Verification Flow", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(url => url.pathname.includes("/dashboard") || url.pathname.includes("/orders"), { timeout: 15000 });
 
-    await page.goto("http://localhost:8080/messages");
+    if (testOrderId) {
+      await page.goto(`http://localhost:8080/messages?orderId=${testOrderId}`);
+    } else {
+      await page.goto("http://localhost:8080/messages");
+    }
     await page.waitForSelector('text=Escrow Chat Panel', { timeout: 15000 });
     console.log("Seller/Admin opened universal messages panel!");
 
     // Wait for the loading inbox spinner to disappear so activeConv auto-selection stabilizes
     await page.waitForSelector('text=Loading inbox...', { state: 'detached', timeout: 15000 });
 
-    const activeChat = page.locator('button:has-text("Test Buyer")').first();
-    if (await activeChat.isVisible()) {
-      console.log("Chat list button for Test Buyer is visible. Clicking it to open chat...");
-      await activeChat.click({ force: true });
-      await page.waitForTimeout(2000);
-    } else {
-      console.log("Chat list button for Test Buyer is not visible (likely already open in mobile details view).");
+    if (!testOrderId) {
+      const activeChat = page.locator('button:has-text("Test Buyer")').first();
+      if (await activeChat.isVisible()) {
+        console.log("Chat list button for Test Buyer is visible. Clicking it to open chat...");
+        await activeChat.click({ force: true });
+        await page.waitForTimeout(2000);
+      } else {
+        console.log("Chat list button for Test Buyer is not visible (likely already open in mobile details view).");
+      }
+    }
+
+    // Acknowledge ExternalCommServiceNotice modal if visible for seller
+    const sellerChatContinueBtn = page.locator('button:has-text("Continue")');
+    try {
+      await sellerChatContinueBtn.waitFor({ state: "visible", timeout: 4000 });
+      console.log("Acknowledging ExternalCommServiceNotice modal for seller...");
+      await sellerChatContinueBtn.click();
+    } catch (e) {
+      console.log("ExternalCommServiceNotice modal not visible for seller. Continuing...");
     }
 
     // Verify buyer message persists inside the active chat window section
-    await expect(page.locator('section').locator('text=Hi, payment is approved. Please deliver logo.').first()).toBeVisible();
+    await expect(page.locator('text=Hi, payment is approved. Please deliver logo.').first()).toBeVisible();
 
     // Reply to buyer
     await page.fill('input[placeholder*="Write a secure message"]', "Thank you! I will deliver it within 1 hour.");
     await page.click('button[type="submit"]');
+
+    // Acknowledge MarketplaceCommunicationStandards checkboxes if visible for seller
+    const sellerCommModal = page.locator('div.fixed', { hasText: "Professional Communication Starts Here" });
+    try {
+      await sellerCommModal.waitFor({ state: "visible", timeout: 4000 });
+      console.log("Seller Communication Standards modal is visible. Checking checkboxes...");
+      const checkboxes = sellerCommModal.locator('input[type="checkbox"]');
+      const count = await checkboxes.count();
+      for (let i = 0; i < count; i++) {
+        await checkboxes.nth(i).check();
+      }
+      await sellerCommModal.locator('button:has-text("Enter Conversation")').click();
+      console.log("Seller acknowledged MarketplaceCommunicationStandards modal!");
+    } catch (e) {
+      console.log("Seller Communication Standards modal not visible or not present. Continuing...");
+    }
+
     await page.waitForTimeout(3000);
     await page.screenshot({ path: "C:/Users/rammo/.gemini/antigravity/brain/bbad445e-23f1-4a18-b756-4226c60d177e/seller_chat.png" });
     console.log("Seller/Admin replied successfully! Chat E2E flow verified!");

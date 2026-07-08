@@ -70,9 +70,9 @@ function Page() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total ad spend" value={fmt(totalSpend)} icon={Megaphone} />
-        <StatCard label="Impressions (Real)" value={String(activeBoostsCount * 120)} delta="Live" icon={Eye} />
-        <StatCard label="Clicks (Real)" value={String(activeBoostsCount * 15)} delta="CTR 12%" icon={MousePointerClick} />
-        <StatCard label="Sales from ads" value={String(activeBoostsCount * 2)} delta="ROAS 4.5x" icon={ShoppingBag} premium />
+        <StatCard label="Impressions" value="—" delta="Tracking soon" icon={Eye} />
+        <StatCard label="Clicks" value="—" delta="Tracking soon" icon={MousePointerClick} />
+        <StatCard label="Sales from ads" value="—" delta="Tracking soon" icon={ShoppingBag} premium />
       </div>
 
       <PanelCard title="Sponsorship Campaigns">
@@ -115,9 +115,9 @@ function Page() {
                       </span>
                     </td>
                     <td className="py-3 text-right font-mono font-bold text-foreground">{fmt(c.amount_inr)}</td>
-                    <td className="py-3 text-right text-xs text-muted-foreground">{(c.status === "active" ? 120 : 0).toLocaleString()}</td>
-                    <td className="py-3 text-right text-xs text-muted-foreground">{c.status === "active" ? 15 : 0}</td>
-                    <td className="py-3 text-right font-semibold text-foreground">{c.status === "active" ? 2 : 0}</td>
+                    <td className="py-3 text-right text-xs text-muted-foreground">—</td>
+                    <td className="py-3 text-right text-xs text-muted-foreground">—</td>
+                    <td className="py-3 text-right font-semibold text-muted-foreground">—</td>
                   </tr>
                 ))}
               </tbody>

@@ -126,8 +126,8 @@ function Page() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large. Max size is 5MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("File is too large (max 15MB).");
       return;
     }
 
@@ -240,8 +240,8 @@ function Page() {
         return;
       }
 
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        toast.error("File is too large. Max size is 5MB.");
+      if (selectedFile.size > 15 * 1024 * 1024) {
+        toast.error("File is too large (max 15MB).");
         return;
       }
       setBadgeFile(selectedFile);

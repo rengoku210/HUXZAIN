@@ -53,14 +53,35 @@ function AdminNewsletter() {
     }
 
     setSending(true);
-    // Simulate sending email campaign (backend not connected)
-    setTimeout(() => {
-      setSending(false);
-      toast.success("Newsletter campaign sent successfully!");
+    try {
+      const sb = getSupabase();
+      if (!sb) throw new Error("Database connection unavailable.");
+
+      const { error } = await sb
+        .from("campaigns")
+        .insert({
+          name: subject,
+          subject,
+          body: message,
+          status: "sent",
+          type: "newsletter",
+          target_segment: "all_buyers",
+          featured_listing_id: selectedListingId || null,
+          sent_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+
+      toast.success("Newsletter broadcast saved and queued for delivery.");
       setSubject("");
       setMessage("");
       setSelectedListingId(null);
-    }, 1500);
+    } catch (err: any) {
+      console.error("[Newsletter] Send failed:", err);
+      toast.error(`Failed to send newsletter: ${err?.message || "Unknown error"}`);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (

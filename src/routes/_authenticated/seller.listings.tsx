@@ -23,7 +23,16 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { PanelCard } from "@/components/seller/SellerShell";
+import {
+  GamingListingPublishedNotice,
+  BeforeDeleteListingNotice,
+  BeforeUploadSecureDelivery,
+  InventoryUploadedNotice,
+  OutOfStockNotice,
+  LowInventoryReminder,
+} from "@/components/ui/HuxzainNotices";
 import { getSupabase } from "@/lib/supabase-client";
+
 import { useAuth } from "@/lib/auth/auth-context";
 import { toast } from "sonner";
 import { slugify } from "@/lib/marketplace/listing-adapter";
@@ -112,6 +121,31 @@ function ListingModal({
   const [instructions, setInstructions] = useState("");
   const [recoveryDetails, setRecoveryDetails] = useState("");
   const [emailTransferDetails, setEmailTransferDetails] = useState("");
+  const [activationKey, setActivationKey] = useState("");
+  const [pin, setPin] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [downloadPassword, setDownloadPassword] = useState("");
+  const [controlPanelUrl, setControlPanelUrl] = useState("");
+  const [backupCodes, setBackupCodes] = useState("");
+  const [topupUid, setTopupUid] = useState("");
+  const [assignedProfile, setAssignedProfile] = useState("");
+  const [planType, setPlanType] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [devicesAllowed, setDevicesAllowed] = useState("");
+  const [regionInfo, setRegionInfo] = useState("");
+  const [usageGuidelines, setUsageGuidelines] = useState("");
+  const [sellerNote, setSellerNote] = useState("");
+  const [serviceDetails, setServiceDetails] = useState("");
+  const [productInfo, setProductInfo] = useState("");
+  const [documentationUrls, setDocumentationUrls] = useState("");
+  const [setupGuide, setSetupGuide] = useState("");
+  const [additionalResources, setAdditionalResources] = useState("");
+  const [accountInfo, setAccountInfo] = useState("");
+  const [topupRegion, setTopupRegion] = useState("");
+  const [topupPlayerName, setTopupPlayerName] = useState("");
+  const [topupAmount, setTopupAmount] = useState("");
+  const [topupGame, setTopupGame] = useState("");
+  const [transferInstructions, setTransferInstructions] = useState("");
   const [uploadingProof, setUploadingProof] = useState<Record<string, boolean>>({});
 
   // Dynamic secure delivery state variables
@@ -131,6 +165,9 @@ function ListingModal({
   const [newInvNotes, setNewInvNotes] = useState("");
 
   const [secureNoticeAcknowledged, setSecureNoticeAcknowledged] = useState(false);
+  const [showBeforeUploadNotice, setShowBeforeUploadNotice] = useState(false);
+  const [showInventoryUploadedNotice, setShowInventoryUploadedNotice] = useState(false);
+
 
   // Declarations checkboxes (5 of them)
   const [decl1, setDecl1] = useState(false);
@@ -283,22 +320,44 @@ function ListingModal({
     const supabase = getSupabase();
     if (!supabase) return;
 
-    // Load standard credentials if game account
-    const catSlug = categories.find(c => c.id === categoryId)?.slug || "";
-    if (getCategoryTypeFromSlug(catSlug) === "game-accounts") {
-      supabase
-        .rpc("reveal_listing_credentials", { p_listing_id: listing.id })
-        .then(({ data, error }) => {
-          const row = Array.isArray(data) ? data[0] : data;
-          if (row && !error) {
-            setLoginId(row.login_id || "");
-            setLoginPassword(row.password || "");
-            setInstructions(row.instructions || "");
-            setRecoveryDetails(row.recovery_details || "");
-            setEmailTransferDetails(row.email_transfer_details || "");
-          }
-        });
-    }
+    // Load listing credentials if they exist
+    supabase
+      .rpc("reveal_listing_credentials_v2", { p_listing_id: listing.id })
+      .then(({ data, error }) => {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && !error) {
+          setLoginId(row.login_id || "");
+          setLoginPassword(row.password || "");
+          setInstructions(row.instructions || "");
+          setRecoveryDetails(row.recovery_details || "");
+          setEmailTransferDetails(row.email_transfer_details || "");
+          setActivationKey(row.activation_key || "");
+          setPin(row.pin || "");
+          setDownloadUrl(row.download_url || "");
+          setDownloadPassword(row.download_password || "");
+          setControlPanelUrl(row.control_panel_url || "");
+          setBackupCodes(row.backup_codes || "");
+          setTopupUid(row.topup_uid || "");
+          setAssignedProfile(row.assigned_profile || "");
+          setPlanType(row.plan_type || "");
+          setExpiryDate(row.expiry_date || "");
+          setDevicesAllowed(row.devices_allowed || "");
+          setRegionInfo(row.region_info || "");
+          setUsageGuidelines(row.usage_guidelines || "");
+          setSellerNote(row.seller_note || "");
+          setServiceDetails(row.service_details || "");
+          setProductInfo(row.product_info || "");
+          setDocumentationUrls(row.documentation_urls || "");
+          setSetupGuide(row.setup_guide || "");
+          setAdditionalResources(row.additional_resources || "");
+          setAccountInfo(row.account_info || "");
+          setTopupRegion(row.topup_region || "");
+          setTopupPlayerName(row.topup_player_name || "");
+          setTopupAmount(row.topup_amount || "");
+          setTopupGame(row.topup_game || "");
+          setTransferInstructions(row.transfer_instructions || "");
+        }
+      });
 
     // Load multi-item inventory
     supabase
@@ -318,11 +377,431 @@ function ListingModal({
       });
   }, [listing?.id, categoryId, categories]);
 
+  function renderSecureVaultFormFields(catSlug: string) {
+    const categoryType = getCategoryTypeFromSlug(catSlug);
+
+    return (
+      <div className="border-t border-gold/20 pt-4 mt-2 bg-gold/5 rounded-xl p-3 border border-gold/15 space-y-3">
+        <span className="text-xs font-semibold text-gold block mb-1">🔐 Secure Credentials Vault ({categoryType.toUpperCase()})</span>
+        <p className="text-[10px] text-muted-foreground mb-3">
+          These credentials are encrypted, hidden from the public listing, and only shared with the buyer automatically after successful payment.
+        </p>
+
+        {categoryType === "game-accounts" && (
+          <div className="space-y-3 text-left">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Login ID / Username <span className="text-red-400">*</span></label>
+                <input
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="e.g. game_username"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Login Password <span className="text-red-400">*</span></label>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Backup Codes / 2FA Codes</label>
+              <textarea
+                value={backupCodes}
+                onChange={(e) => setBackupCodes(e.target.value)}
+                placeholder="Enter 2FA backup codes..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Account Recovery Details</label>
+              <textarea
+                value={recoveryDetails}
+                onChange={(e) => setRecoveryDetails(e.target.value)}
+                placeholder="Enter security questions, creation location/date, original ISP..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Email Transfer Details</label>
+              <textarea
+                value={emailTransferDetails}
+                onChange={(e) => setEmailTransferDetails(e.target.value)}
+                placeholder="Recovery email login credentials or transfer details..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Transfer Guide / Instructions</label>
+              <textarea
+                value={transferInstructions}
+                onChange={(e) => setTransferInstructions(e.target.value)}
+                placeholder="Step-by-step account migration instructions..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {categoryType === "gift-cards" && (
+          <div className="space-y-3 text-left">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Gift Card Code <span className="text-red-400">*</span></label>
+                <input
+                  value={activationKey}
+                  onChange={(e) => setActivationKey(e.target.value)}
+                  placeholder="e.g. AMZN-500-XXXX"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Gift Card PIN</label>
+                <input
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  placeholder="e.g. 1234"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Redemption Instructions</label>
+              <textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="How to redeem this gift card..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {categoryType === "currency" && (
+          <div className="space-y-3 text-left">
+            <div className="border border-white/10 rounded-lg p-2.5 bg-background/30 space-y-2">
+              <span className="text-[10px] font-bold text-gold uppercase">Top-up/Auto-Delivery Fields</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9px] text-muted-foreground mb-0.5">Game Name</label>
+                  <input
+                    value={topupGame}
+                    onChange={(e) => setTopupGame(e.target.value)}
+                    placeholder="e.g. Valorant"
+                    className="w-full h-7 px-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-muted-foreground mb-0.5">UID / Account ID</label>
+                  <input
+                    value={topupUid}
+                    onChange={(e) => setTopupUid(e.target.value)}
+                    placeholder="e.g. 879541245"
+                    className="w-full h-7 px-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-muted-foreground mb-0.5">Region</label>
+                  <input
+                    value={topupRegion}
+                    onChange={(e) => setTopupRegion(e.target.value)}
+                    placeholder="e.g. India"
+                    className="w-full h-7 px-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-muted-foreground mb-0.5">Player Name</label>
+                  <input
+                    value={topupPlayerName}
+                    onChange={(e) => setTopupPlayerName(e.target.value)}
+                    placeholder="e.g. KnowNastro"
+                    className="w-full h-7 px-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] text-muted-foreground mb-0.5">Amount</label>
+                  <input
+                    value={topupAmount}
+                    onChange={(e) => setTopupAmount(e.target.value)}
+                    placeholder="e.g. 5600 VP"
+                    className="w-full h-7 px-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="border border-white/10 rounded-lg p-2.5 bg-background/30 space-y-2">
+              <span className="text-[10px] font-bold text-gold uppercase">Redeem Code Fields</span>
+              <div>
+                <label className="block text-[9px] text-muted-foreground mb-0.5">Redemption Code</label>
+                <input
+                  value={activationKey}
+                  onChange={(e) => setActivationKey(e.target.value)}
+                  placeholder="e.g. XXXX-XXXX-XXXX-XXXX"
+                  className="w-full h-7 px-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] text-muted-foreground mb-0.5">Redemption Instructions</label>
+                <textarea
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  placeholder="How to redeem..."
+                  rows={2}
+                  className="w-full p-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] text-muted-foreground mb-0.5">Important Notes</label>
+                <textarea
+                  value={accountInfo}
+                  onChange={(e) => setAccountInfo(e.target.value)}
+                  placeholder="Read before redeeming..."
+                  rows={2}
+                  className="w-full p-2 rounded bg-background/50 border border-border text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {categoryType === "subscriptions" && (
+          <div className="space-y-3 text-left">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Username / Email <span className="text-red-400">*</span></label>
+                <input
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="e.g. sub_email@domain.com"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Password <span className="text-red-400">*</span></label>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Assigned Profile</label>
+                <input
+                  value={assignedProfile}
+                  onChange={(e) => setAssignedProfile(e.target.value)}
+                  placeholder="e.g. Profile 3"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Plan Type</label>
+                <input
+                  value={planType}
+                  onChange={(e) => setPlanType(e.target.value)}
+                  placeholder="e.g. Premium 4K"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Expiry Date / Duration</label>
+                <input
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  placeholder="e.g. 28 Feb 2027"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Devices/Screens Allowed</label>
+                <input
+                  value={devicesAllowed}
+                  onChange={(e) => setDevicesAllowed(e.target.value)}
+                  placeholder="e.g. 4 Screens"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] text-muted-foreground mb-1">Region</label>
+                <input
+                  value={regionInfo}
+                  onChange={(e) => setRegionInfo(e.target.value)}
+                  placeholder="e.g. India"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Usage Guidelines</label>
+              <textarea
+                value={usageGuidelines}
+                onChange={(e) => setUsageGuidelines(e.target.value)}
+                placeholder="Do not change password, do not change email..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Support Notes</label>
+              <textarea
+                value={sellerNote}
+                onChange={(e) => setSellerNote(e.target.value)}
+                placeholder="Seller note regarding warranty or support..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {categoryType === "software-tools" && (
+          <div className="space-y-3 text-left">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Product Key <span className="text-red-400">*</span></label>
+                <input
+                  value={activationKey}
+                  onChange={(e) => setActivationKey(e.target.value)}
+                  placeholder="e.g. XXXX-XXXX-XXXX-XXXX"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Download Installer URL</label>
+                <input
+                  type="url"
+                  value={downloadUrl}
+                  onChange={(e) => setDownloadUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Activation Guide</label>
+              <textarea
+                value={setupGuide}
+                onChange={(e) => setSetupGuide(e.target.value)}
+                placeholder="Step-by-step instructions to activate..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Additional Files / Notes</label>
+              <textarea
+                value={additionalResources}
+                onChange={(e) => setAdditionalResources(e.target.value)}
+                placeholder="Other details/files included..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {categoryType === "digital-marketplace" && (
+          <div className="space-y-3 text-left">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Download Link <span className="text-red-400">*</span></label>
+                <input
+                  type="url"
+                  value={downloadUrl}
+                  onChange={(e) => setDownloadUrl(e.target.value)}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Download Password / Archive Password</label>
+                <input
+                  value={downloadPassword}
+                  onChange={(e) => setDownloadPassword(e.target.value)}
+                  placeholder="Password to decrypt/extract"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Documentation Links (e.g. Guides / ReadMe)</label>
+              <textarea
+                value={documentationUrls}
+                onChange={(e) => setDocumentationUrls(e.target.value)}
+                placeholder='[{"name": "ReadMe.txt", "url": "https://..."}] or plain instructions'
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Product Information (Compatibility / Version)</label>
+              <textarea
+                value={productInfo}
+                onChange={(e) => setProductInfo(e.target.value)}
+                placeholder='[{"label": "Version", "value": "v3.2"}] or plain text details'
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {categoryType === "generic" && (
+          <div className="space-y-3 text-left">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Username / Login ID</label>
+                <input
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="e.g. username"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-1">Password</label>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-8 px-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1">Instructions / Notes</label>
+              <textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="Access/activation instructions..."
+                rows={2}
+                className="w-full p-2 rounded-lg border border-border bg-[#141820] text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>, key: string) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large (max 5MB).");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("File is too large (max 15MB).");
       return;
     }
 
@@ -353,8 +832,8 @@ function ListingModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     const newItems = files.map(f => {
-      if (f.size > 5 * 1024 * 1024) {
-        toast.error(`${f.name} is too large (max 5MB).`);
+      if (f.size > 15 * 1024 * 1024) {
+        toast.error(`${f.name} is too large (max 15MB).`);
         return null;
       }
       return { id: Math.random().toString(), file: f, url: URL.createObjectURL(f) };
@@ -785,17 +1264,42 @@ function ListingModal({
           throw new Error(`Failed to save inventory: ${invErr.message}`);
         }
       } else {
-        // Fallback set single listing credentials
-        const requiresCredentials = dynamicFields.length > 0 ? (dynamicEngine?.delivery_engine === 'Credentials') : (getCategoryTypeFromSlug(catSlug) === "game-accounts");
-        if (requiresCredentials && loginId.trim()) {
+        const categoryType = getCategoryTypeFromSlug(catSlug);
+        const requiresCredentials = ["game-accounts", "gift-cards", "currency", "subscriptions", "software-tools", "digital-marketplace"].includes(categoryType);
+        if (requiresCredentials) {
           const { error: credsErr } = await supabase
-            .rpc("set_listing_credentials", {
+            .rpc("set_listing_credentials_v2", {
               p_listing_id: savedListingId,
-              p_login_id: loginId.trim(),
-              p_password: loginPassword,
+              p_login_id: loginId.trim() || null,
+              p_password: loginPassword || null,
               p_instructions: instructions.trim() || null,
               p_recovery_details: recoveryDetails.trim() || null,
-              p_email_transfer_details: emailTransferDetails.trim() || null
+              p_email_transfer_details: emailTransferDetails.trim() || null,
+              p_activation_key: activationKey.trim() || null,
+              p_pin: pin.trim() || null,
+              p_download_url: downloadUrl.trim() || null,
+              p_download_password: downloadPassword || null,
+              p_control_panel_url: controlPanelUrl.trim() || null,
+              p_backup_codes: backupCodes.trim() || null,
+              p_topup_uid: topupUid.trim() || null,
+              p_assigned_profile: assignedProfile.trim() || null,
+              p_plan_type: planType.trim() || null,
+              p_expiry_date: expiryDate.trim() || null,
+              p_devices_allowed: devicesAllowed.trim() || null,
+              p_region_info: regionInfo.trim() || null,
+              p_usage_guidelines: usageGuidelines.trim() || null,
+              p_seller_note: sellerNote.trim() || null,
+              p_service_details: serviceDetails.trim() || null,
+              p_product_info: productInfo.trim() || null,
+              p_documentation_urls: documentationUrls.trim() || null,
+              p_setup_guide: setupGuide.trim() || null,
+              p_additional_resources: additionalResources.trim() || null,
+              p_account_info: accountInfo.trim() || null,
+              p_topup_region: topupRegion.trim() || null,
+              p_topup_player_name: topupPlayerName.trim() || null,
+              p_topup_amount: topupAmount.trim() || null,
+              p_topup_game: topupGame.trim() || null,
+              p_transfer_instructions: transferInstructions.trim() || null
             });
 
           if (credsErr) {
@@ -813,8 +1317,14 @@ function ListingModal({
       } else {
         toast.success("Listing updated successfully!");
       }
-      onSaved(isNew);
-      onClose();
+      const hasInventory = (deliveryType === 'instant' || deliveryType === 'hybrid') && inventoryItems.length > 0;
+      if (hasInventory) {
+        setShowInventoryUploadedNotice(true);
+      } else {
+        onSaved(isNew);
+        onClose();
+      }
+
     } catch (err: any) {
       console.error("[Rebuild Listing Flow] Critical failure:", err);
       const code = err?.code ? ` [${err.code}]` : '';
@@ -1297,11 +1807,12 @@ function ListingModal({
                   </p>
                   <button
                     type="button"
-                    onClick={() => setSecureNoticeAcknowledged(true)}
+                    onClick={() => setShowBeforeUploadNotice(true)}
                     className="px-3.5 h-8 text-[11px] font-bold rounded-lg bg-emerald-500 text-black cursor-pointer hover:brightness-110"
                   >
                     Continue to Inventory Setup
                   </button>
+
                 </div>
               )}
 
@@ -1713,67 +2224,7 @@ function ListingModal({
                           );
                         })}
 
-                        {dynamicEngine?.delivery_engine === 'Credentials' && (
-                          <div className="border-t border-gold/20 pt-4 mt-2 bg-gold/5 rounded-xl p-3 border border-gold/15">
-                            <span className="text-xs font-semibold text-gold block mb-1">🔐 Secure Account Credentials Vault</span>
-                            <p className="text-[10px] text-muted-foreground mb-3">
-                              These credentials are encrypted, hidden from the public listing, and only shared with the buyer automatically after successful payment.
-                            </p>
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-[10px] text-muted-foreground mb-1">Login ID / Username <span className="text-red-400">*</span></label>
-                                  <input
-                                    value={loginId}
-                                    onChange={(e) => setLoginId(e.target.value)}
-                                    placeholder="e.g. valorant_acc_1"
-                                    className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] text-muted-foreground mb-1">Login Password <span className="text-red-400">*</span></label>
-                                  <input
-                                    type="password"
-                                    value={loginPassword}
-                                    onChange={(e) => setLoginPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
-                                  />
-                                </div>
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-muted-foreground mb-1">Delivery & Login Instructions</label>
-                                <textarea
-                                  value={instructions}
-                                  onChange={(e) => setInstructions(e.target.value)}
-                                  placeholder="Enter specific instructions on how the buyer should log in and secure the account..."
-                                  rows={2}
-                                  className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-muted-foreground mb-1">Account Recovery Details (Security Questions, Codes)</label>
-                                <textarea
-                                  value={recoveryDetails}
-                                  onChange={(e) => setRecoveryDetails(e.target.value)}
-                                  placeholder="Enter recovery codes, first location, transaction IDs, original ISP, security answers..."
-                                  rows={2}
-                                  className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-muted-foreground mb-1">Email Transfer Details</label>
-                                <textarea
-                                  value={emailTransferDetails}
-                                  onChange={(e) => setEmailTransferDetails(e.target.value)}
-                                  placeholder="Enter credentials for the recovery email, or instructions on how email transfer will take place..."
-                                  rows={2}
-                                  className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        {dynamicEngine?.delivery_engine === 'Credentials' && renderSecureVaultFormFields(catSlug)}
                       </div>
                     );
                   }
@@ -1979,66 +2430,7 @@ function ListingModal({
                           </div>
                         </div>
 
-                        {/* Secure Credential Vault */}
-                        <div className="border-t border-gold/20 pt-4 mt-2 bg-gold/5 rounded-xl p-3 border border-gold/15">
-                          <span className="text-xs font-semibold text-gold block mb-1">🔐 Secure Account Credentials Vault</span>
-                          <p className="text-[10px] text-muted-foreground mb-3">
-                            These credentials are encrypted, hidden from the public listing, and only shared with the buyer automatically after successful payment.
-                          </p>
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-muted-foreground mb-1">Login ID / Username <span className="text-red-400">*</span></label>
-                                <input
-                                  value={loginId}
-                                  onChange={(e) => setLoginId(e.target.value)}
-                                  placeholder="e.g. valorant_acc_1"
-                                  className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-muted-foreground mb-1">Login Password <span className="text-red-400">*</span></label>
-                                <input
-                                  type="password"
-                                  value={loginPassword}
-                                  onChange={(e) => setLoginPassword(e.target.value)}
-                                  placeholder="••••••••"
-                                  className="w-full h-8 px-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white"
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-muted-foreground mb-1">Delivery & Login Instructions</label>
-                              <textarea
-                                value={instructions}
-                                onChange={(e) => setInstructions(e.target.value)}
-                                placeholder="Enter specific instructions on how the buyer should log in and secure the account..."
-                                rows={2}
-                                className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-muted-foreground mb-1">Account Recovery Details (Security Questions, Codes)</label>
-                              <textarea
-                                value={recoveryDetails}
-                                onChange={(e) => setRecoveryDetails(e.target.value)}
-                                placeholder="Enter recovery codes, first location, transaction IDs, original ISP, security answers..."
-                                rows={2}
-                                className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-muted-foreground mb-1">Email Transfer Details</label>
-                              <textarea
-                                value={emailTransferDetails}
-                                onChange={(e) => setEmailTransferDetails(e.target.value)}
-                                placeholder="Enter credentials for the recovery email, or instructions on how email transfer will take place..."
-                                rows={2}
-                                className="w-full p-2 rounded-lg border border-border bg-background/60 text-xs focus:outline-none focus:border-gold/50 text-white resize-none"
-                              />
-                            </div>
-                          </div>
-                        </div>
+                        {renderSecureVaultFormFields(catSlug)}
                       </div>
                     );
                   } else if (type === "currency") {
@@ -2716,8 +3108,35 @@ function ListingModal({
             {saving ? "Saving..." : isNew ? "Continue to Review" : "Save Changes"}
           </button>
         </div>
+
+      {showBeforeUploadNotice && (
+        <BeforeUploadSecureDelivery
+          onContinue={() => {
+            setShowBeforeUploadNotice(false);
+            setSecureNoticeAcknowledged(true);
+          }}
+          onCancel={() => setShowBeforeUploadNotice(false)}
+        />
+      )}
+
+      {showInventoryUploadedNotice && (
+        <InventoryUploadedNotice
+          onContinue={() => {
+            setShowInventoryUploadedNotice(false);
+            onSaved(isNew);
+            onClose();
+          }}
+          onManageListing={() => {
+            setShowInventoryUploadedNotice(false);
+            onSaved(isNew);
+            onClose();
+          }}
+        />
+      )}
       </div>
     </div>
+
+
   );
 }
 
@@ -2760,13 +3179,6 @@ function Page() {
   const navigate = useNavigate();
   const { intent, listingId } = Route.useSearch() as any;
   const [listings, setListings] = useState<Listing[]>([]);
-
-  useEffect(() => {
-    if (listingId && listings.length > 0) {
-      const matched = listings.find((l) => l.id === listingId);
-      if (matched) setEditTarget(matched);
-    }
-  }, [listingId, listings]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -2775,6 +3187,54 @@ function Page() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showPublishSuccess, setShowPublishSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+
+  const [showGamingPublishedNotice, setShowGamingPublishedNotice] = useState(false);
+  const [deleteNoticeTarget, setDeleteNoticeTarget] = useState<string | null>(null);
+  const [outOfStockTarget, setOutOfStockTarget] = useState<string | null>(null);
+  const [lowInventoryTarget, setLowInventoryTarget] = useState<string | null>(null);
+  const [inventoryCounts, setInventoryCounts] = useState<Record<string, { available: number; hold: number; assigned: number }>>({});
+
+  useEffect(() => {
+    if (listingId && listings.length > 0) {
+      const matched = listings.find((l) => l.id === listingId);
+      if (matched) setEditTarget(matched);
+    }
+  }, [listingId, listings]);
+
+  useEffect(() => {
+    if (listings.length === 0) return;
+    
+    const outOfStockListing = listings.find((l) => {
+      if (l.status !== "active") return false;
+      if (l.delivery_type !== "instant" && l.delivery_type !== "hybrid") return false;
+      
+      const counts = inventoryCounts[l.id] || { available: 0, hold: 0, assigned: 0 };
+      const total = counts.available + counts.hold + counts.assigned;
+      const isOos = counts.available === 0 && total > 0;
+      const seenKey = `seen_oos_${l.id}`;
+      return isOos && !sessionStorage.getItem(seenKey);
+    });
+
+    if (outOfStockListing) {
+      setOutOfStockTarget(outOfStockListing.id);
+      return;
+    }
+
+    const lowInvListing = listings.find((l) => {
+      if (l.status !== "active") return false;
+      if (l.delivery_type !== "instant" && l.delivery_type !== "hybrid") return false;
+      
+      const counts = inventoryCounts[l.id] || { available: 0, hold: 0, assigned: 0 };
+      const isLow = counts.available > 0 && counts.available <= 2;
+      const seenKey = `seen_low_inv_${l.id}`;
+      return isLow && !sessionStorage.getItem(seenKey);
+    });
+
+    if (lowInvListing) {
+      setLowInventoryTarget(lowInvListing.id);
+    }
+  }, [listings, inventoryCounts]);
+
 
   async function fetchListings() {
     const supabase = getSupabase();
@@ -2801,6 +3261,26 @@ function Page() {
       delivery_type: (l.delivery_type ?? "manual") as "instant" | "manual" | "hybrid",
     }));
     setListings(mappedListings as Listing[]);
+
+    // Fetch listing inventory status counts
+    const { data: invData } = await supabase
+      .from("listing_inventory")
+      .select("id, listing_id, status");
+      
+    const countsMap: Record<string, { available: number; hold: number; assigned: number }> = {};
+    if (invData) {
+      invData.forEach((item: any) => {
+        const lid = item.listing_id;
+        if (!countsMap[lid]) {
+          countsMap[lid] = { available: 0, hold: 0, assigned: 0 };
+        }
+        if (item.status === 'available') countsMap[lid].available++;
+        else if (item.status === 'hold') countsMap[lid].hold++;
+        else if (item.status === 'assigned') countsMap[lid].assigned++;
+      });
+    }
+    setInventoryCounts(countsMap);
+
     const { data: cats } = await supabase
       .from("categories")
       .select("id, name, slug")
@@ -2844,38 +3324,44 @@ function Page() {
 
   const [activeTab, setActiveTab] = useState<"all" | "active" | "promoted" | "draft" | "expired" | "deleted">("all");
 
-  async function executeDelete() {
-    if (!deleteTarget) return;
+  const [hasActiveOrdersForDelete, setHasActiveOrdersForDelete] = useState(false);
+  const [checkingDeleteOrders, setCheckingDeleteOrders] = useState(false);
+
+  async function handleStartDelete(id: string) {
     const supabase = getSupabase();
     if (!supabase) return;
-    setDeleting(deleteTarget);
+    setCheckingDeleteOrders(true);
     try {
-      // Check for active orders
-      const { data: activeOrders, error: checkError } = await supabase
+      const { data: activeOrders, error } = await supabase
         .from("orders")
         .select("id")
-        .eq("listing_id", deleteTarget)
+        .eq("listing_id", id)
         .not("status", "in", '("completed","cancelled","refunded")');
 
-      if (checkError) throw checkError;
+      if (error) throw error;
+      setHasActiveOrdersForDelete(!!(activeOrders && activeOrders.length > 0));
+      setDeleteNoticeTarget(id);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setCheckingDeleteOrders(false);
+    }
+  }
 
-      if (activeOrders && activeOrders.length > 0) {
-        toast.error("Listings with active orders cannot be deleted. Please archive/draft the listing instead.");
-        setDeleting(null);
-        return;
-      }
-
-      const { error } = await supabase.from("listings").update({ status: "deleted" }).eq("id", deleteTarget);
+  async function executeDeleteActual(id: string) {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setDeleting(id);
+    try {
+      const { error } = await supabase.from("listings").update({ status: "deleted" }).eq("id", id);
       if (error) {
         toast.error(error.message);
       } else {
         toast.success("Listing deleted successfully.");
-        // OPTIMISTIC UPDATE: set status to deleted in state
         setListings((prev) =>
-          prev.map((l) => (l.id === deleteTarget ? { ...l, status: "deleted" } : l))
+          prev.map((l) => (l.id === id ? { ...l, status: "deleted" } : l))
         );
-        setDeleteTarget(null);
-        // Background sync
+        setDeleteNoticeTarget(null);
         fetchListings();
       }
     } catch (e: any) {
@@ -2884,6 +3370,7 @@ function Page() {
       setDeleting(null);
     }
   }
+
 
   async function executeRestore(id: string) {
     const supabase = getSupabase();
@@ -3133,9 +3620,11 @@ function Page() {
                   <tr className="text-xs text-muted-foreground border-b border-border">
                     <th className="text-left py-2.5 pr-4">Listing</th>
                     <th className="text-left py-2.5 pr-4">Price</th>
+                    <th className="text-left py-2.5 pr-4">Inventory</th>
                     <th className="text-left py-2.5 pr-4">Status</th>
                     <th className="text-right py-2.5">Actions</th>
                   </tr>
+
                 </thead>
                 <tbody>
                   {filtered.map((l) => (
@@ -3179,6 +3668,32 @@ function Page() {
                       <td className="py-3 pr-4 font-semibold text-gold">
                         ₹{(l.price ?? (l.price_cents / 100)).toFixed(2)}
                       </td>
+                      <td className="py-3 pr-4">
+                        {l.delivery_type === 'instant' || l.delivery_type === 'hybrid' ? (
+                          (() => {
+                            const counts = inventoryCounts[l.id] || { available: 0, hold: 0, assigned: 0 };
+                            return (
+                              <div className="flex flex-col gap-0.5 text-[11px] leading-tight">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold text-emerald-400">Available:</span>
+                                  <span className="text-foreground">{counts.available}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold text-amber-400">Reserved:</span>
+                                  <span className="text-foreground">{counts.hold}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold text-blue-400">Delivered:</span>
+                                  <span className="text-foreground">{counts.assigned}</span>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground italic">Manual Delivery</span>
+                        )}
+                      </td>
+
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {(() => {
@@ -3244,13 +3759,14 @@ function Page() {
                                 <RotateCcw className="size-3.5" /> Renew
                               </button>
                               <button
-                                onClick={() => setDeleteTarget(l.id)}
+                                onClick={() => handleStartDelete(l.id)}
                                 disabled={deleting === l.id || deleting !== null}
                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
                                 title="Delete"
                               >
                                 <Trash2 className="size-4" />
                               </button>
+
                             </>
                           ) : (
                             <>
@@ -3288,7 +3804,7 @@ function Page() {
                                 </button>
                               )}
                               <button
-                                onClick={() => setDeleteTarget(l.id)}
+                                onClick={() => handleStartDelete(l.id)}
                                 disabled={deleting === l.id || deleting !== null}
                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
                                 title="Delete"
@@ -3299,6 +3815,7 @@ function Page() {
                                   <Trash2 className="size-4" />
                                 )}
                               </button>
+
                             </>
                           )}
                         </div>
@@ -3313,41 +3830,52 @@ function Page() {
       </div>
       )}
 
-      {/* ─── CUSTOM DELETE CONFIRMATION MODAL ─── */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
-            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-red-400">
-              <AlertCircle size={18} /> Confirm Listing Deletion
-            </h3>
-            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
-              Are you sure you want to delete this listing? This action cannot be undone and will permanently remove this listing from your store.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting !== null}
-                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={executeDelete}
-                disabled={deleting !== null}
-                className="flex-1 h-10 rounded-xl bg-red-500 text-white hover:brightness-110 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer border-none"
-              >
-                {deleting !== null ? (
-                  <>
-                    <Loader2 className="size-3 animate-spin" /> Deleting...
-                  </>
-                ) : (
-                  "Delete Listing"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Before Delete/Unpublish safety warning modal */}
+      {deleteNoticeTarget && (
+        <BeforeDeleteListingNotice
+          hasActiveOrders={hasActiveOrdersForDelete}
+          onConfirm={() => executeDeleteActual(deleteNoticeTarget)}
+          onCancel={() => setDeleteNoticeTarget(null)}
+        />
+      )}
+
+      {/* Gaming Account Listing Published notice */}
+      {showGamingPublishedNotice && (
+        <GamingListingPublishedNotice
+          onAcknowledge={() => setShowGamingPublishedNotice(false)}
+        />
+      )}
+
+      {/* Listing Out of Stock notice */}
+      {outOfStockTarget && (
+        <OutOfStockNotice
+          onManageInventory={() => {
+            const matched = listings.find(l => l.id === outOfStockTarget);
+            if (matched) setEditTarget(matched);
+            sessionStorage.setItem(`seen_oos_${outOfStockTarget}`, "true");
+            setOutOfStockTarget(null);
+          }}
+          onClose={() => {
+            sessionStorage.setItem(`seen_oos_${outOfStockTarget}`, "true");
+            setOutOfStockTarget(null);
+          }}
+        />
+      )}
+
+      {/* Low Inventory Reminder notice */}
+      {lowInventoryTarget && (
+        <LowInventoryReminder
+          onUpload={() => {
+            const matched = listings.find(l => l.id === lowInventoryTarget);
+            if (matched) setEditTarget(matched);
+            sessionStorage.setItem(`seen_low_inv_${lowInventoryTarget}`, "true");
+            setLowInventoryTarget(null);
+          }}
+          onRemindLater={() => {
+            sessionStorage.setItem(`seen_low_inv_${lowInventoryTarget}`, "true");
+            setLowInventoryTarget(null);
+          }}
+        />
       )}
     </>
   );

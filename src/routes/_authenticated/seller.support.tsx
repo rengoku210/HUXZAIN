@@ -6,6 +6,8 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { triggerNotification, triggerRoleNotification } from "@/lib/notifications.functions";
 import { toast } from "sonner";
+import { BeforeContactSupport } from "@/components/ui/HuxzainNotices";
+
 
 export const Route = createFileRoute("/_authenticated/seller/support")({
   head: () => ({ meta: [{ title: "Support — HUXZAIN Seller" }] }),
@@ -31,6 +33,9 @@ function Page() {
   const [screenshotUrl, setScreenshotUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [showSupportNotice, setShowSupportNotice] = useState(false);
+  const [supportNoticeConfirmed, setSupportNoticeConfirmed] = useState(false);
+
 
   async function loadTickets() {
     if (!user) return;
@@ -128,7 +133,7 @@ function Page() {
     }
   }
 
-  async function handleCreateTicket() {
+  async function handleCreateTicket(bypassNotice = false) {
     if (!user) return;
     if (!title.trim()) {
       toast.error("Please provide a subject title for the support ticket");
@@ -142,6 +147,12 @@ function Page() {
       toast.error("Please upload the transaction receipt screenshot proof");
       return;
     }
+
+    if (!bypassNotice && !supportNoticeConfirmed) {
+      setShowSupportNotice(true);
+      return;
+    }
+
 
     try {
       setCreating(true);
@@ -569,7 +580,7 @@ function Page() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleCreateTicket}
+                  onClick={() => handleCreateTicket()}
                   disabled={creating || uploading}
                   className="h-10 px-5 rounded-lg bg-gold text-black font-bold text-xs hover:bg-gold/90 transition-all active:scale-95 disabled:opacity-50"
                 >
@@ -579,6 +590,17 @@ function Page() {
             </div>
           </div>
         </div>
+      )}
+      {showSupportNotice && (
+        <BeforeContactSupport
+          onContinue={() => {
+            setShowSupportNotice(false);
+            setSupportNoticeConfirmed(true);
+            void handleCreateTicket(true);
+            setShowNewModal(false);
+          }}
+          onHelpCentre={() => setShowSupportNotice(false)}
+        />
       )}
     </div>
   );

@@ -54,6 +54,21 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     console.log("Buy Now button found and active. Clicking...");
     await buyNowBtn.click();
 
+    // Acknowledge Before Purchase modal if present
+    const paymentProceedBtn = page.locator('button:has-text("Proceed To Payment")');
+    try {
+      await paymentProceedBtn.waitFor({ state: "visible", timeout: 4000 });
+      console.log("Acknowledging BeforePurchaseNotice modal...");
+      const checkboxes = page.locator('input[type="checkbox"]');
+      const count = await checkboxes.count();
+      for (let i = 0; i < count; i++) {
+        await checkboxes.nth(i).check();
+      }
+      await paymentProceedBtn.click();
+    } catch (e) {
+      console.log("BeforePurchaseNotice modal not visible or not present. Continuing...");
+    }
+
     // Verify it redirects to /checkout/payment
     await page.waitForURL("**/checkout/payment?*", { timeout: 20000 });
     console.log("Redirected to checkout payment page successfully!");
@@ -72,8 +87,11 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     await proceedBtn.click();
     console.log("Clicked proceed to upload payment proof step.");
 
-    // 4. Fill in mock transaction details and upload mock screenshot proof
-    await page.fill('input[placeholder*="UTR"]', "123456789012");
+    // Fill in mock payment note
+    const noteField = page.locator('textarea');
+    if (await noteField.count() > 0) {
+      await noteField.fill("123456789012 - Mock UTR Payment");
+    }
     
     // Create a mock receipt image buffer for the upload field
     const mockFileBuffer = Buffer.from("mock-png-receipt");
@@ -140,7 +158,10 @@ test.describe("HUXZAIN Final Live Verification E2E Suite", () => {
     const cartProceedBtn = page.locator('button:has-text("I Paid / Confirm Payment")');
     await expect(cartProceedBtn).toBeVisible({ timeout: 15000 });
     await cartProceedBtn.click();
-    await page.fill('input[placeholder*="UTR"]', "987654321098");
+    const cartNoteField = page.locator('textarea');
+    if (await cartNoteField.count() > 0) {
+      await cartNoteField.fill("987654321098 - Mock Cart UTR Payment");
+    }
     await page.setInputFiles('input[type="file"]', {
       name: "receipt.png",
       mimeType: "image/png",

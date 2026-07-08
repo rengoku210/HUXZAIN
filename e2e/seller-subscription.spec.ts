@@ -58,6 +58,35 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
       });
     });
 
+    // 2b. Intercept subscription_plans_config SELECT (handles list and single queries)
+    await page.route("**/rest/v1/subscription_plans_config*", async (route) => {
+      const url = new URL(route.request().url());
+      const idParam = url.searchParams.get("id");
+      const cleanId = idParam ? idParam.replace("eq.", "") : null;
+
+      const plans = [
+        { id: "standard", monthly_price_inr: 0 },
+        { id: "pro", monthly_price_inr: 2999 },
+        { id: "elite", monthly_price_inr: 4999 },
+        { id: "enterprise", monthly_price_inr: 10000 }
+      ];
+
+      if (cleanId) {
+        const found = plans.find(p => p.id === cleanId);
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(found || null),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(plans),
+        });
+      }
+    });
+
     // 3. Intercept User Roles
     await page.route("**/rest/v1/user_roles*", async (route) => {
       await route.fulfill({
@@ -84,10 +113,10 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
     await expect(page.locator("h1")).toContainText("Subscription");
 
     // Verify Direct INR ₹ Pricing
-    await expect(page.locator("text=Free/mo")).toBeVisible();
-    await expect(page.locator("text=₹2999/mo")).toBeVisible();
-    await expect(page.locator("text=₹4999/mo")).toBeVisible();
-    await expect(page.locator("text=₹10000/mo")).toBeVisible();
+    await expect(page.locator("text=Free")).toBeVisible();
+    await expect(page.locator("text=₹2,999")).toBeVisible();
+    await expect(page.locator("text=₹4,999")).toBeVisible();
+    await expect(page.locator("text=₹10,000")).toBeVisible();
 
     // Intercept navigation or click Upgrade
     await page.click('button:has-text("Upgrade to Enterprise")');
@@ -102,7 +131,7 @@ test.describe("Seller Subscription UPI manual payment flow E2E", () => {
 
     // Confirm Plan Meta Renders Correctly
     await expect(page.locator("text=Enterprise Subscription")).toBeVisible();
-    await expect(page.locator("text=₹10000").first()).toBeVisible();
+    await expect(page.locator("text=₹10,000").first()).toBeVisible();
 
     // Confirm instructions notice renders
     await expect(page.locator("text=Important Payment Instructions")).toBeVisible();

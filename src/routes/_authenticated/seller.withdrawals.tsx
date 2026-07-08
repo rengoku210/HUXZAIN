@@ -9,6 +9,8 @@ import { getOrCreateWallet, requestWithdrawal, checkAndReleaseEscrows, syncAndGe
 import { parseWithdrawnOrderIds, getPayoutState, type OrderPayout } from "@/lib/payout-calculator";
 import { toast } from "sonner";
 import { useFinanceConfig } from "@/lib/finance";
+import { BeforeWithdrawEarnings, BeforeUpdateBank } from "@/components/ui/HuxzainNotices";
+
 
 export const Route = createFileRoute("/_authenticated/seller/withdrawals")({
   head: () => ({ meta: [{ title: "Withdrawals — HUXZAIN Seller" }] }),
@@ -35,6 +37,10 @@ function Page() {
   const [ifscCode, setIfscCode] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [showUpdateBankNotice, setShowUpdateBankNotice] = useState(false);
+  const [showWithdrawNotice, setShowWithdrawNotice] = useState(false);
+  const [lastSavedBankDetails, setLastSavedBankDetails] = useState<string>("");
+
 
   // Active tab for payouts view
   const [payoutTab, setPayoutTab] = useState<"eligible" | "cooling" | "dormant" | "withdrawn">("eligible");
@@ -62,6 +68,20 @@ function Page() {
         
         const historyList = withdrawalsData || [];
         setHistory(historyList);
+
+        if (historyList.length > 0) {
+          const lastW = historyList[0];
+          if (lastW.details) {
+            const h = (lastW.details.account_holder || "").split("|")[0];
+            const n = lastW.details.account_number || "";
+            const i = lastW.details.ifsc_code || "";
+            setLastSavedBankDetails(`${h}_${n}_${i}`);
+            setAccountHolder(h);
+            setAccountNumber(n);
+            setIfscCode(i);
+          }
+        }
+
 
         // Fetch completed orders
         const { data: ordersData } = await supabase
@@ -189,7 +209,7 @@ function Page() {
     }
   }
 
-  async function handleWithdraw() {
+  async function handleWithdraw(bypassBankNotice = false, bypassWithdrawNotice = false) {
     if (!user) return;
     
     if (selectedIds.size === 0) {
@@ -206,6 +226,20 @@ function Page() {
       toast.error("Please fill in all bank transfer fields");
       return;
     }
+
+    const currentKey = `${accountHolder}_${accountNumber}_${ifscCode}`;
+    const bankDetailsChanged = currentKey !== lastSavedBankDetails;
+
+    if (bankDetailsChanged && !bypassBankNotice) {
+      setShowUpdateBankNotice(true);
+      return;
+    }
+
+    if (!bypassWithdrawNotice) {
+      setShowWithdrawNotice(true);
+      return;
+    }
+
 
     try {
       setSubmitting(true);
@@ -580,8 +614,9 @@ function Page() {
 
                   <button
                     type="button"
-                    onClick={handleWithdraw}
+                    onClick={() => handleWithdraw()}
                     disabled={submitting || selectedIds.size === 0}
+
                     className="w-full h-10 rounded-lg bg-gold text-black font-bold mt-2 hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 border-none cursor-pointer"
                   >
                     {submitting ? "Processing Request..." : "Confirm Payout"}
@@ -659,8 +694,28 @@ function Page() {
               </div>
             )}
           </PanelCard>
+      {showUpdateBankNotice && (
+        <BeforeUpdateBank
+          onSave={() => {
+            setShowUpdateBankNotice(false);
+            setShowWithdrawNotice(true);
+          }}
+          onCancel={() => setShowUpdateBankNotice(false)}
+        />
+      )}
+
+      {showWithdrawNotice && (
+        <BeforeWithdrawEarnings
+          onWithdraw={() => {
+            setShowWithdrawNotice(false);
+            void handleWithdraw(true, true);
+          }}
+          onReturn={() => setShowWithdrawNotice(false)}
+        />
+      )}
         </>
       )}
     </div>
   );
 }
+

@@ -75,6 +75,133 @@ function Breadcrumb({ paths }: { paths: { name: string; slug: string }[] }) {
   );
 }
 
+const getCategoryViewAllLabel = (catSlug?: string, totalCount = 0) => {
+  const countText = totalCount > 0 ? ` (${totalCount}+)` : "";
+  switch (catSlug) {
+    case "gaming-accounts":
+      return `View All Games${countText}`;
+    case "software-tools":
+      return `View All Software${countText}`;
+    case "gift-cards":
+      return `View All Gift Cards${countText}`;
+    case "in-game-currency":
+      return `View All Currencies${countText}`;
+    case "subscriptions":
+      return `View All Subscriptions${countText}`;
+    case "coaching-services":
+      return `View All Coaching${countText}`;
+    case "boosting-services":
+      return `View All Boosting${countText}`;
+    case "game-buddies":
+      return `View All Buddies${countText}`;
+    case "freelance-services":
+      return `View All Services${countText}`;
+    case "editing-design":
+      return `View All Design${countText}`;
+    case "advertising-services":
+      return `View All Advertising${countText}`;
+    case "digital-marketplace":
+      return `View All Digital Categories${countText}`;
+    default:
+      return `View All Categories${countText}`;
+  }
+};
+
+const getCategoryTrustBadges = (catSlug?: string) => {
+  const defaultBadges = [
+    { title: "Escrow Protected", desc: "Funds held safely", icon: ShieldCheck, color: "text-emerald-400" },
+    { title: "Verified Sellers", desc: "Strict verification", icon: BadgeCheck, color: "text-gold" },
+    { title: "License Protection", desc: "Genuine keys & items", icon: Lock, color: "text-blue-400" },
+    { title: "Dedicated Support", desc: "24/7 assistance team", icon: Headphones, color: "text-rose-400" }
+  ];
+
+  if (!catSlug) return defaultBadges;
+
+  switch (catSlug) {
+    case "gaming-accounts":
+      return [
+        { title: "Escrow Protected", desc: "Funds held safely", icon: ShieldCheck, color: "text-emerald-400" },
+        { title: "Verified Sellers", desc: "Strict verification", icon: BadgeCheck, color: "text-gold" },
+        { title: "Buyer Protection", desc: "Full coverage guarantee", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Secure Transactions", desc: "Inspected & protected", icon: Lock, color: "text-rose-400" }
+      ];
+    case "in-game-currency":
+      return [
+        { title: "Fast Delivery", desc: "Average delivery <1hr", icon: ShoppingBag, color: "text-amber-400" },
+        { title: "Escrow Protected", desc: "Payment held secure", icon: Lock, color: "text-emerald-400" },
+        { title: "Safe Sourced", desc: "No bot/exploit gold", icon: BadgeCheck, color: "text-gold" },
+        { title: "24/7 Support", desc: "Here to assist you", icon: Headphones, color: "text-rose-400" }
+      ];
+    case "gift-cards":
+      return [
+        { title: "Instant Delivery", desc: "Codes sent instantly", icon: Lock, color: "text-emerald-400" },
+        { title: "Genuine Cards", desc: "100% valid codes", icon: BadgeCheck, color: "text-gold" },
+        { title: "Escrow Protected", desc: "Safe redemption hold", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Zero Expiry", desc: "Use whenever you want", icon: ShieldCheck, color: "text-rose-400" }
+      ];
+    case "software-tools":
+      return defaultBadges;
+    case "subscriptions":
+      return [
+        { title: "Full Duration", desc: "No early expiration", icon: BadgeCheck, color: "text-gold" },
+        { title: "Safe Login", desc: "Secure details sharing", icon: Lock, color: "text-emerald-400" },
+        { title: "Escrow Hold", desc: "Payment safe in escrow", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Renew Support", desc: "Easy extension help", icon: Headphones, color: "text-rose-400" }
+      ];
+    case "coaching-services":
+      return [
+        { title: "Pro Coaches", desc: "Verified skill rank", icon: BadgeCheck, color: "text-gold" },
+        { title: "Session Escrow", desc: "Pay only after class", icon: Lock, color: "text-emerald-400" },
+        { title: "Custom Schedule", desc: "Learn at your own pace", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Rank Up", desc: "Guaranteed improvement", icon: TrendingUp, color: "text-rose-400" }
+      ];
+    case "boosting-services":
+      return [
+        { title: "Safe Play", desc: "VPN protection used", icon: ShieldCheck, color: "text-emerald-400" },
+        { title: "Escrow Locked", desc: "Released on rank match", icon: Lock, color: "text-blue-400" },
+        { title: "Verified Boosters", desc: "Top tier players only", icon: BadgeCheck, color: "text-gold" },
+        { title: "Progress Reports", desc: "Track status live", icon: TrendingUp, color: "text-rose-400" }
+      ];
+    case "game-buddies":
+      return [
+        { title: "Fun Play", desc: "Friendly teammates", icon: BadgeCheck, color: "text-gold" },
+        { title: "Escrow Safe", desc: "Hourly release safety", icon: Lock, color: "text-emerald-400" },
+        { title: "Safe Chat", desc: "Verified profiles", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "24/7 Matching", desc: "Find buddies anytime", icon: Headphones, color: "text-rose-400" }
+      ];
+    case "freelance-services":
+      return [
+        { title: "Verified Talent", desc: "Background checked", icon: BadgeCheck, color: "text-gold" },
+        { title: "Escrow Milestones", desc: "Release on approval", icon: Lock, color: "text-emerald-400" },
+        { title: "Original Work", desc: "No plagiarism/AI spam", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Revision Support", desc: "Satisfaction guarantee", icon: Headphones, color: "text-rose-400" }
+      ];
+    case "editing-design":
+      return [
+        { title: "Custom Designs", desc: "Tailored to your brief", icon: BadgeCheck, color: "text-gold" },
+        { title: "File Verification", desc: "Source files provided", icon: Lock, color: "text-emerald-400" },
+        { title: "Escrow Secured", desc: "Approved before payout", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Quick Turnaround", desc: "Meet all deadlines", icon: Headphones, color: "text-rose-400" }
+      ];
+    case "advertising-services":
+      return [
+        { title: "Verified Reach", desc: "Real audience match", icon: BadgeCheck, color: "text-gold" },
+        { title: "Escrow Protection", desc: "Verification of post", icon: Lock, color: "text-emerald-400" },
+        { title: "Analytics Proof", desc: "Full traffic logs", icon: TrendingUp, color: "text-blue-400" },
+        { title: "Ad Compliance", desc: "Legal & clean content", icon: Headphones, color: "text-rose-400" }
+      ];
+    case "digital-marketplace":
+      return [
+        { title: "Buyer Security", desc: "Full escrow hold", icon: Lock, color: "text-emerald-400" },
+        { title: "Instant Access", desc: "Auto-deliver files", icon: BadgeCheck, color: "text-gold" },
+        { title: "Verified Assets", desc: "Malware free checks", icon: ShieldCheck, color: "text-blue-400" },
+        { title: "Admin Support", desc: "Dispute resolution help", icon: Headphones, color: "text-rose-400" }
+      ];
+    default:
+      return defaultBadges;
+  }
+};
+
 function CategoryPage() {
   const navigate = useNavigate();
   const { slug } = Route.useParams();
@@ -272,7 +399,7 @@ function CategoryPage() {
     c.name.toLowerCase().includes(subSearchQuery.toLowerCase())
   );
 
-  const displayLimit = 11;
+  const displayLimit = 23;
   const showViewAllCard = filteredChildren.length > displayLimit;
   const displayedChildren = showViewAllCard
     ? filteredChildren.slice(0, displayLimit)
@@ -292,12 +419,7 @@ function CategoryPage() {
           <div className="space-y-10">
             {/* Trust Badges */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { title: "Escrow Protected", desc: "Funds held safely", icon: ShieldCheck, color: "text-emerald-400" },
-                { title: "Verified Sellers", desc: "Strict verification", icon: BadgeCheck, color: "text-gold" },
-                { title: "License Protection", desc: "Genuine keys & items", icon: Lock, color: "text-blue-400" },
-                { title: "Dedicated Support", desc: "24/7 assistance team", icon: Headphones, color: "text-rose-400" }
-              ].map((badge, idx) => (
+              {getCategoryTrustBadges(category?.slug).map((badge, idx) => (
                 <div key={idx} className="flex items-center gap-3 p-4 rounded-2xl bg-[#0a0b0d]/50 border border-white/5 shadow-sm text-left">
                   <div className={`p-2.5 rounded-xl bg-surface-elevated border border-white/5 ${badge.color}`}>
                     <badge.icon className="size-5" />
@@ -402,7 +524,7 @@ function CategoryPage() {
                     <div className="flex flex-col items-center gap-1.5 py-1">
                       <LayoutGrid className="size-6 text-gold group-hover:scale-105 transition-all" />
                       <div className="font-bold text-sm text-gold">
-                        View All {children.length}+ {category?.slug === "gaming-accounts" ? "Games" : "Categories"}
+                        {getCategoryViewAllLabel(category?.slug, children.length)}
                       </div>
                       <div className="text-[10px] text-muted-foreground">Click to browse full marketplace catalogue</div>
                     </div>

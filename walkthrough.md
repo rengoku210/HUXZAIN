@@ -496,3 +496,19 @@ Auditing the official `docxx/` spec set (10 docs, 88k words) against the codebas
 - **Verification standard:** `npx tsc -p tsconfig.json --noEmit` (0 errors) + `npx vite build` (green) after every pass.
 - **Conflict rule applied:** doc values override the Platform-Settings screenshot mockups (Enterprise ₹9,999/12%, not ₹8,999/8%).
 - **Blocked on client:** finalized 6-/12-month prices for paid plans ("use our finalized pricing" — not provided).
+
+---
+
+## Final E2E Test Suite Pass & Verification (2026-07-08)
+
+**Done:**
+- Refactored `e2e/real-manual-verification.spec.ts` to scope the order status/badge assertions to the specific `"Premium logo designer"` card, resolving test pollution from other pending orders in the shared test user account.
+- Scoped status badge locator with `.first()` to resolve strict mode violations (where multiple badge/status text blocks exist in the same card).
+- Integrated `ExternalCommServiceNotice` and `MarketplaceCommunicationStandards` checkbox and button acknowledgment steps in both the buyer and seller chat flows, ensuring warning modals never block the message input and submit buttons.
+- Navigated to the `/orders` page first before logging out the buyer in E2E tests, ensuring the site header is visible and accessible.
+- Updated the database seeder `seed_passwords.js` (and the executed `.cjs` script) to assign the test listing and the test order's `seller_id` to the seller profile of `lullilullivabhaiva@gmail.com` to guarantee clean query results.
+- Resolved a dynamic pricing verification issue in `e2e/seller-subscription.spec.ts` by updating the Playwright router to mock single-plan config requests correctly (handling Supabase client `.maybeSingle()` queries returning single objects instead of arrays).
+
+**Verification Results:**
+- Running `npx tsc --noEmit` returns **0 errors**.
+- Running `npx playwright test` passes **all 22 end-to-end tests** cleanly on both chromium and mobile viewports.

@@ -37,6 +37,8 @@ import { sanitizeHexColor } from "@/lib/security";
 import { friendlyError } from "@/lib/error-messages";
 import { TrustBadge } from "@/components/site/TrustBadge";
 import { useCategoryConfig } from "@/lib/marketplace/category-engine";
+import { BeforePurchaseNotice } from "@/components/ui/HuxzainNotices";
+
 
 export const Route = createFileRoute("/product/$id")({
   head: () => ({
@@ -102,6 +104,10 @@ function ProductPage() {
   const [desiredRank, setDesiredRank] = useState("");
   const [matchedRanks, setMatchedRanks] = useState<string[]>([]);
   const [isBoosting, setIsBoosting] = useState(false);
+  const [stockCount, setStockCount] = useState<number | null>(null);
+  const [showPurchaseNotice, setShowPurchaseNotice] = useState(false);
+  const [showPurchaseNoticeConfirmed, setShowPurchaseNoticeConfirmed] = useState(false);
+
 
   useEffect(() => {
     if (!listing) return;
@@ -155,6 +161,14 @@ function ProductPage() {
       else {
         setListing(data as DbListing);
         
+        if (data.delivery_type === 'instant' || data.delivery_type === 'hybrid') {
+          const { data: countVal } = await supabase.rpc("get_listing_stock_count", { p_listing_id: data.id });
+          if (active && typeof countVal === 'number') {
+            setStockCount(countVal);
+          }
+        }
+
+        
         // Fetch seller profile separately
         if (data.seller_id) {
           const { data: prof } = await supabase
@@ -198,7 +212,7 @@ function ProductPage() {
     }
   }, [listing?.title]);
 
-  async function handleBuyNow() {
+  async function handleBuyNow(bypassNotice = false) {
     try {
       console.log('STEP 1 Buy Now clicked', {
         isAuthenticated,
@@ -219,6 +233,12 @@ function ProductPage() {
         toast.error("This listing is missing seller information.");
         return;
       }
+
+      if (!bypassNotice && !showPurchaseNoticeConfirmed) {
+        setShowPurchaseNotice(true);
+        return;
+      }
+
       if (listing.status !== "active") {
         toast.error("This listing is not available for purchase.");
         return;
@@ -712,36 +732,45 @@ function ProductPage() {
               </div>
             )}
 
-            <div className="mt-7 flex gap-3">
+            <div className="mt-7 flex gap-3 flex-wrap">
+              {stockCount === 0 ? (
+                <div className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-300 font-bold text-sm uppercase tracking-wider">
+                  <AlertCircle size={16} /> Out of Stock (Instant Delivery)
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={handleAddToCart}
+                    className="flex-1 h-12 rounded-lg border border-gold/40 text-gold text-sm font-semibold hover:bg-gold/10 inline-flex items-center justify-center gap-2 cursor-pointer bg-transparent"
+                  >
+                    <ShoppingCart className="size-4" /> Add to Cart
+                  </button>
+                  <button
+                    onClick={() => handleBuyNow()}
+                    disabled={!ready || ordering}
+                    className="flex-1 h-12 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2 cursor-pointer border-none"
+                  >
+                    {(!ready || ordering) && <Loader2 className="size-4 animate-spin" />}
+                    {!ready ? "Loading auth..." : ordering ? "Creating order..." : "Buy Now"}
+                  </button>
+                </>
+              )}
               <button
-                onClick={handleAddToCart}
-                className="flex-1 h-12 rounded-lg border border-gold/40 text-gold text-sm font-semibold hover:bg-gold/10 inline-flex items-center justify-center gap-2"
-              >
-                <ShoppingCart className="size-4" /> Add to Cart
-              </button>
-              <button
-                onClick={handleBuyNow}
-                disabled={!ready || ordering}
-                className="flex-1 h-12 rounded-lg bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 disabled:opacity-60 inline-flex items-center justify-center gap-2"
-              >
-                {(!ready || ordering) && <Loader2 className="size-4 animate-spin" />}
-                {!ready ? "Loading auth..." : ordering ? "Creating order..." : "Buy Now"}
-              </button>
-              <button
-                className={`size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center transition-colors ${isWishlisted ? 'text-gold border-gold/40 bg-gold/5' : 'text-muted-foreground hover:text-gold'}`}
+                className={`size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center transition-colors cursor-pointer bg-transparent ${isWishlisted ? 'text-gold border-gold/40 bg-gold/5' : 'text-muted-foreground hover:text-gold'}`}
                 aria-label="Save"
                 onClick={handleToggleWishlist}
               >
                 <Heart className={`size-4 ${isWishlisted ? 'fill-gold' : ''}`} />
               </button>
               <button
-                className="size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center text-muted-foreground hover:text-gold"
+                className="size-12 rounded-lg border border-border hover:border-gold/40 flex items-center justify-center text-muted-foreground hover:text-gold cursor-pointer bg-transparent"
                 aria-label="Share"
                 onClick={handleShare}
               >
                 <Share2 className="size-4" />
               </button>
             </div>
+
 
             <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 text-gold" />
@@ -940,7 +969,19 @@ function ProductPage() {
         </div>
       )}
 
+      {showPurchaseNotice && (
+        <BeforePurchaseNotice
+          onProceed={() => {
+            setShowPurchaseNotice(false);
+            setShowPurchaseNoticeConfirmed(true);
+            void handleBuyNow(true);
+          }}
+          onBack={() => setShowPurchaseNotice(false)}
+        />
+      )}
+
       <Footer />
     </div>
   );
 }
+

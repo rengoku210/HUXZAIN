@@ -40,6 +40,7 @@ import { analyzeFraudRisk, buildFraudSystemMessage } from "@/lib/chat/fraud-dete
 import { submitChatReport } from "@/lib/admin/moderation.functions";
 import { getCategoryTypeFromSlug } from "@/lib/marketplace/listing-attributes";
 import { getUserAvatar, DEFAULT_AVATAR_URL } from "@/lib/marketplace-data";
+import { CategoryVaultEngine, detectCurrencyDeliveryType, getVaultDeliveryStatusLabel } from "@/components/order-room/CategoryVaultEngine";
 
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({ meta: [{ title: "Messages — HUXZAIN" }] }),
@@ -815,7 +816,9 @@ function MessagesPage() {
   const listingData = activeConv?.listing;
   const isBuyer = activeConv ? activeConv.buyer_id === user?.id : false;
   const isSeller = activeConv ? activeConv.seller_id === user?.id : false;
-  const isGameAccount = activeConv?.listing?.category_slug ? (getCategoryTypeFromSlug(activeConv.listing.category_slug) === "game-accounts") : false;
+  const categoryType = activeConv?.listing?.category_slug ? getCategoryTypeFromSlug(activeConv.listing.category_slug) : "generic";
+  const isVaultCategory = ["game-accounts", "gift-cards", "currency", "subscriptions", "software-tools", "digital-marketplace"].includes(categoryType);
+  const isGameAccount = isVaultCategory;
 
   // Find system messages for data payloads
   const requirementsMsg = messages.find(m => m.is_system && m.body.startsWith("[SYSTEM_REQUIREMENTS_SUBMITTED]:"));
@@ -1542,6 +1545,105 @@ function MessagesPage() {
 
                 {/* Input area — pinned to the bottom of the message panel */}
                 <div className="shrink-0 border-t border-border/60 bg-surface/30 flex flex-col pt-2 pb-4 px-4">
+                  {/* 3-Column Completion Bar */}
+                  {activeConv.order && ["paid", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing"].includes(activeConv.order.status) && (
+                    <div className="mb-3.5 p-3 rounded-2xl border border-white/8 bg-[#0a0c0f] grid grid-cols-3 gap-3.5 text-[11px] text-left">
+                      {/* Column 1: Buyer Actions */}
+                      <div className="flex flex-col justify-between p-2.5 rounded-xl bg-surface/30 border border-white/5 space-y-1.5 min-h-[84px]">
+                        <div className="font-bold text-[9px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <div className={`size-1.5 rounded-full ${activeConv.order.status === "buyer_reviewing" ? "bg-emerald-400" : "bg-white/20"}`} />
+                          Buyer Confirmation
+                        </div>
+                        {isBuyer ? (
+                          activeConv.order.status === "buyer_reviewing" ? (
+                            <button
+                              type="button"
+                              onClick={handleCompleteOrder}
+                              className="h-7 w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition-all border-none cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                            >
+                              <ShieldCheck size={11} /> Confirm & Release
+                            </button>
+                          ) : (
+                            <div className="text-[10px] text-muted-foreground italic font-medium py-1">
+                              Awaiting delivery release
+                            </div>
+                          )
+                        ) : (
+                          <div className="text-[10px] text-foreground font-semibold py-1">
+                            {activeConv.order.status === "buyer_reviewing" ? "Reviewing delivery" : "Awaiting delivery"}
+                          </div>
+                        )}
+                        <p className="text-[8px] text-muted-foreground leading-snug">
+                          Buyer verifies deliverables and releases escrow.
+                        </p>
+                      </div>
+
+                      {/* Column 2: Seller Actions */}
+                      <div className="flex flex-col justify-between p-2.5 rounded-xl bg-surface/30 border border-white/5 space-y-1.5 min-h-[84px]">
+                        <div className="font-bold text-[9px] uppercase tracking-wider text-gold flex items-center gap-1.5">
+                          <div className={`size-1.5 rounded-full ${["buyer_reviewing", "completed"].includes(activeConv.order.status) ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+                          Seller Fulfillment
+                        </div>
+                        {isSeller ? (
+                          ["order_active", "seller_delivering", "payment_approved"].includes(activeConv.order.status) ? (
+                            <div className="text-[10px] text-amber-400 font-semibold py-1">
+                              Fulfillment in progress
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-emerald-400 font-semibold py-1 flex items-center gap-0.5">
+                              <ShieldCheck size={11} /> Delivered ✓
+                            </div>
+                          )
+                        ) : (
+                          <div className="text-[10px] text-foreground font-semibold py-1">
+                            {["buyer_reviewing", "completed"].includes(activeConv.order.status) ? "Delivered ✓" : "Preparing delivery"}
+                          </div>
+                        )}
+                        <p className="text-[8px] text-muted-foreground leading-snug">
+                          Seller uploads credentials and delivers order.
+                        </p>
+                      </div>
+
+                      {/* Column 3: Escrow / Inspection Period */}
+                      <div className="flex flex-col justify-between p-2.5 rounded-xl bg-surface/30 border border-white/5 space-y-1.5 min-h-[84px]">
+                        <div className="font-bold text-[9px] uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                          <Clock size={11} /> Inspection Countdown
+                        </div>
+                        {activeConv.order.status === "buyer_reviewing" ? (
+                          <div className="text-[11px] font-mono font-bold text-amber-400 py-1 bg-[#14161d] border border-white/5 rounded px-2 text-center">
+                            {inspectionRemaining > 0 ? (
+                              (() => {
+                                const hrs = Math.floor(inspectionRemaining / (1000 * 60 * 60));
+                                const mins = Math.floor((inspectionRemaining % (1000 * 60 * 60)) / (1000 * 60));
+                                const secs = Math.floor((inspectionRemaining % (1000 * 60)) / 1000);
+                                return `${hrs}h ${mins}m ${secs}s`;
+                              })()
+                            ) : (
+                              "Auto-releasing..."
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-muted-foreground italic py-1">
+                            Not started
+                          </div>
+                        )}
+                        {isBuyer && activeConv.order.status === "buyer_reviewing" ? (
+                          <button
+                            type="button"
+                            onClick={() => setDisputeOpen(true)}
+                            className="h-6 w-full rounded-md border border-rose-500/30 text-[9px] text-rose-300 font-bold hover:bg-rose-500/10 active:scale-95 transition-all bg-transparent cursor-pointer flex items-center justify-center gap-0.5"
+                          >
+                            Open Dispute
+                          </button>
+                        ) : (
+                          <p className="text-[8px] text-muted-foreground leading-snug">
+                            Funds protected by secure platform escrow.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {profile?.is_muted ? (
                     <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5 text-xs text-red-400 flex items-start gap-2.5">
                       <AlertCircle className="size-4 shrink-0 mt-0.5" />
@@ -2050,295 +2152,80 @@ function MessagesPage() {
                     </div>
                   )}
 
-                  {/* Special Hybrid Delivery Panel for Game Accounts */}
-                  {isGameAccount && ["paid", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "completed"].includes(activeConv.order.status) && (
-                    <div className="p-4 rounded-2xl border border-gold/30 bg-surface/30 space-y-4 text-xs text-left">
-                      <div className="font-bold text-xs uppercase tracking-wider text-gold flex items-center gap-1.5 border-b border-border/40 pb-2">
-                        <ShieldCheck size={14} className="text-gold" /> Hybrid Delivery Flow
-                      </div>
-
-                      {/* PHASE 1: Credentials Release */}
-                      <div className={`p-3 rounded-xl border ${activeConv.order.status === "buyer_reviewing" || activeConv.order.status === "completed" ? "border-emerald-500/20 bg-emerald-500/5" : "border-gold/20 bg-gold/5"}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-[10px] uppercase tracking-wider text-gold">Phase 1: Credentials Release</span>
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${securedCreds ? "bg-emerald-500/20 text-emerald-400" : "bg-gold/20 text-gold animate-pulse"}`}>
-                            {securedCreds ? "Released" : "Vault Sealed"}
-                          </span>
-                        </div>
-                        {securedCreds ? (
-                          <div className="space-y-2 font-mono text-[10px] bg-background/40 p-2.5 rounded-lg border border-border/40 text-left">
-                            <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-1 mb-1">
-                              <span className="text-muted-foreground uppercase text-[8px] font-bold">Secure Credentials</span>
-                              <Shield size={10} className="text-emerald-400" />
-                            </div>
-                            <div className="flex items-center justify-between gap-1.5">
-                              <div className="truncate">
-                                <span className="text-muted-foreground">Login ID:</span> <span className="font-bold text-white select-all">{securedCreds.login_id || "Nil"}</span>
-                              </div>
-                              {securedCreds.login_id && (
-                                <button
-                                  onClick={() => handleCopyText(securedCreds.login_id, "Login ID")}
-                                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer"
-                                >
-                                  {copiedField === "Login ID" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
-                                </button>
-                              )}
-                            </div>
-                            {securedCreds.password && (
-                              <div className="flex items-center justify-between gap-1.5">
-                                <div className="truncate">
-                                  <span className="text-muted-foreground">Password:</span> <span className="font-bold text-white select-all">{securedCreds.password}</span>
-                                </div>
-                                <button
-                                  onClick={() => handleCopyText(securedCreds.password, "Password")}
-                                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer"
-                                >
-                                  {copiedField === "Password" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
-                                </button>
-                              </div>
-                            )}
-                            {securedCreds.credentials_data && (
-                              <div className="flex items-center justify-between gap-1.5 pt-1 mt-1 border-t border-white/5">
-                                <div className="truncate">
-                                  <span className="text-muted-foreground">Activation Key:</span> <span className="font-bold text-white select-all">{securedCreds.credentials_data}</span>
-                                </div>
-                                <button
-                                  onClick={() => handleCopyText(securedCreds.credentials_data, "Activation Key")}
-                                  className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer"
-                                >
-                                  {copiedField === "Activation Key" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
-                                </button>
-                              </div>
-                            )}
-                            {securedCreds.instructions && (
-                              <div className="pt-1.5 mt-1.5 border-t border-white/10 text-left font-sans text-[9px] text-muted-foreground">
-                                <span className="font-semibold text-gold block mb-0.5">Instructions:</span>
-                                {securedCreds.instructions}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {/* Secure Delivery Status Card — shown before reveal */}
-                            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <ShieldCheck size={13} className="text-emerald-400 shrink-0" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Secure Delivery</span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-1.5 text-[9px]">
-                                <div className="bg-background/40 rounded-lg p-1.5">
-                                  <div className="text-muted-foreground">Status</div>
-                                  <div className="font-bold text-emerald-300 mt-0.5">✓ Ready</div>
-                                </div>
-                                <div className="bg-background/40 rounded-lg p-1.5">
-                                  <div className="text-muted-foreground">Delivery Type</div>
-                                  <div className="font-bold text-white mt-0.5 capitalize">{activeConv.listing?.delivery_type || "Instant"}</div>
-                                </div>
-                              </div>
-                              <p className="text-[9px] text-muted-foreground leading-relaxed">
-                                {isSeller
-                                  ? "Your credentials have been securely stored and will be delivered to the buyer upon payment clearance."
-                                  : "Your delivery is ready. Click \"Reveal Secure Delivery\" to view your confidential delivery details."}
-                              </p>
-                            </div>
-                            {isBuyer && ["paid", "buyer_reviewing"].includes(activeConv.order.status) && (
-                              <button
-                                type="button"
-                                onClick={() => setRevealWarningModalOpen(true)}
-                                className="w-full h-8 rounded-lg bg-emerald-500 text-black font-bold text-[10px] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer flex items-center justify-center gap-1"
-                              >
-                                <ShieldCheck size={12} /> Reveal Secure Delivery
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* PHASE 2: Transfer & OTP Migration */}
-                      <div className={`p-3 rounded-xl border ${securedCreds ? "border-gold/20 bg-gold/5" : "border-border/40 bg-background/10 opacity-50"}`}>
-                        <div className="font-bold text-[10px] uppercase tracking-wider text-gold mb-1.5">Phase 2: Transfer & OTP Migration</div>
-                        <p className="text-[10px] text-muted-foreground leading-relaxed">
-                          Coordinate the email transfer, recovery links, and security updates with the other party.
-                        </p>
-                        {securedCreds && (
-                          <div className="mt-2.5 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[9px] text-amber-300 leading-normal font-sans">
-                            ⚠️ <strong>Crucial Escrow Reminder:</strong> All verification OTPs and email transition chats must happen directly inside this HUXZAIN chat window.
-                          </div>
-                        )}
-                        {securedCreds && securedCreds.recovery_details && (
-                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px] flex items-center justify-between gap-2">
-                            <div className="truncate">
-                              <span className="font-sans font-bold text-gold block mb-0.5">Recovery Information:</span>
-                              {securedCreds.recovery_details}
-                            </div>
-                            <button
-                              onClick={() => handleCopyText(securedCreds.recovery_details, "Recovery Info")}
-                              className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer shrink-0"
-                            >
-                              {copiedField === "Recovery Info" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
-                            </button>
-                          </div>
-                        )}
-                        {securedCreds && securedCreds.email_transfer_details && (
-                          <div className="mt-2 p-2 bg-background/30 border border-border/40 rounded-lg font-mono text-[9px] flex items-center justify-between gap-2">
-                            <div className="truncate">
-                              <span className="font-sans font-bold text-gold block mb-0.5">Email Transfer Details:</span>
-                              {securedCreds.email_transfer_details}
-                            </div>
-                            <button
-                              onClick={() => handleCopyText(securedCreds.email_transfer_details, "Email Info")}
-                              className="p-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-white transition-all cursor-pointer shrink-0"
-                            >
-                              {copiedField === "Email Info" ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* PHASE 3: Escrow Safety Hold Period */}
-                      <div className={`p-3 rounded-xl border border-border/40 bg-background/10 ${securedCreds ? "opacity-100" : "opacity-50"}`}>
-                        <div className="font-bold text-[10px] uppercase tracking-wider text-gold mb-1">Phase 3: Escrow Safety Hold Period</div>
-                        <p className="text-[10px] text-muted-foreground leading-relaxed">
-                          Escrow payout is kept on hold for the active inspection window ({calculateInspectionHours(activeConv.listing?.category_slug || "game-accounts", activeConv.order.amount_inr || activeConv.order.amount_total || 0, (activeConv?.sellerProfile?.subscription_tier || "standard") as any)} hours) to verify first owner claims and prevent account recovery fraud.
-                        </p>
-                      </div>
-
-                      {/* Buyer post-purchase safety instructions — shown to the buyer once credentials are released */}
-                      {isBuyer && securedCreds && (
-                        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1.5">
-                          <div className="font-bold text-[10px] uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                            <ShieldCheck size={12} /> Secure your account now
-                          </div>
-                          <ul className="text-[10px] text-muted-foreground leading-relaxed list-disc list-inside space-y-0.5">
-                            <li>Change the account password immediately.</li>
-                            <li>Change the recovery email &amp; phone to your own.</li>
-                            <li>Enable 2FA / two-step verification.</li>
-                            <li>Never share these credentials with anyone.</li>
-                            <li>Complete ownership transfer fully before approving delivery.</li>
-                            <li>Keep all communication inside HUXZAIN — report issues before the inspection window ends.</li>
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Order Audit Timeline Log */}
-                      <div className="p-3 bg-[#0a0b0d]/50 border border-white/5 rounded-xl space-y-2">
-                        <div className="font-bold text-[10px] uppercase tracking-wider text-gold flex items-center gap-1">
-                          <Activity size={12} /> Order Event Log
-                        </div>
-                        <div className="space-y-2 pl-2 border-l border-white/10 relative">
-                          {((activeConv.order as any).timeline || [
-                            { date: (activeConv.order as any).created_at, title: "Order Placed", description: "Buyer placed order and escrow pending." },
-                            activeConv.order.status !== 'pending' && { date: (activeConv.order as any).created_at, title: "Payment Cleared", description: "Escrow funds locked by administrator." },
-                            securedCreds && { date: new Date().toISOString(), title: "Secure Delivery Revealed", description: "Buyer decrypted secure vault details." }
-                          ].filter(Boolean)).map((evt: any, i: number) => (
-                            <div key={i} className="relative pl-3 text-[9px] text-left">
-                              <div className="absolute left-[-11px] top-1.5 size-1.5 rounded-full bg-gold/70" />
-                              <div className="font-bold text-white leading-tight">{evt.title}</div>
-                              <div className="text-[8px] text-muted-foreground leading-tight">{evt.description}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                  {/* Category-Specific Secure Delivery Vault */}
+                  {isVaultCategory && ["paid", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "completed", "disputed"].includes(activeConv.order.status) && (
+                    <div className="space-y-4">
+                      <CategoryVaultEngine
+                        categoryType={categoryType}
+                        listingId={activeConv.listing_id}
+                        orderId={activeConv.order_id}
+                        orderStatus={activeConv.order.status}
+                        isBuyer={isBuyer}
+                        isSeller={isSeller}
+                        preloadedCreds={securedCreds}
+                        onRevealSuccess={(newCreds) => setSecuredCreds(newCreds)}
+                        currencyDeliveryType={detectCurrencyDeliveryType(activeConv.listing)}
+                      />
 
                       {/* Seller Action Button to release credentials */}
                       {isSeller && ["order_active", "seller_delivering", "payment_approved"].includes(activeConv.order.status) && !securedCreds && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const supabase = getSupabase();
-                              if (!supabase || !user) return;
-                              
-                              // Pull credentials first to verify they exist
-                              const { data: credsExist } = await supabase
-                                .from("listing_credentials")
-                                .select("listing_id")
-                                .eq("listing_id", activeConv.listing_id)
-                                .maybeSingle();
+                        <div className="p-4 rounded-xl border border-gold/20 bg-gold/5 space-y-2 text-xs">
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            Once you have configured the secure credentials in the Listing Vault, click below to release them to the buyer and trigger the inspection window.
+                          </p>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const supabase = getSupabase();
+                                if (!supabase || !user) return;
+                                
+                                // Pull credentials first to verify they exist
+                                const { data: credsExist } = await supabase
+                                  .from("listing_credentials")
+                                  .select("listing_id")
+                                  .eq("listing_id", activeConv.listing_id)
+                                  .maybeSingle();
 
-                              if (!credsExist) {
-                                toast.error("You have not configured secure credentials for this listing. Please add them in the listings panel.");
-                                return;
+                                if (!credsExist) {
+                                  toast.error("You have not configured secure credentials for this listing. Please add them in the listings panel.");
+                                  return;
+                                }
+
+                                const { error } = await supabase
+                                  .from("orders")
+                                  .update({
+                                    status: "buyer_reviewing",
+                                    delivered_at: new Date().toISOString(),
+                                    delivery_payload: { vault_released: true }
+                                  })
+                                  .eq("id", activeConv.order_id);
+
+                                if (error) throw error;
+                                
+                                // Send system message
+                                await supabase.from("messages").insert({
+                                  conversation_id: activeConv.id,
+                                  body: `[SYSTEM_DELIVERY_SUBMITTED]: Seller released vault credentials. Secure delivery details have been revealed to the buyer.`,
+                                  is_system: true,
+                                  sender_id: user.id
+                                });
+
+                                toast.success("Vault credentials released successfully! Buyer inspection countdown has started.");
+                                void loadConversations(activeConv.id);
+                              } catch (err: any) {
+                                toast.error("Failed to release credentials: " + err.message);
                               }
-
-                              const { error } = await supabase
-                                .from("orders")
-                                .update({
-                                  status: "buyer_reviewing",
-                                  delivered_at: new Date().toISOString(),
-                                  delivery_payload: { hybrid: true }
-                                })
-                                .eq("id", activeConv.order_id);
-
-                              if (error) throw error;
-                              
-                              // Send system message
-                              await supabase.from("messages").insert({
-                                conversation_id: activeConv.id,
-                                body: `[SYSTEM_DELIVERY_SUBMITTED]: Seller initiated Phase 1 Hybrid Delivery. Secure credentials have been released to the buyer.`,
-                                is_system: true,
-                                sender_id: user.id
-                              });
-
-                              toast.success("Secure credentials released successfully! Buyer inspection countdown has started.");
-                              void loadConversations(activeConv.id);
-                            } catch (err: any) {
-                              toast.error("Failed to release credentials: " + err.message);
-                            }
-                          }}
-                          className="w-full h-9 rounded-xl bg-gold text-black font-bold text-xs hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer"
-                        >
-                          Release Secure Credentials & Start Phase 1
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* F: Inspection Countdown & Buyer Actions (Autocomplete / Dispute) */}
-                  {activeConv.order.status === "buyer_reviewing" && (
-                    <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-3 text-xs">
-                      <div className="font-bold text-[10px] uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                        <Clock size={13} className="animate-spin" /> Inspection Period Countdown
-                      </div>
-                      
-                      <div className="text-center py-2 bg-background/50 rounded-xl">
-                        <span className="text-lg font-mono font-bold text-amber-400">
-                          {inspectionRemaining > 0 ? (
-                            (() => {
-                              const hrs = Math.floor(inspectionRemaining / (1000 * 60 * 60));
-                              const mins = Math.floor((inspectionRemaining % (1000 * 60 * 60)) / (1000 * 60));
-                              const secs = Math.floor((inspectionRemaining % (1000 * 60)) / 1000);
-                              return `${hrs}h ${mins}m ${secs}s`;
-                            })()
-                          ) : (
-                            "Expired (Pending Release)"
-                          )}
-                        </span>
-                      </div>
-
-                      <p className="text-[9px] text-muted-foreground leading-relaxed">
-                        Ensure all credentials are correct, links are operational, and details match the listing description. If no dispute is raised before the timer expires, funds release automatically to the seller.
-                      </p>
-
-                      {isBuyer && (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={handleCompleteOrder}
-                            className="flex-1 h-8 rounded-lg bg-emerald-500 text-primary-foreground text-[10px] font-bold hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer"
+                            }}
+                            className="w-full h-9 rounded-xl bg-gold text-black font-bold text-xs hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer"
                           >
-                            Complete Order
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDisputeOpen(true)}
-                            className="flex-1 h-8 rounded-lg border border-rose-500/40 text-[10px] text-rose-300 font-bold hover:bg-rose-500/10 active:scale-95 transition-all bg-transparent cursor-pointer"
-                          >
-                            Open Dispute
+                            Release Vault Credentials & Deliver
                           </button>
                         </div>
                       )}
                     </div>
                   )}
+
+
 
                   {/* G: Disputed Order details */}
                   {activeConv.order.status === "disputed" && (
