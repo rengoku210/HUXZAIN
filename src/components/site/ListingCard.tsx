@@ -76,6 +76,8 @@ export function ListingCard({ l }: { l: ListingLike }) {
       to="/product/$id"
       params={{ id: l.id }}
       className={`group relative rounded-2xl border bg-surface/60 overflow-hidden hover:-translate-y-0.5 transition-all ${
+        l.stock === 0 ? "opacity-60 grayscale-[25%]" : ""
+      } ${
         l.has_glow 
           ? "border-gold/60 ring-2 ring-gold/40 shadow-[0_0_20px_rgba(212,180,106,0.35)]" 
           : "border-border hover:border-gold/40"
@@ -103,6 +105,19 @@ export function ListingCard({ l }: { l: ListingLike }) {
             Urgent
           </span>
         )}
+        {l.stock === 0 ? (
+          <span className="absolute top-3 left-3 inline-flex items-center rounded-md bg-zinc-700 border border-zinc-500/20 text-zinc-300 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-md z-10">
+            Out of Stock
+          </span>
+        ) : l.stock === 1 ? (
+          <span className="absolute top-3 left-3 inline-flex items-center rounded-md bg-amber-600/90 border border-amber-500/20 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-md z-10 animate-pulse">
+            Only 1 Left
+          </span>
+        ) : l.stock !== null && l.stock !== undefined && l.stock > 0 && l.stock <= 10 ? (
+          <span className="absolute top-3 left-3 inline-flex items-center rounded-md bg-amber-600/80 border border-amber-500/10 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-md z-10">
+            Only {l.stock} Left
+          </span>
+        ) : null}
         {l.badge && (
           <span className="absolute bottom-3 left-3 inline-flex items-center rounded-md bg-gold text-primary-foreground px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
             {l.badge}

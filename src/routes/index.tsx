@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import * as LucideIcons from "lucide-react";
 import {
   Search,
   ShieldCheck,
@@ -83,6 +84,7 @@ function Home() {
   });
 
   const [activeSearch, setActiveSearch] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -93,11 +95,12 @@ function Home() {
           sb.from("listings").select("category_id", { count: "exact" }).eq("status", "active"),
           sb.from("profiles").select("id", { count: "exact" }),
           sb.from("orders").select("id", { count: "exact" }),
-          sb.from("categories").select("id, slug, parent_id")
+          sb.from("categories").select("id, name, slug, parent_id, icon")
         ]);
 
         const allListings = listingsRes.data ?? [];
         const catMap = (catsRes.data ?? []) as any[];
+        setCategories(catMap);
         
         const categoryCounts: Record<string, number> = {};
         primaryCategories.forEach(c => {
@@ -134,12 +137,19 @@ function Home() {
     void fetchStats();
   }, []);
 
+  const primaryCats = categories.length > 0
+    ? categories.filter(c => 
+        c.slug !== 'gaming-entertainment' && 
+        (c.parent_id === null || c.parent_id === categories.find(x => x.slug === 'gaming-entertainment')?.id)
+      )
+    : [];
+
   return (
     <div className="min-h-screen flex flex-col bg-[#060709]">
       <Header transparent={true} />
       <main className="flex-1">
-        <Hero counts={counts} onSearch={(q) => setActiveSearch(q)} />
-        <PopularCategories counts={counts} />
+        <Hero counts={counts} onSearch={(q) => setActiveSearch(q)} primaryCats={primaryCats} />
+        <PopularCategories counts={counts} categories={categories} primaryCats={primaryCats} />
         <FeaturedSection activeSearch={activeSearch} onClearSearch={() => setActiveSearch("")} />
         {!activeSearch && <TrendingListings />}
         {!activeSearch && <TopRatedSellers />}
@@ -153,7 +163,7 @@ function Home() {
   );
 }
 
-function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void }) {
+function Hero({ counts, onSearch, primaryCats }: { counts: any; onSearch: (q: string) => void; primaryCats: any[] }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -330,11 +340,16 @@ function Hero({ counts, onSearch }: { counts: any; onSearch: (q: string) => void
                     className="bg-transparent border-none outline-none text-[11px] md:text-[12px] text-[#8a8f9d] cursor-pointer appearance-none font-semibold pr-7 pl-3 h-full"
                   >
                     <option value="all" className="bg-[#0d0e10] text-white">All Categories</option>
-                    {primaryCategories.map((c) => (
-                      <option key={c.slug} value={c.slug} className="bg-[#0d0e10] text-white">
-                        {c.title}
-                      </option>
-                    ))}
+                    {(() => {
+                      const displayCats = primaryCats && primaryCats.length > 0
+                        ? primaryCats.map(c => ({ slug: c.slug, title: c.name }))
+                        : primaryCategories;
+                      return displayCats.map((c) => (
+                        <option key={c.slug} value={c.slug} className="bg-[#0d0e10] text-white">
+                          {c.title}
+                        </option>
+                      ));
+                    })()}
                   </select>
                   <ChevronDown className="absolute right-1.5 size-3.5 text-[#8a8f9d] pointer-events-none" />
                 </div>
@@ -543,7 +558,130 @@ function PromotionBanners() {
   );
 }
 
-function PopularCategories({ counts }: { counts: any }) {
+function PopularCategories({ counts, categories, primaryCats }: { counts: any; categories: any[]; primaryCats: any[] }) {
+  function getCategoryDesign(slug: string, index: number) {
+    const designs: Record<string, { color: string; glow: string; border: string; bgHover: string; subtitle: string; icon: any }> = {
+      "gaming-accounts": {
+        color: "text-[#9d4edd]",
+        glow: "shadow-[0_0_15px_rgba(157,78,221,0.06)] hover:shadow-[0_0_25px_rgba(157,78,221,0.22)]",
+        border: "border-border/80 hover:border-[#9d4edd]/50",
+        bgHover: "hover:bg-[#9d4edd]/5",
+        subtitle: "Accounts & Profiles",
+        icon: Gamepad2,
+      },
+      "in-game-currency": {
+        color: "text-[#ffb703]",
+        glow: "shadow-[0_0_15px_rgba(255,183,3,0.06)] hover:shadow-[0_0_25px_rgba(255,183,3,0.22)]",
+        border: "border-border/80 hover:border-[#ffb703]/50",
+        bgHover: "hover:bg-[#ffb703]/5",
+        subtitle: "Top-up & Currency",
+        icon: Coins,
+      },
+      "gift-cards": {
+        color: "text-[#4ea8de]",
+        glow: "shadow-[0_0_15px_rgba(78,168,222,0.06)] hover:shadow-[0_0_25px_rgba(78,168,222,0.22)]",
+        border: "border-border/80 hover:border-[#4ea8de]/50",
+        bgHover: "hover:bg-[#4ea8de]/5",
+        subtitle: "Redeem & Save",
+        icon: CreditCard,
+      },
+      "software-tools": {
+        color: "text-[#06d6a0]",
+        glow: "shadow-[0_0_15px_rgba(6,214,160,0.06)] hover:shadow-[0_0_25px_rgba(6,214,160,0.22)]",
+        border: "border-border/80 hover:border-[#06d6a0]/50",
+        bgHover: "hover:bg-[#06d6a0]/5",
+        subtitle: "Tools & Applications",
+        icon: Code,
+      },
+      "subscriptions": {
+        color: "text-[#f77f00]",
+        glow: "shadow-[0_0_15px_rgba(247,127,0,0.06)] hover:shadow-[0_0_25px_rgba(247,127,0,0.22)]",
+        border: "border-border/80 hover:border-[#f77f00]/50",
+        bgHover: "hover:bg-[#f77f00]/5",
+        subtitle: "Premium Access",
+        icon: Crown,
+      },
+      "coaching-services": {
+        color: "text-[#2a9d8f]",
+        glow: "shadow-[0_0_15px_rgba(42,157,143,0.06)] hover:shadow-[0_0_25px_rgba(42,157,143,0.22)]",
+        border: "border-border/80 hover:border-[#2a9d8f]/50",
+        bgHover: "hover:bg-[#2a9d8f]/5",
+        subtitle: "Learn & Improve",
+        icon: GraduationCap,
+      },
+      "boosting-services": {
+        color: "text-[#00b4d8]",
+        glow: "shadow-[0_0_15px_rgba(0,180,216,0.06)] hover:shadow-[0_0_25px_rgba(0,180,216,0.22)]",
+        border: "border-border/80 hover:border-[#00b4d8]/50",
+        bgHover: "hover:bg-[#00b4d8]/5",
+        subtitle: "Rank Up Fast",
+        icon: Rocket,
+      },
+      "game-buddies": {
+        color: "text-[#ff007f]",
+        glow: "shadow-[0_0_15px_rgba(255,0,127,0.06)] hover:shadow-[0_0_25px_rgba(255,0,127,0.22)]",
+        border: "border-border/80 hover:border-[#ff007f]/50",
+        bgHover: "hover:bg-[#ff007f]/5",
+        subtitle: "Play Together",
+        icon: Users2,
+      },
+      "freelance-services": {
+        color: "text-[#48cae4]",
+        glow: "shadow-[0_0_15px_rgba(72,202,228,0.06)] hover:shadow-[0_0_25px_rgba(72,202,228,0.22)]",
+        border: "border-border/80 hover:border-[#48cae4]/50",
+        bgHover: "hover:bg-[#48cae4]/5",
+        subtitle: "Hire Experts",
+        icon: Briefcase,
+      },
+      "editing-design": {
+        color: "text-[#ff9f1c]",
+        glow: "shadow-[0_0_15px_rgba(255,159,28,0.06)] hover:shadow-[0_0_25px_rgba(255,159,28,0.22)]",
+        border: "border-border/80 hover:border-[#ff9f1c]/50",
+        bgHover: "hover:bg-[#ff9f1c]/5",
+        subtitle: "Creative Services",
+        icon: PenTool,
+      },
+      "advertising-services": {
+        color: "text-[#e9c46a]",
+        glow: "shadow-[0_0_15px_rgba(233,196,106,0.06)] hover:shadow-[0_0_25px_rgba(233,196,106,0.22)]",
+        border: "border-border/80 hover:border-[#e9c46a]/50",
+        bgHover: "hover:bg-[#e9c46a]/5",
+        subtitle: "Promote & Grow",
+        icon: Megaphone,
+      },
+      "digital-marketplace": {
+        color: "text-[#e76f51]",
+        glow: "shadow-[0_0_15px_rgba(231,111,81,0.06)] hover:shadow-[0_0_25px_rgba(231,111,81,0.22)]",
+        border: "border-border/80 hover:border-[#e76f51]/50",
+        bgHover: "hover:bg-[#e76f51]/5",
+        subtitle: "All Digital Listings",
+        icon: Store,
+      },
+    };
+
+    const defaultColors = [
+      { color: "text-[#9d4edd]", glow: "shadow-[0_0_15px_rgba(157,78,221,0.06)] hover:shadow-[0_0_25px_rgba(157,78,221,0.22)]", border: "border-border/80 hover:border-[#9d4edd]/50", bgHover: "hover:bg-[#9d4edd]/5" },
+      { color: "text-[#ffb703]", glow: "shadow-[0_0_15px_rgba(255,183,3,0.06)] hover:shadow-[0_0_25px_rgba(255,183,3,0.22)]", border: "border-border/80 hover:border-[#ffb703]/50", bgHover: "hover:bg-[#ffb703]/5" },
+      { color: "text-[#4ea8de]", glow: "shadow-[0_0_15px_rgba(78,168,222,0.06)] hover:shadow-[0_0_25px_rgba(78,168,222,0.22)]", border: "border-border/80 hover:border-[#4ea8de]/50", bgHover: "hover:bg-[#4ea8de]/5" },
+      { color: "text-[#06d6a0]", glow: "shadow-[0_0_15px_rgba(6,214,160,0.06)] hover:shadow-[0_0_25px_rgba(6,214,160,0.22)]", border: "border-border/80 hover:border-[#06d6a0]/50", bgHover: "hover:bg-[#06d6a0]/5" },
+      { color: "text-[#f77f00]", glow: "shadow-[0_0_15px_rgba(247,127,0,0.06)] hover:shadow-[0_0_25px_rgba(247,127,0,0.22)]", border: "border-border/80 hover:border-[#f77f00]/50", bgHover: "hover:bg-[#f77f00]/5" },
+      { color: "text-[#2a9d8f]", glow: "shadow-[0_0_15px_rgba(42,157,143,0.06)] hover:shadow-[0_0_25px_rgba(42,157,143,0.22)]", border: "border-border/80 hover:border-[#2a9d8f]/50", bgHover: "hover:bg-[#2a9d8f]/5" },
+      { color: "text-[#00b4d8]", glow: "shadow-[0_0_15px_rgba(0,180,216,0.06)] hover:shadow-[0_0_25px_rgba(0,180,216,0.22)]", border: "border-border/80 hover:border-[#00b4d8]/50", bgHover: "hover:bg-[#00b4d8]/5" },
+      { color: "text-[#ff007f]", glow: "shadow-[0_0_15px_rgba(255,0,127,0.06)] hover:shadow-[0_0_25px_rgba(255,0,127,0.22)]", border: "border-border/80 hover:border-[#ff007f]/50", bgHover: "hover:bg-[#ff007f]/5" },
+    ];
+
+    const uiSlug = getUiSlugFromDbSlug(slug);
+    const matched = designs[uiSlug];
+    if (matched) return matched;
+
+    const colorSet = defaultColors[index % defaultColors.length];
+    return {
+      ...colorSet,
+      subtitle: "Digital Marketplace",
+      icon: LucideIcons.Layers,
+    };
+  }
+
   const customCategories = [
     {
       slug: "gaming-accounts",
@@ -667,6 +805,24 @@ function PopularCategories({ counts }: { counts: any }) {
     },
   ];
 
+  const displayCats = primaryCats && primaryCats.length > 0
+    ? primaryCats.map((c, idx) => {
+        const design = getCategoryDesign(c.slug, idx);
+        const IconComponent = (c.icon && (LucideIcons as any)[c.icon]) || design.icon || LucideIcons.Package;
+        return {
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          subtitle: design.subtitle,
+          color: design.color,
+          glow: design.glow,
+          border: design.border,
+          bgHover: design.bgHover,
+          icon: IconComponent
+        };
+      })
+    : customCategories;
+
   return (
     <section className="container-page py-12">
       <div className="flex items-end justify-between mb-8">
@@ -678,8 +834,10 @@ function PopularCategories({ counts }: { counts: any }) {
         </Link>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {customCategories.map((c) => {
+        {displayCats.map((c) => {
           const Icon = c.icon;
+          const uiSlug = getUiSlugFromDbSlug(c.slug);
+          const count = counts.categoryCounts[uiSlug];
           return (
             <Link
               key={c.slug}
@@ -690,10 +848,10 @@ function PopularCategories({ counts }: { counts: any }) {
               <div className={`size-12 mx-auto rounded-full border border-border bg-[#0B0C10] flex items-center justify-center mb-3 group-hover:scale-105 transition-all shadow-inner`}>
                 <Icon className={`size-5 transition-colors duration-300 ${c.color}`} />
               </div>
-              <div className="text-xs font-bold text-foreground truncate">{c.title}</div>
+              <div className="text-xs font-bold text-foreground truncate">{(c as any).name || (c as any).title}</div>
               <div className="text-[10px] text-gold mt-1 truncate leading-snug font-semibold">
-                {counts.categoryCounts[c.slug] !== undefined 
-                  ? `${counts.categoryCounts[c.slug].toLocaleString()} ${counts.categoryCounts[c.slug] === 1 ? 'Listing' : 'Listings'}`
+                {count !== undefined 
+                  ? `${count.toLocaleString()} ${count === 1 ? 'Listing' : 'Listings'}`
                   : c.subtitle}
               </div>
             </Link>
@@ -1065,7 +1223,8 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
             .from("listings")
             .select("*")
             .in("id", spotlightIds)
-            .eq("status", "active");
+            .eq("status", "active")
+            .or("expiry_date.is.null,expiry_date.gt." + new Date().toISOString());
           if (spotData) {
             fetchedSpotlights = spotData.map(l => ({ ...l, badge: "Spotlight" })) as ListingLike[];
           }
@@ -1085,7 +1244,8 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
         let query = supabase!
           .from("listings")
           .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
-          .eq("status", "active");
+          .eq("status", "active")
+          .or("expiry_date.is.null,expiry_date.gt." + new Date().toISOString());
 
         if (activeSearch) {
           query = query.ilike("title", `%${activeSearch}%`).order("boost_score", { ascending: false }).order("created_at", { ascending: false });
@@ -1109,16 +1269,21 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
             return l;
           });
 
-          // Prioritize boosted listings to the top for search
-          if (activeSearch) {
-            listings.sort((a, b) => {
+          // Sort out-of-stock last, then sponsored first
+          listings.sort((a, b) => {
+            const aStock = a.stock ?? 1;
+            const bStock = b.stock ?? 1;
+            if (aStock === 0 && bStock !== 0) return 1;
+            if (aStock !== 0 && bStock === 0) return -1;
+
+            if (activeSearch) {
               const aBoosted = pushedIds.includes(a.id);
               const bBoosted = pushedIds.includes(b.id);
               if (aBoosted && !bBoosted) return -1;
               if (!aBoosted && bBoosted) return 1;
-              return 0;
-            });
-          }
+            }
+            return 0;
+          });
 
           setLiveListings(listings);
         }
@@ -1362,10 +1527,20 @@ function TrendingListings() {
           .from("listings")
           .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
           .eq("status", "active")
+          .or("expiry_date.is.null,expiry_date.gt." + new Date().toISOString())
           .order("view_count", { ascending: false })
           .limit(5);
         if (error) throw error;
-        setListings(data as ListingLike[]);
+        
+        // Sort out-of-stock last
+        const sortedData = (data as ListingLike[] ?? []).sort((a, b) => {
+          const aStock = a.stock ?? 1;
+          const bStock = b.stock ?? 1;
+          if (aStock === 0 && bStock !== 0) return 1;
+          if (aStock !== 0 && bStock === 0) return -1;
+          return 0;
+        });
+        setListings(sortedData);
       } catch (e) {
         console.error("Error loading trending listings:", e);
         setListings([]);

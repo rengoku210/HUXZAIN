@@ -51,7 +51,7 @@ function Page() {
 
 
   async function loadCustomizations() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const supabase = getSupabase();
@@ -85,7 +85,7 @@ function Page() {
 
   useEffect(() => {
     loadCustomizations();
-  }, [user]);
+  }, [user?.id]);
 
   async function handleFileRead(file: File, type: "logo" | "banner") {
     try {
@@ -102,7 +102,7 @@ function Page() {
   }
 
   async function handleSave() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
 
     try {
       setSaving(true);

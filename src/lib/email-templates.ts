@@ -300,5 +300,75 @@ export const emailTemplates = {
       subject: "Payment Screenshot Re-upload Required",
       html: getEmailWrapper("Screenshot Re-upload Required", content)
     };
+  },
+
+  sellerAccepted: (orderId: string, listingTitle: string) => {
+    const content = `
+      <p>Great news! The seller has officially accepted your order for <strong>${listingTitle}</strong>.</p>
+      <p>They are now assembling the deliverables and configuring the secure vault. You will receive an email and platform notification as soon as the delivery is ready for your review.</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${process.env.VITE_SITE_URL || "https://huxzain.shop"}/orders" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Open Order Room</a>
+      </div>
+    `;
+    return {
+      subject: `Order Accepted by Seller: ${listingTitle}`,
+      html: getEmailWrapper("Order Accepted", content)
+    };
+  },
+
+  readyToDeliver: (orderId: string, listingTitle: string) => {
+    const content = `
+      <p>Your delivery for <strong>${listingTitle}</strong> is ready for verification!</p>
+      <p>Please log in, review the items inside the secure **Delivery Vault**, check the acknowledgement checkbox, and click **Confirm Delivery** to release the escrow.</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${process.env.VITE_SITE_URL || "https://huxzain.shop"}/orders" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Verify & Confirm Delivery</a>
+      </div>
+    `;
+    return {
+      subject: `Delivery Ready for Review: ${listingTitle}`,
+      html: getEmailWrapper("Ready to Deliver", content)
+    };
+  },
+
+  buyerConfirmed: (orderId: string, listingTitle: string) => {
+    const content = `
+      <p>The buyer has reviewed and confirmed delivery for <strong>${listingTitle}</strong>.</p>
+      <p>Acknowledge receipt by clicking **Close Order** in the Order Room to instantly credit the escrow funds into your wallet.</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${process.env.VITE_SITE_URL || "https://huxzain.shop"}/orders" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Close Order & Release Escrow</a>
+      </div>
+    `;
+    return {
+      subject: `Buyer Confirmed Delivery: ${listingTitle}`,
+      html: getEmailWrapper("Delivery Accepted by Buyer", content)
+    };
+  },
+
+  listingExpiry: (listingTitle: string) => {
+    const content = `
+      <p>Your listing <strong>"${listingTitle}"</strong> has expired after its 30-day active window.</p>
+      <p>It has been temporarily hidden from the marketplace search and browse sections. You can easily restore its active status by clicking the **Renew** button on your Seller Dashboard.</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${process.env.VITE_SITE_URL || "https://huxzain.shop"}/seller/listings" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Go to Listings Dashboard</a>
+      </div>
+    `;
+    return {
+      subject: `Action Required: Listing "${listingTitle}" Has Expired`,
+      html: getEmailWrapper("Listing Expired", content)
+    };
+  },
+
+  listingRenewal: (listingTitle: string) => {
+    const content = `
+      <p>Your listing <strong>"${listingTitle}"</strong> has been renewed successfully.</p>
+      <p>It is now published back onto the active marketplace for another 30-day window, receiving full search and browse visibility.</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${process.env.VITE_SITE_URL || "https://huxzain.shop"}/seller/listings" style="display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Manage Listings</a>
+      </div>
+    `;
+    return {
+      subject: `Listing Renewed Successfully: ${listingTitle}`,
+      html: getEmailWrapper("Listing Renewed", content)
+    };
   }
 };

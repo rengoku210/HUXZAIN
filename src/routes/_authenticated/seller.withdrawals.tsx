@@ -46,7 +46,7 @@ function Page() {
   const [payoutTab, setPayoutTab] = useState<"eligible" | "cooling" | "dormant" | "withdrawn">("eligible");
 
   async function loadData() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       try {
@@ -153,7 +153,7 @@ function Page() {
 
   // Reactivate dormant payout
   async function handleReactivate(payout: OrderPayout) {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const supabase = getSupabase();
     if (!supabase) return;
 
@@ -210,7 +210,7 @@ function Page() {
   }
 
   async function handleWithdraw(bypassBankNotice = false, bypassWithdrawNotice = false) {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     
     if (selectedIds.size === 0) {
       toast.error("Please select at least one eligible payout to withdraw");

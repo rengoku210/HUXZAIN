@@ -58,6 +58,8 @@ type DbListing = ListingLike & {
   seller_id?: string | null;
   category_id?: string | null;
   currency?: string | null;
+  expiry_date?: string | null;
+  stock?: number | null;
   categories?: { name?: string | null; slug?: string | null } | null;
 };
 
@@ -107,6 +109,16 @@ function ProductPage() {
   const [stockCount, setStockCount] = useState<number | null>(null);
   const [showPurchaseNotice, setShowPurchaseNotice] = useState(false);
   const [showPurchaseNoticeConfirmed, setShowPurchaseNoticeConfirmed] = useState(false);
+
+  const finalStock = stockCount !== null ? stockCount : (listing?.stock !== undefined && listing?.stock !== null ? listing.stock : 1);
+
+  const getDaysRemaining = () => {
+    if (!listing?.expiry_date) return null;
+    const expiry = new Date(listing.expiry_date);
+    const diffTime = expiry.getTime() - Date.now();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
 
   useEffect(() => {
@@ -235,6 +247,25 @@ function ProductPage() {
       }
 
       if (!bypassNotice && !showPurchaseNoticeConfirmed) {
+        try {
+          const { checkPolicyAcceptance } = await import("@/lib/terms-analytics.functions");
+          const acceptedRes = await checkPolicyAcceptance({
+            data: {
+              userId: user.id,
+              policyType: "purchase_notice",
+              policyVersion: "v1.0",
+              page: `/product/${id}`,
+              productId: id
+            }
+          });
+          if (acceptedRes.accepted) {
+            setShowPurchaseNoticeConfirmed(true);
+            void handleBuyNow(true);
+            return;
+          }
+        } catch (e) {
+          console.warn("Policy acceptance check failed", e);
+        }
         setShowPurchaseNotice(true);
         return;
       }
@@ -971,9 +1002,24 @@ function ProductPage() {
 
       {showPurchaseNotice && (
         <BeforePurchaseNotice
-          onProceed={() => {
+          onProceed={async () => {
             setShowPurchaseNotice(false);
             setShowPurchaseNoticeConfirmed(true);
+            try {
+              const { logTermsAcceptance } = await import("@/lib/terms-analytics.functions");
+              await logTermsAcceptance({
+                data: {
+                  userId: user?.id,
+                  termsVersion: "v1.0",
+                  page: `/product/${id}`,
+                  accepted: true,
+                  productId: id,
+                  policyType: "purchase_notice"
+                }
+              });
+            } catch (e) {
+              console.warn("Failed to log policy acceptance", e);
+            }
             void handleBuyNow(true);
           }}
           onBack={() => setShowPurchaseNotice(false)}

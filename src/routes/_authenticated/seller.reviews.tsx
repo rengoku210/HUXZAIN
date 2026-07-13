@@ -17,7 +17,7 @@ function Page() {
   const [loading, setLoading] = useState(true);
 
   async function loadReviews() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const supabase = getSupabase();
@@ -57,7 +57,7 @@ function Page() {
 
   useEffect(() => {
     loadReviews();
-  }, [user]);
+  }, [user?.id]);
 
   function renderStars(rating: number) {
     return (

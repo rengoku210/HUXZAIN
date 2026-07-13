@@ -11,6 +11,8 @@ export type ListingCategoryType =
   | "design" 
   | "advertising" 
   | "digital-marketplace" 
+  | "hosting"
+  | "ai-tools"
   | "generic";
 
 export interface GameAccountAttributes {

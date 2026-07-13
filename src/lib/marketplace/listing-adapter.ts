@@ -34,6 +34,7 @@ export type ListingLike = {
   is_urgent?: boolean;
   has_glow?: boolean;
   boost_score?: number;
+  stock?: number | null;
 };
 
 export function listingPrice(listing: ListingLike): number {

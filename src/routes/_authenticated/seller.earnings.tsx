@@ -27,7 +27,7 @@ function Page() {
   const [loading, setLoading] = useState(true);
 
   async function loadData() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const w = await syncAndGetWallet(user.id);
@@ -90,7 +90,7 @@ function Page() {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user?.id]);
 
   // Platform fee tier label dynamically computed from the finance config matrix
   let feePercentLabel = "Standard Rates";

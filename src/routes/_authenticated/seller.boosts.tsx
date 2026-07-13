@@ -102,7 +102,7 @@ function Page() {
   }, [subscription?.boost_tokens_remaining]);
 
   async function loadData() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const w = await getOrCreateWallet(user.id);
@@ -162,7 +162,7 @@ function Page() {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user?.id]);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -185,7 +185,7 @@ function Page() {
   }
 
   async function handleBoost(bypassConfirm = false) {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     if (!selectedListing) {
       toast.error("Please select a listing to boost first. You must have at least one active listing.");
       return;

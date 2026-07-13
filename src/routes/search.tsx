@@ -94,6 +94,7 @@ function SearchPage() {
           .from("listings")
           .select("*, profiles(id, display_name, username, subscription_tier, is_verified), categories:category_id(id, name, slug)")
           .eq("status", "active")
+          .or("expiry_date.is.null,expiry_date.gt." + new Date().toISOString())
           .order("boost_score", { ascending: false })
           .order("created_at", { ascending: false });
 
@@ -132,17 +133,31 @@ function SearchPage() {
               }
               return l;
             });
-
-            fetchedListings.sort((a, b) => {
-              const aBoosted = boostedIds.includes(a.id);
-              const bBoosted = boostedIds.includes(b.id);
-              if (aBoosted && !bBoosted) return -1;
-              if (!aBoosted && bBoosted) return 1;
-              return 0;
-            });
           }
+
+          // Sort out-of-stock listings to the bottom, and sponsored first
+          fetchedListings.sort((a, b) => {
+            const aStock = a.stock ?? 1;
+            const bStock = b.stock ?? 1;
+            if (aStock === 0 && bStock !== 0) return 1;
+            if (aStock !== 0 && bStock === 0) return -1;
+
+            const aBoosted = boostedIds.includes(a.id);
+            const bBoosted = boostedIds.includes(b.id);
+            if (aBoosted && !bBoosted) return -1;
+            if (!aBoosted && bBoosted) return 1;
+            return 0;
+          });
         } catch (err) {
           console.error("Failed to apply search priority boosts:", err);
+          // Fallback stock sorting if boosts check fails
+          fetchedListings.sort((a, b) => {
+            const aStock = a.stock ?? 1;
+            const bStock = b.stock ?? 1;
+            if (aStock === 0 && bStock !== 0) return 1;
+            if (aStock !== 0 && bStock === 0) return -1;
+            return 0;
+          });
         }
 
         setListings(fetchedListings);

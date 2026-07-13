@@ -96,7 +96,10 @@ function Page() {
 
   async function fetchProofs() {
     const supabase = getSupabase();
-    if (!supabase || !user) return;
+    if (!supabase || !user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: plansData } = await supabase
@@ -129,7 +132,7 @@ function Page() {
 
   useEffect(() => {
     fetchProofs();
-  }, [user]);
+  }, [user?.id]);
 
   // Find latest proof
   const latestProof = proofs[0] || null;

@@ -174,6 +174,9 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
       upiId: string;
       method: "upi" | "bank_transfer";
     };
+    ocrName?: string;
+    ocrNumber?: string;
+    ocrDob?: string;
   }) => d)
   .handler(async ({ data }) => {
     const supabase = getAdminClient();
@@ -187,7 +190,10 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
       govtId2Url,
       selfieUrl,
       addressProofUrl,
-      payoutDetails
+      payoutDetails,
+      ocrName,
+      ocrNumber,
+      ocrDob
     } = data;
 
     // Fetch existing verification record to maintain already approved documents
@@ -247,6 +253,9 @@ export const submitKYCVerification = createServerFn({ method: "POST" })
       address_proof_status: addressProofStatus,
       payout_details: payoutDetails,
       status: "pending",
+      ocr_data_name: ocrName || null,
+      ocr_data_number: ocrNumber || null,
+      ocr_data_dob: ocrDob || null,
       updated_at: new Date().toISOString()
     };
 

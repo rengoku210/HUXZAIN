@@ -77,7 +77,7 @@ export function TransactionSummaryPanel({
   className?: string;
 }) {
   const isCheckout = variant === "checkout";
-  const hasValues = summary.priceInr > 0 && summary.categoryKey !== null;
+  const hasValues = summary.priceInr > 0;
 
   const orderTotal = isCheckout ? summary.buyerPaysInr : summary.priceInr;
   const totalLabel = isCheckout ? "Total amount charged for this order." : "Total value of this order.";

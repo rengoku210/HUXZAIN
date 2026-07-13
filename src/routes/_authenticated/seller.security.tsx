@@ -36,7 +36,7 @@ function Page() {
   }
 
   async function loadSessions() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const supabase = getSupabase();
     if (!supabase) return;
     try {
@@ -77,7 +77,7 @@ function Page() {
 
   useEffect(() => {
     loadSessions();
-  }, [user]);
+  }, [user?.id]);
 
   async function handlePasswordChange() {
     if (!newPassword.trim() || newPassword.length < 6) {

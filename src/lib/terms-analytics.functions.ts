@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Log a terms acceptance event.
+ * Log a terms/policy acceptance event.
  */
 export const logTermsAcceptance = createServerFn({ method: "POST" })
   .inputValidator((d: {
@@ -12,6 +12,9 @@ export const logTermsAcceptance = createServerFn({ method: "POST" })
     termsVersion: string;
     page: string;
     accepted: boolean;
+    productId?: string | null;
+    orderId?: string | null;
+    policyType?: string | null;
   }) => d)
   .handler(async (ctx) => {
     const { data } = ctx as any;
@@ -33,6 +36,20 @@ export const logTermsAcceptance = createServerFn({ method: "POST" })
     // Resolve User-Agent
     const userAgent = request?.headers?.get("user-agent") || "Unknown";
 
+    // Parse browser
+    let browser = "Unknown";
+    if (userAgent.includes("Firefox/")) browser = "Firefox";
+    else if (userAgent.includes("Chrome/")) browser = "Chrome";
+    else if (userAgent.includes("Safari/")) browser = "Safari";
+    else if (userAgent.includes("Edge/")) browser = "Edge";
+    else if (userAgent.includes("Opera/") || userAgent.includes("OPR/")) browser = "Opera";
+
+    // Parse device
+    let device = "Desktop";
+    if (/mobi|android|iphone|ipad|ipod/i.test(userAgent)) {
+      device = "Mobile";
+    }
+
     const { error } = await supabaseAdmin
       .from("terms_acceptance_logs")
       .insert({
@@ -42,6 +59,11 @@ export const logTermsAcceptance = createServerFn({ method: "POST" })
         accepted: data.accepted,
         ip_address: ip,
         user_agent: userAgent,
+        product_id: data.productId || null,
+        order_id: data.orderId || null,
+        policy_type: data.policyType || 'general',
+        browser: browser,
+        device: device
       });
 
     if (error) {
@@ -50,6 +72,54 @@ export const logTermsAcceptance = createServerFn({ method: "POST" })
     }
 
     return { success: true };
+  });
+
+/**
+ * Check if a policy has already been accepted by the user.
+ */
+export const checkPolicyAcceptance = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    userId?: string | null;
+    policyType: string;
+    policyVersion: string;
+    page: string;
+    productId?: string | null;
+    orderId?: string | null;
+  }) => d)
+  .handler(async (ctx) => {
+    const { data } = ctx as any;
+    if (!data.userId) return { accepted: false };
+
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    if (!supabaseUrl || !serviceKey) return { accepted: false };
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+
+    let query = supabaseAdmin
+      .from("terms_acceptance_logs")
+      .select("id")
+      .eq("user_id", data.userId)
+      .eq("policy_type", data.policyType)
+      .eq("terms_version", data.policyVersion)
+      .eq("page", data.page)
+      .eq("accepted", true);
+
+    if (data.productId) {
+      query = query.eq("product_id", data.productId);
+    }
+    if (data.orderId) {
+      query = query.eq("order_id", data.orderId);
+    }
+
+    const { data: logs, error } = await query.limit(1);
+
+    if (error) {
+      console.error("[Terms] checkPolicyAcceptance error:", error.message);
+      return { accepted: false };
+    }
+
+    return { accepted: logs && logs.length > 0 };
   });
 
 /**

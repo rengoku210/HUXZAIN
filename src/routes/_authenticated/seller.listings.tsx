@@ -40,7 +40,7 @@ import { getCategoryTypeFromSlug } from "@/lib/marketplace/listing-attributes";
 import { TransactionSummaryPanel } from "@/components/finance/TransactionSummaryPanel";
 import { useFinanceConfig, computeTransactionSummary } from "@/lib/finance";
 import { useCategoryConfig, validateDynamicAttributes, type CategoryField } from "@/lib/marketplace/category-engine";
-type Category = { id: string; name: string; slug: string };
+type Category = { id: string; name: string; slug: string; parent_id?: string | null };
 
 export const Route = createFileRoute("/_authenticated/seller/listings")({
   validateSearch: (s: Record<string, unknown>): { intent?: string; listingId?: string } => ({
@@ -66,6 +66,7 @@ type Listing = {
   delivery_type: "instant" | "manual" | "hybrid";
   delivery_time?: string;
   created_at: string;
+  stock?: number;
   // Lifecycle + promotion flags (DB columns; see 20260604113000 + 20260702150000)
   expiry_date?: string | null;
   is_featured?: boolean;
@@ -74,6 +75,42 @@ type Listing = {
   has_glow?: boolean;
   glow_color?: string | null;
 };
+
+function getFriendlyErrorMessage(err: any): string {
+  const message = (err?.message ?? err?.details ?? JSON.stringify(err) ?? "").toLowerCase();
+  
+  if (message.includes("pgp_sym_encrypt") || message.includes("pgcrypto")) {
+    return "Secure vault encryption is not enabled on this database. Please ask the administrator to run 'CREATE EXTENSION IF NOT EXISTS pgcrypto;'.";
+  }
+  if (message.includes("row level security") || message.includes("policy") || message.includes("permission denied")) {
+    return "You do not have permission to perform this action. Please make sure you are logged in as an authorized seller.";
+  }
+  if (message.includes("violates not-null constraint") || message.includes("null value in column")) {
+    const match = message.match(/column "([^"]+)"/);
+    if (match) {
+      const col = match[1].replace("_", " ");
+      return `Please fill in the required field: ${col.toUpperCase()}.`;
+    }
+    return "Please fill in all mandatory fields (Title, Price, Description, Category, etc.).";
+  }
+  if (message.includes("unique constraint") || message.includes("already exists")) {
+    if (message.includes("slug") || message.includes("title")) {
+      return "A listing with this exact title already exists. Please try a different or unique title.";
+    }
+    return "A record with these details already exists in the database.";
+  }
+  if (message.includes("check constraint") || message.includes("price")) {
+    return "Invalid input values. Please ensure the price is a positive number greater than 0.";
+  }
+  if (message.includes("stock") || message.includes("column")) {
+    return "Database schema out of sync. Please reload the page or contact support.";
+  }
+  if (message.includes("network") || message.includes("fetch")) {
+    return "Network connection issue. Please check your internet connection and try again.";
+  }
+  
+  return err?.message ?? err?.details ?? "An unexpected error occurred while saving the listing.";
+}
 
 // ── Edit / Create Modal ──────────────────────────────────────────────────────────
 function ListingModal({
@@ -100,6 +137,9 @@ function ListingModal({
   const [seoTitle, setSeoTitle] = useState((listing as any)?.seo_title ?? "");
   const [seoDescription, setSeoDescription] = useState((listing as any)?.seo_description ?? "");
   const [seoKeywords, setSeoKeywords] = useState((listing as any)?.seo_keywords ?? "");
+  
+  const [stockChoice, setStockChoice] = useState<'single' | 'multi'>(listing?.stock && listing.stock > 1 ? 'multi' : 'single');
+  const [manualStock, setManualStock] = useState(listing?.stock ? String(listing.stock) : "1");
   
   const [gallery, setGallery] = useState<{ id: string; file?: File; url: string }[]>(() => {
     const urls = listing?.gallery_urls && listing.gallery_urls.length > 0 
@@ -364,7 +404,7 @@ function ListingModal({
       .rpc("reveal_listing_inventory", { p_listing_id: listing.id })
       .then(({ data, error }) => {
         if (!error && Array.isArray(data)) {
-          setInventoryItems(data.map(item => ({
+          const items = data.map(item => ({
             id: item.id,
             login_id: item.login_id || "",
             password: item.password || "",
@@ -372,7 +412,11 @@ function ListingModal({
             instructions: item.instructions || "",
             notes: item.notes || "",
             status: item.status || "available"
-          })));
+          }));
+          setInventoryItems(items);
+          if (items.length > 0) {
+            setStockChoice('multi');
+          }
         }
       });
   }, [listing?.id, categoryId, categories]);
@@ -1039,8 +1083,12 @@ function ListingModal({
       }
       // If delivery engine requires Credentials vault
       if (dynamicEngine?.delivery_engine === 'Credentials') {
-        if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
-        if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+        if (stockChoice === 'single') {
+          if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
+          if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+        } else {
+          if (inventoryItems.length === 0) { toast.error("Please add at least one stock item for Multi-Stock mode."); return; }
+        }
       }
     } else {
       // Backward Compatibility Fallback
@@ -1057,8 +1105,12 @@ function ListingModal({
         if (!attributes.warrantyInformation?.trim() && !attributes.warrantyPeriod?.trim()) { toast.error("Warranty Information is required."); return; }
         if (!attributes.accountCreationDate?.trim()) { toast.error("Account Creation Date is required."); return; }
         if (!attributes.recoveryHistory?.trim() && !attributes.recoveryInfo?.trim()) { toast.error("Recovery History is required."); return; }
-        if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
-        if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+        if (stockChoice === 'single') {
+          if (!loginId.trim()) { toast.error("Login ID / Username is required for secure credentials vault."); return; }
+          if (!loginPassword.trim()) { toast.error("Login Password is required for secure credentials vault."); return; }
+        } else {
+          if (inventoryItems.length === 0) { toast.error("Please add at least one stock item for Multi-Stock mode."); return; }
+        }
       }
     }
 
@@ -1178,6 +1230,18 @@ function ListingModal({
         payloadNotes = notes;
       }
 
+      // 3. Calculate stock value
+      let finalStockVal = 1;
+      if (deliveryType === 'instant' || deliveryType === 'hybrid') {
+        if (stockChoice === 'multi') {
+          finalStockVal = inventoryItems.filter(i => i.status === 'available').length;
+        } else {
+          finalStockVal = 1;
+        }
+      } else {
+        finalStockVal = parseInt(manualStock) || 1;
+      }
+
       // 3. Direct direct insert / update payload
       const payload: any = {
         title: trimmedTitle,
@@ -1187,6 +1251,7 @@ function ListingModal({
         delivery_type: deliveryType,
         delivery_time_hours: parseInt(deliveryTime) || 24,
         status: finalStatus,
+        stock: finalStockVal,
         cover_image_url: coverImageUrl,
         images: imageUrls,
         category_id: finalCategoryId,
@@ -1327,11 +1392,13 @@ function ListingModal({
 
     } catch (err: any) {
       console.error("[Rebuild Listing Flow] Critical failure:", err);
+      const friendlyMsg = getFriendlyErrorMessage(err);
       const code = err?.code ? ` [${err.code}]` : '';
-      const messageText = err?.message ?? err?.details ?? JSON.stringify(err) ?? "Unknown database/network error";
-      const fullError = `Unable to save listing${code}: ${messageText}`;
+      const technicalMsg = err?.message ?? err?.details ?? JSON.stringify(err) ?? "";
+      
+      const fullError = `${friendlyMsg}\n\nTechnical details: ${technicalMsg}${code}`;
       setErrorMsg(fullError);
-      toast.error(fullError);
+      toast.error(friendlyMsg);
     } finally {
       setSaving(false);
     }
@@ -1695,6 +1762,70 @@ function ListingModal({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/5 pt-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                Stock Management / Choice <span className="text-red-400">*</span>
+              </label>
+              {(deliveryType === 'instant' || deliveryType === 'hybrid') ? (
+                <div className="flex gap-4 items-center h-11 px-4 bg-[#0d0e11]/80 rounded-xl border border-white/5">
+                  <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name="stockChoice"
+                      value="single"
+                      checked={stockChoice === 'single'}
+                      onChange={() => setStockChoice('single')}
+                      className="text-gold focus:ring-gold/30 cursor-pointer"
+                    />
+                    Single Vault Item (Qty = 1)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name="stockChoice"
+                      value="multi"
+                      checked={stockChoice === 'multi'}
+                      onChange={() => setStockChoice('multi')}
+                      className="text-gold focus:ring-gold/30 cursor-pointer"
+                    />
+                    Multi-Stock (Managed via Inventory)
+                  </label>
+                </div>
+              ) : (
+                <div className="flex items-center h-11 px-4 bg-[#0d0e11]/30 rounded-xl border border-white/5 text-xs text-muted-foreground font-sans">
+                  Manual delivery defaults to Manual Stock count.
+                </div>
+              )}
+            </div>
+
+            <div>
+              {!(deliveryType === 'instant' || deliveryType === 'hybrid') ? (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                    Stock Quantity <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={manualStock}
+                    onChange={(e) => setManualStock(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-white/5 bg-[#0d0e11]/80 text-sm text-white focus:outline-none focus:border-gold/40 font-sans"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 font-sans">
+                    Current Stock Status
+                  </label>
+                  <div className="flex items-center h-11 px-4 bg-[#0d0e11]/50 rounded-xl border border-white/5 text-xs text-gold font-bold font-sans">
+                    {stockChoice === 'single' ? "1 Item (Single Vault Mode)" : `${inventoryItems.filter(i => i.status === 'available').length} Items (Multi-Stock Mode)`}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Custom Boosting Service Fields if Boosting Category Selected */}
           {isBoosting() && (
             <div className="border border-gold/20 bg-gold/[0.02] p-5 rounded-2xl space-y-4 text-left">
@@ -1791,7 +1922,7 @@ function ListingModal({
           )}
 
           {/* Secure Delivery notice & Multi-item Inventory Upload */}
-          {(deliveryType === 'instant' || deliveryType === 'hybrid') && (
+          {(deliveryType === 'instant' || deliveryType === 'hybrid') && stockChoice === 'multi' && (
             <div className="border border-emerald-500/20 bg-emerald-500/[0.01] p-5 rounded-2xl space-y-4 text-left">
               <h4 className="text-xs font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
                 <ShieldCheck size={14} /> Secure Delivery Vault & Inventory Manager
@@ -2224,7 +2355,7 @@ function ListingModal({
                           );
                         })}
 
-                        {dynamicEngine?.delivery_engine === 'Credentials' && renderSecureVaultFormFields(catSlug)}
+                        {dynamicEngine?.delivery_engine === 'Credentials' && stockChoice === 'single' && renderSecureVaultFormFields(catSlug)}
                       </div>
                     );
                   }
@@ -2430,7 +2561,7 @@ function ListingModal({
                           </div>
                         </div>
 
-                        {renderSecureVaultFormFields(catSlug)}
+                        {stockChoice === 'single' && renderSecureVaultFormFields(catSlug)}
                       </div>
                     );
                   } else if (type === "currency") {
@@ -3084,7 +3215,21 @@ function ListingModal({
         {/* ─── ERROR CONTAINER ─── */}
         {errorMsg && (
           <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-medium font-sans">
-            {errorMsg}
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="size-4 shrink-0 mt-0.5" />
+              <div>
+                {errorMsg.includes("\n\nTechnical details:") ? (
+                  <>
+                    <div className="font-bold text-[13px]">{errorMsg.split("\n\nTechnical details:")[0]}</div>
+                    <div className="text-[10px] text-red-400/60 mt-1 font-mono font-normal">
+                      Technical details: {errorMsg.split("\n\nTechnical details:")[1]}
+                    </div>
+                  </>
+                ) : (
+                  <div className="font-semibold">{errorMsg}</div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -3283,7 +3428,7 @@ function Page() {
 
     const { data: cats } = await supabase
       .from("categories")
-      .select("id, name, slug")
+      .select("id, name, slug, parent_id")
       .order("sort_order")
       .order("name");
 
@@ -3291,20 +3436,20 @@ function Page() {
 
     if (loadedCats.length === 0) {
       loadedCats = [
-        { id: "e01c9566-a63d-4013-925a-2b1986437cb1", name: "Digital Products", slug: "digital-products" },
-        { id: "c9f925e3-5f7d-425b-b893-4e0f7b1e6c53", name: "Services", slug: "services" },
-        { id: "f4f4468f-ae87-46d3-8a86-3a805085fd3c", name: "Hosting", slug: "hosting" },
-        { id: "79193b66-8457-4386-b17f-87cf001c6d8d", name: "SEO", slug: "seo" },
-        { id: "def5bbfd-6c94-48c4-b740-f3fa3e420ab1", name: "Design", slug: "design" },
-        { id: "0bca47c6-f647-441e-8144-09351f43bfc6", name: "Programming", slug: "programming" },
-        { id: "507f770d-711b-4800-94bb-fbf4c60c483a", name: "Marketing", slug: "marketing" },
-        { id: "acfc3f9e-53e2-4ece-8796-3095d03221ac", name: "Business", slug: "business" },
-        { id: "21321113-d5dc-49aa-a201-f135438e5b50", name: "More", slug: "more" }
+        { id: "e01c9566-a63d-4013-925a-2b1986437cb1", name: "Digital Products", slug: "digital-products", parent_id: null },
+        { id: "c9f925e3-5f7d-425b-b893-4e0f7b1e6c53", name: "Services", slug: "services", parent_id: null },
+        { id: "f4f4468f-ae87-46d3-8a86-3a805085fd3c", name: "Hosting", slug: "hosting", parent_id: null },
+        { id: "79193b66-8457-4386-b17f-87cf001c6d8d", name: "SEO", slug: "seo", parent_id: null },
+        { id: "def5bbfd-6c94-48c4-b740-f3fa3e420ab1", name: "Design", slug: "design", parent_id: null },
+        { id: "0bca47c6-f647-441e-8144-09351f43bfc6", name: "Programming", slug: "programming", parent_id: null },
+        { id: "507f770d-711b-4800-94bb-fbf4c60c483a", name: "Marketing", slug: "marketing", parent_id: null },
+        { id: "acfc3f9e-53e2-4ece-8796-3095d03221ac", name: "Business", slug: "business", parent_id: null },
+        { id: "21321113-d5dc-49aa-a201-f135438e5b50", name: "More", slug: "more", parent_id: null }
       ];
     } else {
       const hasMore = loadedCats.some(c => c.slug === "more");
       if (!hasMore) {
-        loadedCats.push({ id: "more", name: "More", slug: "more" });
+        loadedCats.push({ id: "more", name: "More", slug: "more", parent_id: null });
       }
     }
 
@@ -3314,7 +3459,7 @@ function Page() {
 
   useEffect(() => {
     fetchListings();
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (intent === "new" || intent === "create") {
@@ -3409,9 +3554,13 @@ function Page() {
     if (!l.expiry_date) return null;
     const ms = new Date(l.expiry_date).getTime() - Date.now();
     const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
-    if (ms <= 0) return { text: "Expired", tone: "text-red-400" };
-    if (days === 1) return { text: "Expires Tomorrow", tone: "text-amber-400" };
-    if (days <= 7) return { text: `Expires in ${days} Days`, tone: "text-amber-400" };
+    if (ms <= 0) {
+      const diff = Date.now() - new Date(l.expiry_date).getTime();
+      const overdueDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      return { text: `Expired (${overdueDays}d overdue)`, tone: "text-red-400 font-bold" };
+    }
+    if (days === 1) return { text: "Expires Tomorrow", tone: "text-amber-400 font-semibold" };
+    if (days <= 7) return { text: `Expires in ${days} Days`, tone: "text-amber-400 font-semibold" };
     return { text: `Expires in ${days} Days`, tone: "text-muted-foreground" };
   };
 
@@ -3649,10 +3798,15 @@ function Page() {
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium truncate max-w-[200px]">{l.title}</p>
-                            <div className="flex items-center gap-2 text-xs">
-                              <span className="text-muted-foreground">
-                                {new Date(l.created_at).toLocaleDateString()}
+                            <div className="flex items-center gap-2 text-xs flex-wrap">
+                              <span className="text-muted-foreground" title="Created Date">
+                                Created: {new Date(l.created_at).toLocaleDateString()}
                               </span>
+                              {l.expiry_date && (
+                                <span className="text-muted-foreground/80" title="Expiry Date">
+                                  Expiry: {new Date(l.expiry_date).toLocaleDateString()}
+                                </span>
+                              )}
                               {(() => {
                                 const exp = expiryLabel(l);
                                 return exp ? (

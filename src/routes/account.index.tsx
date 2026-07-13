@@ -661,30 +661,34 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
             </p>
 
             <div className="grid md:grid-cols-[240px_1fr] gap-6">
-              <aside className="space-y-1">
+              <aside className="flex md:flex-col overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 gap-1.5 scrollbar-none snap-x snap-mandatory shrink-0">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${tab === t.id ? "bg-gold/10 text-gold border border-gold/20" : "text-muted-foreground hover:text-foreground hover:bg-surface"}`}
+                    className={`flex-shrink-0 snap-align-start flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      tab === t.id 
+                        ? "bg-gold/10 text-gold border border-gold/20" 
+                        : "text-muted-foreground hover:text-foreground hover:bg-surface border border-transparent"
+                    }`}
                   >
-                    <t.icon className="size-4" /> {t.label}
+                    <t.icon className="size-4 shrink-0" /> {t.label}
                   </button>
                 ))}
 
                 <Link
                   to="/messages"
-                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-surface transition-all"
+                  className="flex-shrink-0 snap-align-start flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-surface transition-all border border-transparent"
                 >
-                  <MessageSquare className="size-4 text-gold" /> Messages / Chat
+                  <MessageSquare className="size-4 text-gold shrink-0" /> Messages / Chat
                 </Link>
 
                 {isSellerActive && (
                   <Link
                     to="/seller"
-                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/20"
+                    className="flex-shrink-0 snap-align-start flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/20"
                   >
-                    <Store className="size-4" /> Seller Dashboard <ArrowRight className="size-3.5 ml-auto" />
+                    <Store className="size-4 shrink-0" /> Seller Dashboard <ArrowRight className="size-3.5 ml-auto hidden md:block" />
                   </Link>
                 )}
               </aside>
@@ -976,7 +980,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="p-4 rounded-xl border border-border/80 bg-background/50 text-center">
                         <div className="text-[10px] uppercase text-muted-foreground font-semibold">Active Strikes</div>
                         <div className={`text-2xl font-bold font-mono mt-1 ${profile?.strikes_count && profile.strikes_count >= 3 ? 'text-red-400 animate-pulse' : profile?.strikes_count && profile.strikes_count > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
@@ -1039,7 +1043,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                     
                     {/* 2FA Settings Row */}
                     <div className="border-b border-border/40 pb-6">
-                      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-[#101114]/40 hover:border-gold/20 transition-all">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-[#101114]/40 hover:border-gold/20 transition-all text-left">
                         <div className="space-y-1">
                           <h3 className="text-sm font-semibold text-foreground">Two-Factor Authentication (2FA) via Email</h3>
                           <p className="text-xs text-muted-foreground max-w-lg leading-relaxed">
@@ -1064,7 +1068,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                               toast.warning("Auth is currently not connected to Supabase.");
                             }
                           }}
-                          className={`w-11 h-6 rounded-full relative transition-colors ${twoFactorEnabled ? "bg-gold" : "bg-muted-foreground/30"}`}
+                          className={`w-11 h-6 rounded-full relative transition-colors shrink-0 self-start sm:self-auto ${twoFactorEnabled ? "bg-gold" : "bg-muted-foreground/30"}`}
                         >
                           <div className={`absolute top-1 size-4 rounded-full bg-white transition-all ${twoFactorEnabled ? "left-6" : "left-1"}`} />
                         </button>
@@ -1096,9 +1100,9 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                 {tab === "notifications" && (
                   <div className="rounded-2xl border border-border bg-surface/40 p-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <h2 className="text-base font-semibold flex items-center gap-2"><Bell className="size-4 text-gold" /> Notification Center</h2>
-                    <div className="space-y-3">
+                    <div className="space-y-3 text-left">
                       {["emailAlerts", "orderUpdates", "disputeAlerts", "payoutAlerts", "marketingEmailsConsent", "pushNotificationsConsent", "inAppNotificationsConsent"].map((id) => (
-                        <div key={id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-surface/20">
+                        <div key={id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border bg-surface/20">
                           <span className="text-sm font-medium capitalize">
                             {id === "marketingEmailsConsent" ? "Marketing & Campaign Emails" :
                              id === "pushNotificationsConsent" ? "Push Notifications" :
@@ -1107,7 +1111,7 @@ const [showPhoneVerification, setShowPhoneVerification] = useState(false);
                           </span>
                           <button
                             onClick={() => setNotifPreferences(p => ({ ...p, [id]: !p[id as keyof typeof p] }))}
-                            className={`w-10 h-5 rounded-full relative transition-colors ${notifPreferences[id as keyof typeof notifPreferences] ? "bg-gold" : "bg-muted"}`}
+                            className={`w-10 h-5 rounded-full relative transition-colors shrink-0 self-start sm:self-auto ${notifPreferences[id as keyof typeof notifPreferences] ? "bg-gold" : "bg-muted"}`}
                           >
                             <div className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${notifPreferences[id as keyof typeof notifPreferences] ? "left-5.5" : "left-0.5"}`} />
                           </button>

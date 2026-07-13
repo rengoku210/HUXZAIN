@@ -67,6 +67,7 @@ type Conversation = {
   risk_level?: string;
   is_flagged?: boolean;
   is_reported?: boolean;
+  is_archived?: boolean;
   otherUser?: {
     display_name: string;
     username: string;
@@ -78,6 +79,8 @@ type Conversation = {
     category_id: string;
     category_slug?: string;
     delivery_type?: string | null;
+    delivery_time?: string | null;
+    delivery_time_hours?: number | null;
   } | null;
 
   order?: {
@@ -91,6 +94,8 @@ type Conversation = {
     amount_total?: number;
     delivered_at?: string | null;
     completed_at?: string | null;
+    created_at?: string | null;
+    activated_at?: string | null;
   } | null;
   sellerProfile?: {
     subscription_tier?: string | null;
@@ -115,7 +120,16 @@ function MessagesPage() {
   const navigate = useNavigate();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [inboxTab, setInboxTab] = useState<'active' | 'archived'>('active');
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+
+  const displayedConversations = useMemo(() => {
+    return conversations.filter(c => {
+      const matchesTab = inboxTab === 'archived' ? !!c.is_archived : !c.is_archived;
+      return matchesTab;
+    });
+  }, [conversations, inboxTab]);
+
   const [securedCreds, setSecuredCreds] = useState<any | null>(null);
   const [loadingSecuredCreds, setLoadingSecuredCreds] = useState(false);
 
@@ -130,6 +144,7 @@ function MessagesPage() {
   const [recScreenTicked, setRecScreenTicked] = useState(false);
   const [verifyDetailsTicked, setVerifyDetailsTicked] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [deliveryAck, setDeliveryAck] = useState(false);
 
   // Clear credentials when active conversation changes to prevent leakage
   useEffect(() => {
@@ -138,6 +153,7 @@ function MessagesPage() {
     setRecScreenTicked(false);
     setVerifyDetailsTicked(false);
     setCopiedField(null);
+    setDeliveryAck(false);
     if (activeConv?.order) {
       setWarningModalOpen(true);
       setWarningModalChecked(false);
@@ -274,7 +290,7 @@ function MessagesPage() {
   // Each row is a fixed compact height; only on-screen rows are rendered.
   const CONV_ROW_HEIGHT = 64;
   const convVirtualizer = useVirtualizer({
-    count: conversations.length,
+    count: displayedConversations.length,
     getScrollElement: () => convListRef.current,
     estimateSize: () => CONV_ROW_HEIGHT,
     overscan: 8,
@@ -1010,22 +1026,68 @@ function MessagesPage() {
     }
   }
 
-  // Complete Order (Buyer action to release funds)
-  async function handleCompleteOrder() {
-    if (!activeConv) return;
-    // Show confirmation modal instead of bare window.confirm
-    setCompleteOrderModalOpen(true);
-  }
+  // Buyer confirms delivery, which updates status to 'delivered'
+  async function handleConfirmDelivery() {
+    if (!activeConv || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
 
-  async function executeCompleteOrder() {
-    if (!activeConv) return;
-    setCompleteOrderModalOpen(false);
     try {
-      await completeOrderAndCreditSeller(activeConv.order_id);
-      toast.success("Order marked completed. Escrow balance released to seller wallet!");
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          status: "delivered",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", activeConv.order_id);
+
+      if (error) throw error;
+
+      await supabase.from("messages").insert({
+        conversation_id: activeConv.id,
+        sender_id: user.id,
+        body: `[SYSTEM_DELIVERY_CONFIRMED]: Buyer accepted the delivery. Escrow awaiting seller to Close Order.`,
+        is_system: true
+      });
+
+      toast.success("Delivery confirmed successfully! Awaiting seller to close order.");
       void loadConversations(activeConv.id);
     } catch (e: any) {
-      toast.error("Fulfillment failed: " + e.message);
+      toast.error("Failed to confirm delivery: " + e.message);
+    }
+  }
+
+  // Seller closes order, which transfers funds (completed) and archives chat
+  async function handleCloseOrder() {
+    if (!activeConv || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      await completeOrderAndCreditSeller(activeConv.order_id);
+
+      // Archive the conversation
+      const { error: convErr } = await supabase
+        .from("conversations")
+        .update({
+          is_archived: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", activeConv.id);
+      
+      if (convErr) throw convErr;
+
+      await supabase.from("messages").insert({
+        conversation_id: activeConv.id,
+        sender_id: user.id,
+        body: `[SYSTEM_ORDER_CLOSED]: Seller closed the order. Escrow balance released and conversation archived.`,
+        is_system: true
+      });
+
+      toast.success("Order completed successfully and escrow credited! Chat is archived.");
+      void loadConversations(activeConv.id);
+    } catch (e: any) {
+      toast.error("Failed to close order: " + e.message);
     }
   }
 
@@ -1159,7 +1221,33 @@ function MessagesPage() {
         <div className={`flex-1 min-h-0 grid grid-cols-1 ${activeConv?.order ? "md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)_340px]" : "md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)]"} rounded-3xl border border-border/80 bg-surface/30 overflow-hidden shadow-2xl backdrop-blur-md`}>
           {/* PANEL 1: Conversations List */}
           <aside className={`border-r border-border/80 flex-col h-full min-h-0 overflow-hidden bg-surface/20 ${mobileView === "list" ? "flex" : "hidden"} md:flex`}>
-            <div className="p-4 border-b border-border/60">
+            <div className="p-4 border-b border-border/60 space-y-3">
+              {/* Inbox Tabs (Active / Archived) */}
+              <div className="grid grid-cols-2 p-1 rounded-xl bg-[#0d0e11]/80 border border-white/5 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setInboxTab('active')}
+                  className={`py-1.5 text-xs font-bold rounded-lg transition-all border-none cursor-pointer ${
+                    inboxTab === 'active' 
+                      ? 'bg-gold text-black shadow-lg font-extrabold' 
+                      : 'bg-transparent text-muted-foreground hover:text-white'
+                  }`}
+                >
+                  Active Chats
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInboxTab('archived')}
+                  className={`py-1.5 text-xs font-bold rounded-lg transition-all border-none cursor-pointer ${
+                    inboxTab === 'archived' 
+                      ? 'bg-gold text-black shadow-lg font-extrabold' 
+                      : 'bg-transparent text-muted-foreground hover:text-white'
+                  }`}
+                >
+                  Archived Chats
+                </button>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                 <input
@@ -1175,18 +1263,18 @@ function MessagesPage() {
                   <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gold"></div>
                   <div className="text-xs text-muted-foreground">Loading inbox...</div>
                 </div>
-              ) : conversations.length === 0 ? (
+              ) : displayedConversations.length === 0 ? (
                 <div className="py-20 text-center px-4">
                   <Inbox className="size-10 text-muted-foreground/60 mx-auto mb-3" />
                   <p className="font-semibold text-sm">Inbox Empty</p>
                   <p className="text-xs text-muted-foreground mt-1 max-w-[200px] mx-auto">
-                    Conversations appear here automatically once escrow payments are created.
+                    No {inboxTab} conversations found.
                   </p>
                 </div>
               ) : (
                 <div className="relative w-full" style={{ height: `${convVirtualizer.getTotalSize()}px` }}>
                   {convVirtualizer.getVirtualItems().map((vi) => {
-                    const c = conversations[vi.index];
+                    const c = displayedConversations[vi.index];
                     const active = activeConv?.id === c.id;
                     const isBuyer = c.buyer_id === user?.id;
                     const unread = isBuyer ? c.buyer_unread : c.seller_unread;
@@ -1545,32 +1633,50 @@ function MessagesPage() {
 
                 {/* Input area — pinned to the bottom of the message panel */}
                 <div className="shrink-0 border-t border-border/60 bg-surface/30 flex flex-col pt-2 pb-4 px-4">
+
+
                   {/* 3-Column Completion Bar */}
-                  {activeConv.order && ["paid", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing"].includes(activeConv.order.status) && (
+                  {activeConv.order && ["paid", "payment_approved", "order_active", "seller_delivering", "buyer_reviewing", "delivered"].includes(activeConv.order.status) && (
                     <div className="mb-3.5 p-3 rounded-2xl border border-white/8 bg-[#0a0c0f] grid grid-cols-3 gap-3.5 text-[11px] text-left">
                       {/* Column 1: Buyer Actions */}
                       <div className="flex flex-col justify-between p-2.5 rounded-xl bg-surface/30 border border-white/5 space-y-1.5 min-h-[84px]">
                         <div className="font-bold text-[9px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <div className={`size-1.5 rounded-full ${activeConv.order.status === "buyer_reviewing" ? "bg-emerald-400" : "bg-white/20"}`} />
+                          <div className={`size-1.5 rounded-full ${activeConv.order.status === "buyer_reviewing" ? "bg-amber-400 animate-pulse" : ["delivered", "completed"].includes(activeConv.order.status) ? "bg-emerald-400" : "bg-white/20"}`} />
                           Buyer Confirmation
                         </div>
-                        {isBuyer ? (
-                          activeConv.order.status === "buyer_reviewing" ? (
-                            <button
-                              type="button"
-                              onClick={handleCompleteOrder}
-                              className="h-7 w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition-all border-none cursor-pointer flex items-center justify-center gap-1 active:scale-95"
-                            >
-                              <ShieldCheck size={11} /> Confirm & Release
-                            </button>
+                        {["delivered", "completed"].includes(activeConv.order.status) ? (
+                          <div className="text-[10px] text-emerald-400 font-semibold py-1 flex items-center gap-0.5">
+                            <ShieldCheck size={11} /> Delivery Confirmed ✓
+                          </div>
+                        ) : activeConv.order.status === "buyer_reviewing" ? (
+                          isBuyer ? (
+                            <div className="flex flex-col gap-1.5 w-full">
+                              <label className="flex items-start gap-1.5 text-[9px] text-muted-foreground cursor-pointer select-none leading-tight">
+                                <input
+                                  type="checkbox"
+                                  checked={deliveryAck}
+                                  onChange={(e) => setDeliveryAck(e.target.checked)}
+                                  className="mt-0.5 rounded border-border text-gold focus:ring-gold/30 cursor-pointer"
+                                />
+                                <span>I verify the deliverables in the vault.</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setCompleteOrderModalOpen(true)}
+                                disabled={!deliveryAck}
+                                className="h-7 w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-black text-[10px] font-bold transition-all border-none cursor-pointer flex items-center justify-center gap-1 active:scale-95 disabled:pointer-events-none"
+                              >
+                                <ShieldCheck size={11} /> Confirm Delivery
+                              </button>
+                            </div>
                           ) : (
-                            <div className="text-[10px] text-muted-foreground italic font-medium py-1">
-                              Awaiting delivery release
+                            <div className="text-[10px] text-amber-400 font-semibold py-1">
+                              Awaiting buyer confirmation
                             </div>
                           )
                         ) : (
-                          <div className="text-[10px] text-foreground font-semibold py-1">
-                            {activeConv.order.status === "buyer_reviewing" ? "Reviewing delivery" : "Awaiting delivery"}
+                          <div className="text-[10px] text-muted-foreground italic font-medium py-1">
+                            Awaiting delivery release
                           </div>
                         )}
                         <p className="text-[8px] text-muted-foreground leading-snug">
@@ -1581,26 +1687,38 @@ function MessagesPage() {
                       {/* Column 2: Seller Actions */}
                       <div className="flex flex-col justify-between p-2.5 rounded-xl bg-surface/30 border border-white/5 space-y-1.5 min-h-[84px]">
                         <div className="font-bold text-[9px] uppercase tracking-wider text-gold flex items-center gap-1.5">
-                          <div className={`size-1.5 rounded-full ${["buyer_reviewing", "completed"].includes(activeConv.order.status) ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+                          <div className={`size-1.5 rounded-full ${activeConv.order.status === "completed" ? "bg-emerald-400" : activeConv.order.status === "delivered" ? "bg-amber-400 animate-pulse" : "bg-white/20"}`} />
                           Seller Fulfillment
                         </div>
-                        {isSeller ? (
-                          ["order_active", "seller_delivering", "payment_approved"].includes(activeConv.order.status) ? (
-                            <div className="text-[10px] text-amber-400 font-semibold py-1">
-                              Fulfillment in progress
-                            </div>
+                        {activeConv.order.status === "completed" ? (
+                          <div className="text-[10px] text-emerald-400 font-semibold py-1 flex items-center gap-0.5">
+                            <ShieldCheck size={11} /> Order Closed ✓
+                          </div>
+                        ) : activeConv.order.status === "delivered" ? (
+                          isSeller ? (
+                            <button
+                              type="button"
+                              onClick={handleCloseOrder}
+                              className="h-7 w-full rounded-lg bg-gold text-black text-[10px] font-bold transition-all border-none cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                            >
+                              <ShieldCheck size={11} /> Close Order
+                            </button>
                           ) : (
-                            <div className="text-[10px] text-emerald-400 font-semibold py-1 flex items-center gap-0.5">
-                              <ShieldCheck size={11} /> Delivered ✓
+                            <div className="text-[10px] text-amber-400 font-semibold py-1">
+                              Awaiting seller Close Order
                             </div>
                           )
+                        ) : ["buyer_reviewing"].includes(activeConv.order.status) ? (
+                          <div className="text-[10px] text-emerald-400 font-semibold py-1 flex items-center gap-0.5">
+                            <ShieldCheck size={11} /> Delivered ✓
+                          </div>
                         ) : (
-                          <div className="text-[10px] text-foreground font-semibold py-1">
-                            {["buyer_reviewing", "completed"].includes(activeConv.order.status) ? "Delivered ✓" : "Preparing delivery"}
+                          <div className="text-[10px] text-muted-foreground italic font-medium py-1">
+                            Fulfillment in progress
                           </div>
                         )}
                         <p className="text-[8px] text-muted-foreground leading-snug">
-                          Seller uploads credentials and delivers order.
+                          Seller uploads credentials and closes order when accepted.
                         </p>
                       </div>
 
@@ -1621,6 +1739,10 @@ function MessagesPage() {
                             ) : (
                               "Auto-releasing..."
                             )}
+                          </div>
+                        ) : ["delivered", "completed"].includes(activeConv.order.status) ? (
+                          <div className="text-[10px] text-emerald-400 font-semibold py-1 flex items-center gap-0.5">
+                            <ShieldCheck size={11} /> Escrow Released ✓
                           </div>
                         ) : (
                           <div className="text-[10px] text-muted-foreground italic py-1">
@@ -2165,6 +2287,8 @@ function MessagesPage() {
                         preloadedCreds={securedCreds}
                         onRevealSuccess={(newCreds) => setSecuredCreds(newCreds)}
                         currencyDeliveryType={detectCurrencyDeliveryType(activeConv.listing)}
+                        deliveryTime={activeConv.listing?.delivery_time ?? (activeConv.listing?.delivery_time_hours ? `${activeConv.listing.delivery_time_hours} Hours` : "24 Hours")}
+                        activatedAt={activeConv.order?.created_at}
                       />
 
                       {/* Seller Action Button to release credentials */}
@@ -2296,7 +2420,10 @@ function MessagesPage() {
               </button>
               <button
                 type="button"
-                onClick={executeCompleteOrder}
+                onClick={async () => {
+                  setCompleteOrderModalOpen(false);
+                  await handleConfirmDelivery();
+                }}
                 className="flex-1 h-10 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer"
               >
                 <ShieldCheck className="size-3.5" /> Mark Order Complete

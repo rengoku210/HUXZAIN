@@ -92,7 +92,7 @@ function Page() {
 
   useEffect(() => {
     void loadOrders();
-  }, [user]);
+  }, [user?.id]);
 
   const deliverOrder = async (orderId: string) => {
     const supabase = getSupabase();

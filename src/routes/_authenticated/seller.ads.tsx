@@ -17,7 +17,7 @@ function Page() {
   const [loading, setLoading] = useState(true);
 
   async function loadData() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const supabase = getSupabase();
@@ -37,7 +37,7 @@ function Page() {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user?.id]);
 
   const fmt = (val: number) => {
     return new Intl.NumberFormat("en-IN", {

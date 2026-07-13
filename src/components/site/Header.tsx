@@ -104,6 +104,26 @@ function getNotificationLink(n: any): string {
     return link;
   }
 
+  // Deep-Link routing based on event types (HX-006)
+  if (kind === "order.payment_approved_buyer") {
+    return `/orders/${entityId}`;
+  }
+  if (kind === "order.payment_approved_seller") {
+    return `/seller/orders/${entityId}`;
+  }
+  if (kind === "order.placed" || kind === "order.payment_submitted") {
+    return `/orders/${entityId}`;
+  }
+  if (kind === "order.delivered" || kind === "order.delivery_submitted_seller" || kind === "order.chat_created") {
+    return `/messages?orderId=${entityId}`;
+  }
+  if (kind.startsWith("dispute.")) {
+    if (kind.includes("seller") && entityId) {
+      return `/seller/disputes/${entityId}`;
+    }
+    return `/orders/${entityId}`;
+  }
+
   if (kind.startsWith("order.") || kind.startsWith("dispute.") || kind.startsWith("refund.")) {
     const orderId = entityId || link.match(/orders?\/([a-zA-Z0-9\-_]+)/)?.[1] || "";
     if (orderId) {
@@ -551,12 +571,12 @@ export function Header({ transparent }: { transparent?: boolean }) {
     <>
       <header className={`${transparent ? "absolute top-0 left-0 right-0 z-50 border-b-0 border-transparent bg-transparent backdrop-blur-none" : "sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl"} w-full max-w-full overflow-x-clip md:overflow-x-visible`}>
         {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div className="container-page flex h-16 items-center gap-4">
+        <div className="container-page flex h-24 items-center gap-4">
           <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
             <img 
               src={logo} 
               alt="HUXZAIN" 
-              className="h-10 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
+              className="h-20 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
             />
           </Link>
 
@@ -899,7 +919,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
                       <DropLink
                         to="/contact"
                         icon={HelpCircle}
-                        label="Help & Support"
+                        label="Help Centre"
                         close={() => setAccountOpen(false)}
                       />
 

@@ -181,7 +181,7 @@ function Overview() {
     }
 
     void load();
-  }, [user]);
+  }, [user?.id]);
 
   if (loading) {
     return (

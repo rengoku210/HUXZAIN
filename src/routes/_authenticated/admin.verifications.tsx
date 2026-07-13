@@ -44,6 +44,9 @@ interface VerificationRecord {
   } | null;
   status: string;
   admin_notes: string | null;
+  ocr_data_name?: string | null;
+  ocr_data_number?: string | null;
+  ocr_data_dob?: string | null;
   created_at: string;
   updated_at: string;
   profile?: {
@@ -401,6 +404,7 @@ function KYCVerifications() {
                   <th className="px-5 py-4"><span className="flex items-center gap-1"><UserSquare2 size={12}/> Verification Selfie</span></th>
                   <th className="px-5 py-4"><span className="flex items-center gap-1"><FileText size={12}/> Address Proof</span></th>
                   <th className="px-5 py-4"><span className="flex items-center gap-1"><Wallet size={12}/> Payout Account Details</span></th>
+                  <th className="px-5 py-4"><span className="flex items-center gap-1"><ShieldCheck size={12}/> OCR Audit</span></th>
                   <th className="px-5 py-4">Status</th>
                   <th className="px-5 py-4 text-right">Actions</th>
                 </tr>
@@ -547,6 +551,18 @@ function KYCVerifications() {
                               <div>IFSC: {v.payout_details.ifscCode}</div>
                             </div>
                           )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/60">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      {v.ocr_data_name || v.ocr_data_number || v.ocr_data_dob ? (
+                        <div className="space-y-1 text-[10px] bg-[#0c0f14] p-2 rounded border border-white/5 max-w-[200px] text-left">
+                          <div className="font-bold text-gold uppercase tracking-wider text-[8px] mb-1">OCR Aadhaar Scan</div>
+                          {v.ocr_data_name && <div><span className="text-muted-foreground">Name:</span> <strong className="text-foreground">{v.ocr_data_name}</strong></div>}
+                          {v.ocr_data_number && <div><span className="text-muted-foreground">No:</span> <code className="text-foreground">{v.ocr_data_number}</code></div>}
+                          {v.ocr_data_dob && <div><span className="text-muted-foreground">DOB:</span> <strong className="text-foreground">{v.ocr_data_dob}</strong></div>}
                         </div>
                       ) : (
                         <span className="text-muted-foreground/60">—</span>

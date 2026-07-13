@@ -5,6 +5,7 @@ import { BadgeCheck, Upload, Shield, Mail, Phone, FileText, UserSquare2, Wallet,
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { submitKYCVerification } from "@/lib/seller/subscription.functions";
+import { extractAadhaarDetails } from "@/lib/ocr-service";
 import { toast } from "sonner";
 
 const govtIdTypes = [
@@ -22,6 +23,13 @@ function Page() {
   const { user, profile, refreshUserMeta } = useAuth();
   const [verification, setVerification] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // OCR Extraction States
+  const [ocrName, setOcrName] = useState("");
+  const [ocrNumber, setOcrNumber] = useState("");
+  const [ocrDob, setOcrDob] = useState("");
+  const [isScanningFront, setIsScanningFront] = useState(false);
+  const [showOcrConfirmation, setShowOcrConfirmation] = useState(false);
 
   // Upload States
   const [govtFile, setGovtFile] = useState<string>("");
@@ -54,7 +62,10 @@ function Page() {
   const isSubmittingKYCRef = useRef(false);
 
   async function loadData() {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const supabase = getSupabase();
@@ -71,6 +82,9 @@ function Page() {
           setVerification(data);
           if (data.government_id_type_1) setGovtIdType1(data.government_id_type_1);
           if (data.government_id_type_2) setGovtIdType2(data.government_id_type_2);
+          if (data.ocr_data_name) setOcrName(data.ocr_data_name);
+          if (data.ocr_data_number) setOcrNumber(data.ocr_data_number);
+          if (data.ocr_data_dob) setOcrDob(data.ocr_data_dob);
           if (data.payout_details) {
             const pd = data.payout_details;
             // Bank transfer only — UPI payout fields are no longer loaded into the form.
@@ -115,7 +129,7 @@ function Page() {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user?.id]);
 
   async function handleFileRead(file: File, type: "govt" | "govt2" | "selfie" | "addr") {
     if (!file) return;
@@ -133,22 +147,45 @@ function Page() {
 
     try {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        if (type === "govt") setGovtFile(reader.result as string);
-        else if (type === "govt2") setGovtFile2(reader.result as string);
-        else if (type === "selfie") setSelfieFile(reader.result as string);
-        else setAddrFile(reader.result as string);
-        toast.success(
-          `${
-            type === "govt"
-              ? "Government ID 1"
-              : type === "govt2"
-                ? "Government ID 2"
-                : type === "selfie"
-                  ? "Selfie Photo"
-                  : "Address Proof"
-          } loaded successfully!`
-        );
+      reader.onloadend = async () => {
+        const base64Data = reader.result as string;
+        if (type === "govt") {
+          setGovtFile(base64Data);
+          setGovtIdType1("aadhaar_front");
+          
+          // Trigger scanner animation and OCR simulation
+          setIsScanningFront(true);
+          toast.info("Initializing high-precision Aadhaar OCR Scan...");
+          try {
+            const ocrResult = await extractAadhaarDetails(base64Data);
+            if (ocrResult.success) {
+              setOcrName(ocrResult.name || "");
+              setOcrNumber(ocrResult.aadhaarNumber || "");
+              setOcrDob(ocrResult.dob || "");
+              setShowOcrConfirmation(true);
+              toast.success("Aadhaar Card Front OCR scan completed successfully!");
+            } else {
+              toast.warning("Aadhaar Front uploaded, but OCR extraction failed: " + ocrResult.error);
+            }
+          } catch (ocrErr: any) {
+            console.error("OCR process error:", ocrErr);
+          } finally {
+            setIsScanningFront(false);
+          }
+        }
+        else if (type === "govt2") {
+          setGovtFile2(base64Data);
+          setGovtIdType2("aadhaar_back");
+          toast.success("Aadhaar Card Back uploaded successfully!");
+        }
+        else if (type === "selfie") {
+          setSelfieFile(base64Data);
+          toast.success("Selfie Photo loaded successfully!");
+        }
+        else {
+          setAddrFile(base64Data);
+          toast.success("Address Proof loaded successfully!");
+        }
       };
       reader.readAsDataURL(file);
     } catch (err: any) {
@@ -160,23 +197,11 @@ function Page() {
     if (isSubmittingKYCRef.current) return;
     if (!user) return;
     if (!govtFile && !verification?.government_id_url) {
-      toast.error("Please upload your first government ID.");
-      return;
-    }
-    if (!govtIdType1) {
-      toast.error("Please select a document type for your first government ID.");
+      toast.error("Please upload Aadhaar Card Front.");
       return;
     }
     if (!govtFile2 && !verification?.government_id_2_url) {
-      toast.error("Please upload your second government ID.");
-      return;
-    }
-    if (!govtIdType2) {
-      toast.error("Please select a document type for your second government ID.");
-      return;
-    }
-    if (govtIdType1 === govtIdType2) {
-      toast.error("The two government IDs must be of different types.");
+      toast.error("Please upload Aadhaar Card Back.");
       return;
     }
     if (!selfieFile && !verification?.selfie_url) {
@@ -200,8 +225,8 @@ function Page() {
         data: {
           sellerId: user.id,
           govtIdUrl: govtFile || verification?.government_id_url || "",
-          govtIdType1,
-          govtIdType2,
+          govtIdType1: "aadhaar_front",
+          govtIdType2: "aadhaar_back",
           govtId2Url: govtFile2 || verification?.government_id_2_url || "",
           selfieUrl: selfieFile || verification?.selfie_url || "",
           addressProofUrl: addrFile || verification?.address_proof_url || "",
@@ -211,7 +236,10 @@ function Page() {
             accountNumber: accountNumber.trim(),
             ifscCode: ifscCode.trim().toUpperCase(),
             upiId: ""
-          }
+          },
+          ocrName: ocrName.trim(),
+          ocrNumber: ocrNumber.trim(),
+          ocrDob: ocrDob.trim()
         }
       });
 
@@ -406,91 +434,206 @@ function Page() {
       ) : (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <PanelCard title="Identity Document uploads">
-              <div className="space-y-5 text-sm">
-                {/* Government ID 1 */}
-                <div className="space-y-2.5">
-                  <span className="text-xs text-muted-foreground block">1. First Government ID</span>
-                  <div className="grid sm:grid-cols-2 gap-3 items-end bg-surface/10 p-3.5 rounded-xl border border-border/50">
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-muted-foreground block">ID Document Type</label>
-                      <select
-                        value={govtIdType1}
-                        onChange={(e) => setGovtIdType1(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground"
-                      >
-                        <option value="">Select Type...</option>
-                        {govtIdTypes.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
-                      <div className="flex items-center gap-1.5 justify-center py-2 text-xs text-muted-foreground">
-                        <Upload className="size-4 text-gold" />
-                        <span className="font-semibold">{govtFile ? "Change File..." : "Choose File..."}</span>
+
+            <style>{`
+              @keyframes laser-sweep {
+                0% { top: 0%; opacity: 0.8; }
+                50% { top: 100%; opacity: 0.8; }
+                100% { top: 0%; opacity: 0.8; }
+              }
+              .laser-line {
+                position: absolute;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: #10b981;
+                box-shadow: 0 0 10px #10b981, 0 0 4px #10b981;
+                animation: laser-sweep 2s infinite ease-in-out;
+              }
+            `}</style>
+
+            <PanelCard title="Identity Verification (Indian Aadhaar Card)">
+              <div className="space-y-6 text-sm">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  As part of our commitment to safety, sellers must complete Aadhaar card authentication.
+                  Upload high-quality images of your Aadhaar Front and Back. The automated OCR system will scan and extract your details instantly.
+                </p>
+
+                {/* Aadhaar Visual Templates grid */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {/* Aadhaar Front Card */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold text-muted-foreground text-left block">Aadhaar Card Front</span>
+                    <div className="relative aspect-[1.6/1] w-full rounded-xl border border-white/10 bg-gradient-to-br from-[#12161f] to-[#0a0d14] overflow-hidden flex flex-col justify-between p-3.5 shadow-md shadow-black/30">
+                      {/* Top Header Banner */}
+                      <div className="flex justify-between items-start border-b border-white/5 pb-1 text-left">
+                        <div className="text-[9px] font-bold text-white/90">Government of India</div>
+                        <div className="text-[9px] font-bold text-amber-500/90 uppercase">unique identification authority of india</div>
                       </div>
-                      <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt")} className="hidden" />
-                    </label>
+
+                      {/* Card Content Row */}
+                      <div className="flex gap-3 my-2 flex-1 items-center">
+                        {/* Selfie placeholder / Photo */}
+                        <div className="size-14 rounded bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                          {govtFile ? (
+                            <img src={govtFile} className="size-full object-cover" alt="Aadhaar Front" />
+                          ) : (
+                            <UserSquare2 className="size-8 text-white/20" />
+                          )}
+                        </div>
+                        {/* Details simulation */}
+                        <div className="flex-1 space-y-1 text-left">
+                          <div className="h-2 w-20 bg-white/10 rounded" />
+                          <div className="h-2 w-14 bg-white/5 rounded" />
+                          <div className="h-2 w-16 bg-white/5 rounded" />
+                        </div>
+                      </div>
+
+                      {/* Card Bottom Area */}
+                      <div className="flex justify-between items-end border-t border-white/5 pt-1.5 mt-auto text-left">
+                        <div className="font-mono text-[10px] font-bold text-white/90 tracking-wider">
+                          {ocrNumber || "XXXX XXXX XXXX"}
+                        </div>
+                        <div className="text-[7px] text-muted-foreground leading-none text-right">
+                          मेरा आधार, मेरी पहचान
+                        </div>
+                      </div>
+
+                      {/* Laser scanner overlay */}
+                      {isScanningFront && (
+                        <div className="absolute inset-0 bg-emerald-500/5 backdrop-blur-[0.5px] pointer-events-none flex flex-col justify-between">
+                          <div className="laser-line" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                            <span className="text-[10px] font-mono text-emerald-400 font-bold tracking-widest animate-pulse">EXTRACTING DATA...</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Click overlay */}
+                      {!isScanningFront && (
+                        <label className="absolute inset-0 cursor-pointer flex items-center justify-center bg-black/0 hover:bg-black/40 transition-all group">
+                          <div className="opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-white transition-all bg-black/60 px-3 py-1.5 rounded-lg border border-white/10">
+                            <Upload className="size-3.5 text-gold animate-bounce" />
+                            <span>Upload Aadhaar Front</span>
+                          </div>
+                          <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt")} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+                    {govtFile ? (
+                      <div className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
+                        <span>✓ Aadhaar Front Uploaded</span>
+                      </div>
+                    ) : verification?.government_id_url ? (
+                      <div className="text-[10px] text-muted-foreground bg-surface/50 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+                        <span>✓ Front Uploaded Previously</span>
+                        <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">{verification.government_id_status}</span>
+                      </div>
+                    ) : null}
                   </div>
-                  {govtFile && (
-                    <div className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded flex items-center gap-1">
-                      <span>✓ Loaded First ID: {govtIdTypes.find(t => t.value === govtIdType1)?.label || govtIdType1}</span>
+
+                  {/* Aadhaar Back Card */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold text-muted-foreground text-left block">Aadhaar Card Back</span>
+                    <div className="relative aspect-[1.6/1] w-full rounded-xl border border-white/10 bg-gradient-to-br from-[#12161f] to-[#0a0d14] overflow-hidden flex flex-col justify-between p-3.5 shadow-md shadow-black/30">
+                      {/* Top Header Banner */}
+                      <div className="flex justify-between items-start border-b border-white/5 pb-1 text-left">
+                        <div className="text-[9px] font-bold text-white/90">Government of India</div>
+                        <div className="text-[9px] font-bold text-amber-500/90 uppercase">unique identification authority of india</div>
+                      </div>
+
+                      {/* Card Content Row */}
+                      <div className="my-2 flex-1 space-y-1.5 text-left">
+                        <div className="h-2 w-32 bg-white/10 rounded" />
+                        <div className="h-2 w-28 bg-white/5 rounded" />
+                        <div className="h-2 w-20 bg-white/5 rounded" />
+                      </div>
+
+                      {/* Bottom area */}
+                      <div className="flex justify-between items-end border-t border-white/5 pt-1.5 mt-auto text-left">
+                        <div className="text-[6px] text-muted-foreground">
+                          Unique Identification Authority of India, Post Box No. 1947, Bengaluru-560001
+                        </div>
+                        {/* Barcode representation */}
+                        <div className="flex gap-[1px] h-3 bg-white/80 p-0.5 rounded shrink-0">
+                          <div className="w-[1px] bg-black h-full" />
+                          <div className="w-[2px] bg-black h-full" />
+                          <div className="w-[1px] bg-black h-full" />
+                          <div className="w-[3px] bg-black h-full" />
+                          <div className="w-[1px] bg-black h-full" />
+                          <div className="w-[2px] bg-black h-full" />
+                        </div>
+                      </div>
+
+                      {/* Click overlay */}
+                      <label className="absolute inset-0 cursor-pointer flex items-center justify-center bg-black/0 hover:bg-black/40 transition-all group">
+                        <div className="opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-white transition-all bg-black/60 px-3 py-1.5 rounded-lg border border-white/10">
+                          <Upload className="size-3.5 text-gold animate-bounce" />
+                          <span>Upload Aadhaar Back</span>
+                        </div>
+                        <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt2")} className="hidden" />
+                      </label>
                     </div>
-                  )}
-                  {!govtFile && verification?.government_id_url && (
-                    <div className="text-[11px] text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
-                      <span>✓ First ID ({govtIdTypes.find(t => t.value === govtIdType1)?.label || govtIdType1}) uploaded</span>
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
-                        {verification?.government_id_status}
-                      </span>
-                    </div>
-                  )}
+                    {govtFile2 ? (
+                      <div className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
+                        <span>✓ Aadhaar Back Uploaded</span>
+                      </div>
+                    ) : verification?.government_id_2_url ? (
+                      <div className="text-[10px] text-muted-foreground bg-surface/50 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+                        <span>✓ Back Uploaded Previously</span>
+                        <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">{verification.government_id_2_status}</span>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
-                {/* Government ID 2 */}
-                <div className="space-y-2.5">
-                  <span className="text-xs text-muted-foreground block">2. Second Government ID</span>
-                  <div className="grid sm:grid-cols-2 gap-3 items-end bg-surface/10 p-3.5 rounded-xl border border-border/50">
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-muted-foreground block">ID Document Type</label>
-                      <select
-                        value={govtIdType2}
-                        onChange={(e) => setGovtIdType2(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground"
-                      >
-                        <option value="">Select Type...</option>
-                        {govtIdTypes.map(t => (
-                          <option key={t.value} value={t.value} disabled={t.value === govtIdType1}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
-                      <div className="flex items-center gap-1.5 justify-center py-2 text-xs text-muted-foreground">
-                        <Upload className="size-4 text-gold" />
-                        <span className="font-semibold">{govtFile2 ? "Change File..." : "Choose File..."}</span>
+                {/* OCR Confirmation Form */}
+                {(showOcrConfirmation || ocrName || ocrNumber || ocrDob) && (
+                  <div className="p-4 rounded-xl border border-gold/20 bg-gold/5 space-y-3.5 text-left animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-2">
+                      <div className="size-6 rounded bg-gold/10 flex items-center justify-center">
+                        <BadgeCheck size={14} className="text-gold" />
                       </div>
-                      <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "govt2")} className="hidden" />
-                    </label>
+                      <span className="font-bold text-xs uppercase tracking-wider text-gold">Verify OCR Scanned Aadhaar Details</span>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Full Name (As on Aadhaar)</label>
+                        <input
+                          type="text"
+                          value={ocrName}
+                          onChange={(e) => setOcrName(e.target.value)}
+                          className="w-full h-8 px-2.5 rounded bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Aadhaar Card Number</label>
+                        <input
+                          type="text"
+                          value={ocrNumber}
+                          onChange={(e) => setOcrNumber(e.target.value)}
+                          className="w-full h-8 px-2.5 rounded bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground font-mono font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Date of Birth (DD/MM/YYYY)</label>
+                        <input
+                          type="text"
+                          value={ocrDob}
+                          onChange={(e) => setOcrDob(e.target.value)}
+                          className="w-full h-8 px-2.5 rounded bg-background border border-border text-xs focus:ring-1 focus:ring-gold/30 outline-none text-foreground font-semibold"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground leading-snug">
+                      Please correct any errors in OCR reading before submitting your verification documents.
+                    </p>
                   </div>
-                  {govtFile2 && (
-                    <div className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded flex items-center gap-1">
-                      <span>✓ Loaded Second ID: {govtIdTypes.find(t => t.value === govtIdType2)?.label || govtIdType2}</span>
-                    </div>
-                  )}
-                  {!govtFile2 && verification?.government_id_2_url && (
-                    <div className="text-[11px] text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
-                      <span>✓ Second ID ({govtIdTypes.find(t => t.value === govtIdType2)?.label || govtIdType2}) uploaded</span>
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
-                        {verification?.government_id_2_status}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* Selfie */}
                 <div className="space-y-2.5">
-                  <span className="text-xs text-muted-foreground block">3. Upload Selfie for Verification</span>
+                  <span className="text-xs font-semibold text-muted-foreground text-left block">3. Upload Selfie for Verification</span>
                   <label className="flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
                     <div className="flex flex-col items-center justify-center pt-3 pb-3">
                       <Upload className="size-5 text-gold mb-1" />
@@ -499,23 +642,21 @@ function Page() {
                     <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "selfie")} className="hidden" />
                   </label>
                   {selfieFile && (
-                    <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
+                    <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded text-left">
                       ✓ Selfie loaded successfully!
                     </div>
                   )}
                   {!selfieFile && verification?.selfie_url && (
                     <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
                       <span>✓ Selfie already uploaded</span>
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
-                        {verification?.selfie_status}
-                      </span>
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">{verification.selfie_status}</span>
                     </div>
                   )}
                 </div>
 
                 {/* Address Proof */}
                 <div className="space-y-2.5">
-                  <span className="text-xs text-muted-foreground block">4. Upload Address Proof</span>
+                  <span className="text-xs font-semibold text-muted-foreground text-left block">4. Upload Address Proof</span>
                   <label className="flex flex-col items-center justify-center w-full h-24 border border-dashed border-border/70 rounded-lg cursor-pointer hover:bg-surface/20 transition-all">
                     <div className="flex flex-col items-center justify-center pt-3 pb-3">
                       <Upload className="size-5 text-gold mb-1" />
@@ -524,21 +665,20 @@ function Page() {
                     <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileRead(e.target.files?.[0] as File, "addr")} className="hidden" />
                   </label>
                   {addrFile && (
-                    <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded">
+                    <div className="mt-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded text-left">
                       ✓ Address Proof loaded successfully!
                     </div>
                   )}
                   {!addrFile && verification?.address_proof_url && (
                     <div className="mt-2 text-xs text-muted-foreground bg-surface/50 p-2 rounded truncate flex items-center justify-between">
                       <span>✓ Address Proof already uploaded</span>
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">
-                        {verification?.address_proof_status}
-                      </span>
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-surface/80 border border-border/40 text-muted-foreground">{verification.address_proof_status}</span>
                     </div>
                   )}
                 </div>
               </div>
             </PanelCard>
+
             <PanelCard title="Withdrawal Payout Details Verification" action={<Wallet className="text-gold size-4" />}>
               <div className="space-y-4 text-sm">
                 <div>

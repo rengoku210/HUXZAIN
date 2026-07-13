@@ -13,7 +13,7 @@
  *  - Each field reveal is individually logged server-side.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Shield,
   ShieldCheck,
@@ -101,6 +101,8 @@ export interface CategoryVaultEngineProps {
   onRevealSuccess?: (creds: VaultCredentials) => void;
   /** Delivery sub-type for in-game currency: "topup" | "code" */
   currencyDeliveryType?: "topup" | "code";
+  deliveryTime?: string | null;
+  activatedAt?: string | null;
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
@@ -440,23 +442,64 @@ function GamingAccountVault({ listingId, orderId, isBuyer, isSeller, preloadedCr
 // VAULT 2: IN-GAME CURRENCY — TOP-UP DELIVERY CENTER
 // ─────────────────────────────────────────────────────────────────────────────
 
+export function parseDeliveryTimeToMs(deliveryTimeStr: string | null | undefined): number {
+  if (!deliveryTimeStr) return 24 * 60 * 60 * 1000; // 24 hours fallback
+  const str = deliveryTimeStr.toLowerCase().trim();
+  const num = parseInt(str.replace(/\D/g, ''));
+  if (isNaN(num)) return 24 * 60 * 60 * 1000;
+
+  if (str.includes("minute")) {
+    return num * 60 * 1000;
+  }
+  if (str.includes("hour")) {
+    return num * 60 * 60 * 1000;
+  }
+  if (str.includes("day")) {
+    return num * 24 * 60 * 60 * 1000;
+  }
+  return num * 60 * 60 * 1000;
+}
+
 interface TopupDeliveryVaultProps extends Omit<CategoryVaultEngineProps, "categoryType" | "currencyDeliveryType"> {
   orderStatus: string;
 }
 
-function TopupDeliveryVault({ listingId, orderId, isBuyer, isSeller, preloadedCreds, onRevealSuccess, orderStatus }: TopupDeliveryVaultProps) {
+function TopupDeliveryVault({ listingId, orderId, isBuyer, isSeller, preloadedCreds, onRevealSuccess, orderStatus, deliveryTime, activatedAt }: TopupDeliveryVaultProps) {
   const { revealing, creds, setCreds, reveal, copiedField, copyField } = useVaultReveal(listingId, onRevealSuccess);
   const data = creds ?? preloadedCreds ?? null;
 
-  const steps = [
-    { label: "Payment Verified", done: true },
-    { label: "Seller Started Top-up", done: ["seller_delivering", "buyer_reviewing", "completed"].includes(orderStatus) },
-    { label: "Top-up In Progress", done: ["buyer_reviewing", "completed"].includes(orderStatus), active: orderStatus === "seller_delivering" },
-    { label: "Top-up Completed", done: orderStatus === "completed" },
-  ];
+  const [timeLeft, setTimeLeft] = useState(0);
 
-  const estimatedMin = 5;
-  const estimatedMax = 10;
+  useEffect(() => {
+    const durationMs = parseDeliveryTimeToMs(deliveryTime || "10 Minutes");
+    const startTime = activatedAt ? new Date(activatedAt).getTime() : Date.now();
+    const endTime = startTime + durationMs;
+
+    const tick = () => {
+      const remaining = endTime - Date.now();
+      setTimeLeft(Math.max(0, remaining));
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [deliveryTime, activatedAt]);
+
+  const formatTimeLeft = (ms: number) => {
+    if (ms <= 0) return "Delayed / Overdue";
+    const hrs = Math.floor(ms / (1000 * 60 * 60));
+    const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((ms % (1000 * 60)) / 1000);
+    if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`;
+    return `${mins}m ${secs}s`;
+  };
+
+  const steps = [
+    { label: "Verified", done: true },
+    { label: "Accepted", done: ["order_active", "seller_delivering", "buyer_reviewing", "delivered", "completed"].includes(orderStatus) },
+    { label: "In Progress", done: ["buyer_reviewing", "delivered", "completed"].includes(orderStatus), active: orderStatus === "seller_delivering" },
+    { label: "Ready", done: ["delivered", "completed"].includes(orderStatus) },
+  ];
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0c0f] overflow-hidden">
@@ -473,43 +516,43 @@ function TopupDeliveryVault({ listingId, orderId, isBuyer, isSeller, preloadedCr
         <VaultStatusBadge status={orderStatus === "completed" ? "DELIVERY READY" : "IN PROGRESS"} />
       </div>
 
-      <div className="p-4 grid grid-cols-3 gap-4">
+      <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Destination panel */}
-        <div className="bg-[#0e1014] border border-white/8 rounded-xl p-4 flex flex-col gap-3">
-          <div className="font-bold text-[11px] uppercase tracking-wider text-gold flex items-center gap-1.5">
-            <Gamepad2 size={13} /> DESTINATION
+        <div className="bg-[#0e1014] border border-white/8 rounded-xl p-4 flex flex-col justify-between min-h-[140px]">
+          <div>
+            <div className="font-bold text-[11px] uppercase tracking-wider text-gold flex items-center gap-1.5 mb-2">
+              <Gamepad2 size={13} /> DESTINATION
+            </div>
+            {data?.topup_game && (
+              <div className="font-bold text-[13px] text-foreground mb-3">{data.topup_game}</div>
+            )}
+            <div className="space-y-1.5 text-[11px]">
+              {data?.topup_uid && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">UID</span>
+                  <span className="font-mono font-bold text-foreground select-all">{data.topup_uid}</span>
+                </div>
+              )}
+              {data?.topup_region && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Region</span>
+                  <span className="font-bold text-foreground">{data.topup_region}</span>
+                </div>
+              )}
+              {data?.topup_player_name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Player Name</span>
+                  <span className="font-bold text-foreground">{data.topup_player_name}</span>
+                </div>
+              )}
+            </div>
           </div>
-          {data?.topup_game && (
-            <div className="text-center">
-              <div className="font-bold text-[13px] text-foreground">{data.topup_game}</div>
+          {data?.topup_amount && (
+            <div className="pt-2 border-t border-white/8 mt-2">
+              <div className="text-muted-foreground text-[10px]">Top-up Amount</div>
+              <div className="font-bold text-lg text-gold mt-0.5">{data.topup_amount}</div>
             </div>
           )}
-          <div className="space-y-1.5 text-[11px]">
-            {data?.topup_uid && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">UID</span>
-                <span className="font-mono font-bold text-foreground">{data.topup_uid}</span>
-              </div>
-            )}
-            {data?.topup_region && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Region</span>
-                <span className="font-bold text-foreground">{data.topup_region}</span>
-              </div>
-            )}
-            {data?.topup_player_name && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Player Name</span>
-                <span className="font-bold text-foreground">{data.topup_player_name}</span>
-              </div>
-            )}
-            {data?.topup_amount && (
-              <div className="pt-2 border-t border-white/8">
-                <div className="text-muted-foreground text-[10px]">Top-up Amount</div>
-                <div className="font-bold text-xl text-gold mt-0.5">{data.topup_amount}</div>
-              </div>
-            )}
-          </div>
           {!data && (
             <RevealButton
               label="View Details"
@@ -520,50 +563,97 @@ function TopupDeliveryVault({ listingId, orderId, isBuyer, isSeller, preloadedCr
           )}
         </div>
 
-        {/* Delivery status */}
-        <div className="bg-[#0e1014] border border-white/8 rounded-xl p-4 flex flex-col gap-3">
-          <div className="font-bold text-[11px] uppercase tracking-wider text-gold">DELIVERY STATUS</div>
-          <div className="space-y-3">
-            {steps.map((step, i) => (
-              <div key={i} className="flex items-center gap-2.5">
-                <div className={`size-4 rounded-full flex items-center justify-center border shrink-0 ${
-                  step.done
-                    ? "bg-emerald-500/20 border-emerald-500/40"
-                    : step.active
-                    ? "bg-amber-500/20 border-amber-500/40 animate-pulse"
-                    : "bg-white/5 border-white/10"
-                }`}>
-                  {step.done ? (
-                    <Check size={9} className="text-emerald-400" />
-                  ) : step.active ? (
-                    <div className="size-1.5 rounded-full bg-amber-400" />
-                  ) : (
-                    <div className="size-1.5 rounded-full bg-white/20" />
-                  )}
-                </div>
-                <span className={`text-[11px] ${step.done ? "text-foreground font-semibold" : step.active ? "text-amber-400 font-bold" : "text-muted-foreground"}`}>
-                  {step.label}
-                </span>
-              </div>
-            ))}
+        {/* Estimated delivery + notes */}
+        <div className="bg-[#0e1014] border border-white/8 rounded-xl p-4 flex flex-col justify-between min-h-[140px]">
+          <div>
+            <div className="font-bold text-[11px] uppercase tracking-wider text-gold mb-3">ESTIMATED DELIVERY</div>
+            <div className="text-center py-2">
+              <div className="text-2xl font-mono font-bold text-foreground">{formatTimeLeft(timeLeft)}</div>
+              <div className="text-muted-foreground text-[10px] mt-1">Configured Delivery Time: {deliveryTime || "10 Minutes"}</div>
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-white/8">
+            <div className="font-bold text-[9px] uppercase tracking-wider text-muted-foreground mb-1">IMPORTANT RULES</div>
+            <ul className="text-[9px] text-muted-foreground space-y-0.5">
+              <li>• Do not login to your game account during top-up</li>
+              <li>• Coins/Points will be added directly</li>
+            </ul>
           </div>
         </div>
 
-        {/* Estimated delivery + notes */}
-        <div className="bg-[#0e1014] border border-white/8 rounded-xl p-4 flex flex-col gap-3">
-          <div className="font-bold text-[11px] uppercase tracking-wider text-gold">ESTIMATED DELIVERY</div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-foreground">{estimatedMin} – {estimatedMax}</div>
-            <div className="text-muted-foreground text-sm mt-1">Minutes</div>
+        {/* Live Status indicator */}
+        <div className="bg-[#0e1014] border border-white/8 rounded-xl p-4 flex flex-col justify-between min-h-[140px]">
+          <div>
+            <div className="font-bold text-[11px] uppercase tracking-wider text-gold mb-3">Escrow Status</div>
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Order Status</span>
+                <span className="font-bold text-gold uppercase">{orderStatus}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Protection</span>
+                <span className="font-bold text-emerald-400">Escrow Secured</span>
+              </div>
+            </div>
           </div>
-          <div className="mt-auto">
-            <div className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground mb-2">IMPORTANT NOTES</div>
-            <ul className="text-[10px] text-muted-foreground space-y-1">
-              <li>• Do not login during top-up</li>
-              <li>• Credits will be added directly</li>
-              <li>• Contact us if delay exceeds 15 minutes</li>
-            </ul>
+          <div className="mt-2 pt-2 border-t border-white/8 text-[9px] text-muted-foreground leading-snug">
+             escrow balance is only released to the seller after your confirmation.
           </div>
+        </div>
+
+        {/* Amazon-Style Horizontal Tracker Row */}
+        <div className="col-span-1 lg:col-span-3 bg-[#0e1014] border border-white/8 rounded-xl p-5 mt-2">
+          <div className="font-bold text-[11px] uppercase tracking-wider text-gold mb-6 flex items-center gap-1.5">
+            <Gamepad2 size={13} /> LIVE TOP-UP PROGRESS (AMAZON-STYLE TRACKER)
+          </div>
+          
+          <div className="relative flex items-center justify-between w-full mt-4 mb-4 px-2">
+            {/* Background track line */}
+            <div className="absolute left-0 right-0 h-1 bg-white/5 rounded-full z-0" />
+            
+            {/* Active tracking progress line */}
+            <div 
+              className="absolute left-0 h-1 bg-gradient-to-r from-emerald-500 via-gold to-emerald-400 rounded-full transition-all duration-500 z-0"
+              style={{
+                width: ["delivered", "completed"].includes(orderStatus) 
+                  ? "100%" 
+                  : orderStatus === "buyer_reviewing" 
+                  ? "66%" 
+                  : orderStatus === "seller_delivering" 
+                  ? "33%" 
+                  : "0%"
+              }}
+            />
+
+            {/* Steps circles */}
+            {steps.map((step, idx) => {
+              const isActive = step.active || (idx === 1 && orderStatus === "order_active");
+              const isDone = step.done;
+              
+              return (
+                <div key={idx} className="relative z-10 flex flex-col items-center">
+                  <div className={`size-8 rounded-full border flex items-center justify-center transition-all duration-300 ${
+                    isDone 
+                      ? "bg-emerald-500 text-black border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)]" 
+                      : isActive 
+                      ? "bg-gold text-black border-gold shadow-[0_0_15px_rgba(212,180,106,0.5)] animate-pulse" 
+                      : "bg-[#0a0c0f] text-muted-foreground border-white/10"
+                  }`}>
+                    {idx === 0 && <ShieldCheck size={14} />}
+                    {idx === 1 && <Gamepad2 size={14} />}
+                    {idx === 2 && (isActive ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />)}
+                    {idx === 3 && <Crown size={14} />}
+                  </div>
+                  <div className="absolute top-10 text-center w-24">
+                    <span className={`block text-[9px] uppercase tracking-wider ${isDone ? "text-emerald-400 font-bold" : isActive ? "text-gold font-bold" : "text-muted-foreground"}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="h-6" /> {/* Spacer for absolute layout alignment */}
         </div>
       </div>
 
@@ -1245,14 +1335,14 @@ function SoftwareVault({ listingId, orderId, isBuyer, isSeller, preloadedCreds, 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function CategoryVaultEngine(props: CategoryVaultEngineProps) {
-  const { categoryType, currencyDeliveryType, orderStatus, ...rest } = props;
+  const { categoryType, currencyDeliveryType, orderStatus, deliveryTime, activatedAt, ...rest } = props;
 
   switch (categoryType) {
     case "game-accounts":
       return <GamingAccountVault {...rest} />;
     case "currency":
       if (currencyDeliveryType === "topup") {
-        return <TopupDeliveryVault {...rest} orderStatus={orderStatus} />;
+        return <TopupDeliveryVault {...rest} orderStatus={orderStatus} deliveryTime={deliveryTime} activatedAt={activatedAt} />;
       }
       return <CreditDeliveryVault {...rest} />;
     case "gift-cards":
@@ -1263,6 +1353,10 @@ export function CategoryVaultEngine(props: CategoryVaultEngineProps) {
       return <SoftwareVault {...rest} />;
     case "digital-marketplace":
       return <DigitalProductVault {...rest} />;
+    case "hosting":
+      return <HostingVault {...rest} />;
+    case "ai-tools":
+      return <AiToolVault {...rest} />;
     default:
       return null;
   }

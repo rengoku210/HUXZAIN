@@ -114,9 +114,10 @@ function UnifiedPaymentPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
  
-  // Fetch listing & seller info if listingId is provided
+  // Fetch listing & seller info if listingId or orderId is provided
   useEffect(() => {
-    if (!listingIdParam || isSubscription) return;
+    if (!listingIdParam && !orderIdParam) return;
+    if (isSubscription) return;
     
     const supabase = getSupabase();
     if (!supabase) return;
@@ -124,13 +125,34 @@ function UnifiedPaymentPage() {
     const fetchListingData = async () => {
       setLoadingListing(true);
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listingIdParam);
+        let resolvedListingId = listingIdParam;
+
+        // If listingId is missing but orderId is present, resolve it from the orders table
+        if (!resolvedListingId && orderIdParam) {
+          const { data: ordData, error: ordErr } = await supabase
+            .from("orders")
+            .select("listing_id")
+            .eq("id", orderIdParam)
+            .maybeSingle();
+
+          if (ordErr) throw ordErr;
+          if (ordData) {
+            resolvedListingId = ordData.listing_id;
+          }
+        }
+
+        if (!resolvedListingId) {
+          setLoadingListing(false);
+          return;
+        }
+
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedListingId);
         
         let query = supabase.from("listings").select("*");
         if (isUuid) {
-          query = query.eq("id", listingIdParam);
+          query = query.eq("id", resolvedListingId);
         } else {
-          query = query.eq("slug", listingIdParam);
+          query = query.eq("slug", resolvedListingId);
         }
  
         const { data: listData, error: listErr } = await query.maybeSingle();
@@ -172,7 +194,7 @@ function UnifiedPaymentPage() {
     };
  
     fetchListingData();
-  }, [listingIdParam, isSubscription]);
+  }, [listingIdParam, orderIdParam, isSubscription]);
  
   // Determine pricing and titles
   const checkoutTitle = isSubscription 
@@ -252,6 +274,26 @@ function UnifiedPaymentPage() {
     }
 
     if (!bypassNotice && !purchaseNoticeConfirmed) {
+      try {
+        const { checkPolicyAcceptance } = await import("@/lib/terms-analytics.functions");
+        const acceptedRes = await checkPolicyAcceptance({
+          data: {
+            userId: user?.id,
+            policyType: "purchase_notice",
+            policyVersion: "v1.0",
+            page: "/checkout/payment",
+            productId: listing?.id,
+            orderId: orderId
+          }
+        });
+        if (acceptedRes.accepted) {
+          setPurchaseNoticeConfirmed(true);
+          void handleSubmitProof(true);
+          return;
+        }
+      } catch (e) {
+        console.warn("Policy acceptance check failed", e);
+      }
       setShowPurchaseNotice(true);
       return;
     }
@@ -795,9 +837,25 @@ function UnifiedPaymentPage() {
 
       {showPurchaseNotice && (
         <BeforePurchaseNotice
-          onProceed={() => {
+          onProceed={async () => {
             setShowPurchaseNotice(false);
             setPurchaseNoticeConfirmed(true);
+            try {
+              const { logTermsAcceptance } = await import("@/lib/terms-analytics.functions");
+              await logTermsAcceptance({
+                data: {
+                  userId: user?.id,
+                  termsVersion: "v1.0",
+                  page: "/checkout/payment",
+                  accepted: true,
+                  productId: listing?.id,
+                  orderId: orderId,
+                  policyType: "purchase_notice"
+                }
+              });
+            } catch (e) {
+              console.warn("Failed to log policy acceptance", e);
+            }
             void handleSubmitProof(true);
           }}
           onBack={() => setShowPurchaseNotice(false)}

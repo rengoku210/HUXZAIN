@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { EmptyState, PanelCard } from "@/components/seller/SellerShell";
 import { getSupabase } from "@/lib/supabase-client";
-import { Loader2, Trash2, EyeOff, AlertCircle, Check, X, Search, RefreshCw } from "lucide-react";
+import { Loader2, Trash2, EyeOff, AlertCircle, Check, X, Search, RefreshCw, Eye, Clock, Package, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { onListingApproved, onListingRejected } from "@/lib/notifications/hooks";
 
@@ -15,12 +15,31 @@ type Listing = {
   id: string;
   title: string;
   price_cents: number;
+  price_inr?: number;
   status: string;
   seller_id: string;
   created_at: string;
   risk_score?: number | null;
   suspicious_keywords?: any;
   moderator_notes?: string | null;
+  description?: string | null;
+  cover_image_url?: string | null;
+  images?: any;
+  attributes?: any;
+  delivery_type?: string | null;
+  delivery_time_hours?: number | null;
+  tags?: any;
+  health_score?: number | null;
+  profiles?: {
+    display_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
+  categories?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
 };
 
 function Page() {
@@ -28,8 +47,11 @@ function Page() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; action: "active" | "paused" | "rejected" } | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [moderationTab, setModerationTab] = useState<"pending" | "active" | "flagged" | "all">("pending");
   const [search, setSearch] = useState("");
+  const [selectedPreview, setSelectedPreview] = useState<Listing | null>(null);
   
   const supabase = getSupabase();
 
@@ -39,7 +61,11 @@ function Page() {
     try {
       const { data, error } = await supabase
         .from("listings")
-        .select("id, title, price_inr, status, seller_id, created_at, risk_score, suspicious_keywords, moderator_notes")
+        .select(`
+          id, title, price_inr, status, seller_id, created_at, risk_score, suspicious_keywords, moderator_notes, description, cover_image_url, images, attributes, delivery_type, delivery_time_hours, tags, health_score,
+          profiles:seller_id(display_name, username, email),
+          categories:category_id(id, name, slug)
+        `)
         .order("created_at", { ascending: false });
       
       if (error) {
@@ -50,6 +76,14 @@ function Page() {
           price_cents: (l.price_inr ?? 0) * 100
         }));
         setListings(mapped as Listing[]);
+        
+        // If a listing is currently being previewed, update its state from the new list
+        if (selectedPreview) {
+          const updatedPreview = mapped.find((item: any) => item.id === selectedPreview.id);
+          if (updatedPreview) {
+            setSelectedPreview(updatedPreview);
+          }
+        }
       }
     } catch (err: any) {
       toast.error(err.message ?? "Failed to fetch listings.");
@@ -74,12 +108,25 @@ function Page() {
         setListings((prev) =>
           prev.map((l) => (l.id === deleteTarget ? { ...l, status: "deleted" } : l))
         );
+        if (selectedPreview?.id === deleteTarget) {
+          setSelectedPreview(null);
+        }
         setDeleteTarget(null);
       }
     } catch (e: any) {
       toast.error(e.message);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function executeStatusUpdate() {
+    if (!confirmTarget) return;
+    try {
+      await updateStatus(confirmTarget.id, confirmTarget.action);
+      setConfirmTarget(null);
+    } catch (e: any) {
+      toast.error(e.message);
     }
   }
 
@@ -90,14 +137,16 @@ function Page() {
       if (newStatus === "active") {
         updates.risk_score = 0;
         updates.suspicious_keywords = null;
-        // Universal Listing Expiry (Doc 1, Part 4): validity is 30 days FROM APPROVAL,
-        // not from draft creation. Stamp the window when the listing goes live.
-        updates.expiry_date = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        // Stamp approved_at and correct expires_at (30 days from approval)
+        updates.approved_at = new Date().toISOString();
+        updates.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       }
 
-      const { error } = await supabase.from("listings").update(updates).eq("id", id);
+      const { data, error } = await supabase.from("listings").update(updates).eq("id", id).select("id");
       if (error) {
         toast.error(error.message);
+      } else if (!data || data.length === 0) {
+        toast.error("Permission denied or listing not found. You might not have moderator / staff permissions in the database.");
       } else {
         // HX-006: notify the seller when a listing is approved (active) or rejected.
         const row = listings.find((l) => l.id === id);
@@ -265,10 +314,13 @@ function Page() {
                     return (
                       <tr key={l.id} className="border-b border-border/30 hover:bg-surface/40">
                         <td className="py-3 pr-4 font-medium max-w-[200px] truncate">
-                          <div>
-                            <div className="font-semibold text-foreground">{l.title}</div>
+                          <button
+                            onClick={() => setSelectedPreview(l)}
+                            className="text-left hover:underline text-gold hover:text-gold/80 transition-colors focus:outline-hidden bg-transparent border-none p-0 cursor-pointer block w-full truncate"
+                          >
+                            <div className="font-semibold">{l.title}</div>
                             <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{l.id}</div>
-                          </div>
+                          </button>
                         </td>
                         <td className="py-3 pr-4 text-gold font-mono">₹{(l.price_cents / 100).toFixed(2)}</td>
                         <td className="py-3 pr-4">
@@ -315,11 +367,18 @@ function Page() {
                         <td className="py-3 pr-4 text-muted-foreground text-xs">
                           {new Date(l.created_at).toLocaleDateString()}
                         </td>
-                        <td className="py-3 text-right space-x-1">
+                        <td className="py-3 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedPreview(l)}
+                            className="inline-flex items-center p-1.5 rounded hover:bg-gold/10 text-muted-foreground hover:text-gold transition-colors cursor-pointer border-none bg-transparent"
+                            title="Preview / Details"
+                          >
+                            <Eye className="size-4" />
+                          </button>
                           {l.status !== "active" && (
                             <button
-                              onClick={() => updateStatus(l.id, "active")}
-                              className="inline-flex items-center p-1.5 rounded hover:bg-green-500/10 text-muted-foreground hover:text-green-400 transition-colors"
+                              onClick={() => setConfirmTarget({ id: l.id, action: "active" })}
+                              className="inline-flex items-center p-1.5 rounded hover:bg-green-500/10 text-muted-foreground hover:text-green-400 transition-colors cursor-pointer border-none bg-transparent"
                               title="Approve / Activate (resets flags)"
                             >
                               <Check className="size-4" />
@@ -327,8 +386,8 @@ function Page() {
                           )}
                           {l.status === "active" && (
                             <button
-                              onClick={() => updateStatus(l.id, "paused")}
-                              className="inline-flex items-center p-1.5 rounded hover:bg-surface text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={() => setConfirmTarget({ id: l.id, action: "paused" })}
+                              className="inline-flex items-center p-1.5 rounded hover:bg-surface text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-none bg-transparent"
                               title="Pause / Hide"
                             >
                               <EyeOff className="size-4" />
@@ -336,8 +395,8 @@ function Page() {
                           )}
                           {l.status !== "rejected" && (
                             <button
-                              onClick={() => updateStatus(l.id, "rejected")}
-                              className="inline-flex items-center p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                              onClick={() => setConfirmTarget({ id: l.id, action: "rejected" })}
+                              className="inline-flex items-center p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors cursor-pointer border-none bg-transparent"
                               title="Reject"
                             >
                               <X className="size-4" />
@@ -345,7 +404,7 @@ function Page() {
                           )}
                           <button
                             onClick={() => setDeleteTarget(l.id)}
-                            className="inline-flex items-center p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                            className="inline-flex items-center p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors cursor-pointer border-none bg-transparent"
                             title="Delete"
                           >
                             <Trash2 className="size-4" />
@@ -394,6 +453,316 @@ function Page() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ─── CUSTOM STATUS UPDATE CONFIRMATION MODAL ─── */}
+      {confirmTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl text-left">
+            <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${
+              confirmTarget.action === "active" 
+                ? "from-transparent via-green-500 to-transparent" 
+                : confirmTarget.action === "rejected"
+                ? "from-transparent via-red-500 to-transparent"
+                : "from-transparent via-amber-500 to-transparent"
+            }`} />
+            <h3 className="font-display text-base font-bold mb-3 flex items-center gap-1.5 text-foreground">
+              {confirmTarget.action === "active" ? (
+                <span className="text-green-400 flex items-center gap-1"><Check size={16} /> Confirm Listing Approval</span>
+              ) : confirmTarget.action === "rejected" ? (
+                <span className="text-red-400 flex items-center gap-1"><X size={16} /> Confirm Listing Rejection</span>
+              ) : (
+                <span className="text-amber-400 flex items-center gap-1"><EyeOff size={16} /> Confirm Listing Deactivation</span>
+              )}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
+              Are you sure you want to {confirmTarget.action === "active" ? "approve and publish" : confirmTarget.action === "rejected" ? "reject" : "hide/pause"} this listing?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmTarget(null)}
+                className="flex-1 h-10 rounded-xl border border-border text-xs hover:bg-surface transition-colors cursor-pointer bg-transparent text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeStatusUpdate}
+                className={`flex-1 h-10 rounded-xl hover:brightness-110 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border-none ${
+                  confirmTarget.action === "active"
+                    ? "bg-green-500 text-white font-bold"
+                    : confirmTarget.action === "rejected"
+                    ? "bg-red-500 text-white font-bold"
+                    : "bg-amber-500 text-black font-bold"
+                }`}
+              >
+                Confirm Action
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── LISTING DETAILS/PREVIEW MODAL ─── */}
+      {selectedPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-[#101114] p-6 shadow-2xl my-8 text-left max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 mb-4 pb-4 border-b border-border/40">
+              <div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                  selectedPreview.status === "active"
+                    ? "bg-green-500/10 text-green-400 border-green-500/20"
+                    : selectedPreview.status === "rejected" || selectedPreview.status === "flagged"
+                      ? "bg-red-500/10 text-red-400 border-red-500/20"
+                      : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                }`}>
+                  {selectedPreview.status}
+                </span>
+                <h3 className="font-display text-xl font-bold text-foreground mt-1.5">{selectedPreview.title}</h3>
+                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">ID: {selectedPreview.id}</p>
+              </div>
+              <button
+                onClick={() => setSelectedPreview(null)}
+                className="p-1 rounded-lg border border-border/50 hover:bg-surface text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content grid */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Left Column (Images + Description) */}
+              <div className="md:col-span-7 space-y-4">
+                {/* Images */}
+                {selectedPreview.cover_image_url && (
+                  <div className="rounded-xl overflow-hidden border border-border bg-[#0B0C10] aspect-video flex items-center justify-center relative">
+                    <img 
+                      src={selectedPreview.cover_image_url} 
+                      alt={selectedPreview.title} 
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                )}
+                {/* Gallery */}
+                {selectedPreview.images && Array.isArray(selectedPreview.images) && selectedPreview.images.length > 1 && (
+                  <div>
+                    <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1.5">Gallery</h4>
+                    <div className="grid grid-cols-4 gap-2">
+                      {selectedPreview.images.map((img: string, idx: number) => (
+                        <div key={idx} className="rounded-lg overflow-hidden border border-border bg-[#0B0C10] aspect-square flex items-center justify-center">
+                          <img src={img} alt="" className="object-cover size-full" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Description */}
+                <div>
+                  <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1.5">Description</h4>
+                  <div className="rounded-xl border border-border/30 bg-[#0B0C10] p-4 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                    {selectedPreview.description || <span className="italic text-muted-foreground/60">No description provided.</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column (Sidebar details) */}
+              <div className="md:col-span-5 space-y-4">
+                {/* Details Card */}
+                <div className="rounded-xl border border-border/40 bg-surface/30 p-4 space-y-3">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Price</span>
+                    <span className="font-mono font-bold text-gold text-sm">₹{(selectedPreview.price_inr ?? (selectedPreview.price_cents / 100)).toFixed(2)}</span>
+                  </div>
+                  {selectedPreview.categories && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-muted-foreground">Category</span>
+                      <span className="font-semibold text-foreground">{selectedPreview.categories.name}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Delivery Type</span>
+                    <span className="font-semibold text-foreground flex items-center gap-1">
+                      <Package size={12} className="text-muted-foreground" />
+                      <span className="capitalize">{selectedPreview.delivery_type || "manual"}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Delivery Window</span>
+                    <span className="font-semibold text-foreground flex items-center gap-1">
+                      <Clock size={12} className="text-muted-foreground" />
+                      <span>{selectedPreview.delivery_time_hours || 24} Hours</span>
+                    </span>
+                  </div>
+                  {selectedPreview.profiles && (
+                    <>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Seller Name</span>
+                        <span className="font-semibold text-foreground truncate max-w-[140px]" title={selectedPreview.profiles.display_name ?? selectedPreview.profiles.username ?? ""}>
+                          {selectedPreview.profiles.display_name ?? selectedPreview.profiles.username ?? "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Seller Email</span>
+                        <span className="font-semibold text-foreground truncate max-w-[140px]" title={selectedPreview.profiles.email ?? ""}>
+                          {selectedPreview.profiles.email ?? "N/A"}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Seller ID</span>
+                    <span className="font-mono text-muted-foreground truncate max-w-[120px]" title={selectedPreview.seller_id}>
+                      {selectedPreview.seller_id}
+                    </span>
+                  </div>
+                  {selectedPreview.health_score !== undefined && selectedPreview.health_score !== null && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-muted-foreground">Health Score</span>
+                      <span className={`font-bold ${
+                        selectedPreview.health_score >= 80 ? "text-green-400" : selectedPreview.health_score >= 50 ? "text-amber-400" : "text-red-400"
+                      }`}>
+                        {selectedPreview.health_score}%
+                      </span>
+                    </div>
+                  )}
+                  {/* Public Link */}
+                  <div className="pt-2 border-t border-border/20 flex justify-center">
+                    <a
+                      href={`/product/${selectedPreview.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full text-center py-2 rounded-lg border border-gold/30 hover:bg-gold/10 text-gold text-xs font-bold transition-all cursor-pointer bg-transparent block"
+                      style={{ textDecoration: 'none' }}
+                    >
+                      👁 View Listing public page
+                    </a>
+                  </div>
+                </div>
+
+                {/* Risk & keywords detection */}
+                {((selectedPreview.risk_score && selectedPreview.risk_score > 0) || selectedPreview.suspicious_keywords) && (
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 space-y-2">
+                    <h4 className="text-[10px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1">
+                      <ShieldAlert size={12} /> Moderation Flags
+                    </h4>
+                    {selectedPreview.risk_score !== undefined && selectedPreview.risk_score !== null && selectedPreview.risk_score > 0 && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground text-[11px]">System Risk Score: </span>
+                        <span className={`font-bold ${selectedPreview.risk_score > 70 ? "text-red-400" : "text-amber-400"}`}>{selectedPreview.risk_score}%</span>
+                      </div>
+                    )}
+                    {selectedPreview.suspicious_keywords && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-muted-foreground">Prohibited Keywords detected:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {(Array.isArray(selectedPreview.suspicious_keywords) 
+                            ? selectedPreview.suspicious_keywords 
+                            : typeof selectedPreview.suspicious_keywords === "string" 
+                              ? [selectedPreview.suspicious_keywords] 
+                              : Object.keys(selectedPreview.suspicious_keywords)
+                          ).map((k: string, idx: number) => (
+                            <span key={idx} className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded font-mono">
+                              {k}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Custom Attributes */}
+                {selectedPreview.attributes && typeof selectedPreview.attributes === 'object' && Object.keys(selectedPreview.attributes).length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1.5">Attributes</h4>
+                    <div className="rounded-xl border border-border/30 bg-[#0B0C10] p-3 space-y-1.5 max-h-36 overflow-y-auto">
+                      {Object.entries(selectedPreview.attributes).map(([key, val]: [string, any]) => (
+                        <div key={key} className="flex justify-between text-[11px] border-b border-border/10 pb-1 last:border-b-0 last:pb-0">
+                          <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                          <span className="font-semibold text-foreground truncate max-w-[140px]" title={String(val)}>{String(val)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {selectedPreview.tags && (Array.isArray(selectedPreview.tags) ? selectedPreview.tags.length > 0 : typeof selectedPreview.tags === 'object') && (
+                  <div>
+                    <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1.5">Tags</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(Array.isArray(selectedPreview.tags) 
+                        ? selectedPreview.tags 
+                        : typeof selectedPreview.tags === 'string' 
+                          ? [selectedPreview.tags] 
+                          : Object.keys(selectedPreview.tags)
+                      ).map((t: string, idx: number) => (
+                        <span key={idx} className="text-[10px] bg-surface border border-border px-2 py-0.5 rounded-full text-muted-foreground">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer / Moderation Actions */}
+            <div className="flex flex-wrap justify-between items-center gap-3 mt-6 pt-4 border-t border-border/40">
+              <div className="flex gap-2">
+                {selectedPreview.status !== "active" && (
+                  <button
+                    onClick={() => {
+                      setConfirmTarget({ id: selectedPreview.id, action: "active" });
+                    }}
+                    className="h-9 px-4 rounded-lg bg-green-500 hover:brightness-110 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer border-none"
+                  >
+                    <Check size={14} /> Approve & Publish
+                  </button>
+                )}
+                {selectedPreview.status === "active" && (
+                  <button
+                    onClick={() => {
+                      setConfirmTarget({ id: selectedPreview.id, action: "paused" });
+                    }}
+                    className="h-9 px-4 rounded-lg bg-amber-500 hover:brightness-110 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer border-none"
+                  >
+                    <EyeOff size={14} /> Pause / Hide
+                  </button>
+                )}
+                {selectedPreview.status !== "rejected" && (
+                  <button
+                    onClick={() => {
+                      setConfirmTarget({ id: selectedPreview.id, action: "rejected" });
+                    }}
+                    className="h-9 px-4 rounded-lg bg-red-500 hover:brightness-110 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer border-none"
+                  >
+                    <X size={14} /> Reject
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setDeleteTarget(selectedPreview.id);
+                  }}
+                  className="h-9 px-3 rounded-lg border border-red-500/30 hover:bg-red-500/10 text-red-400 text-xs flex items-center gap-1.5 cursor-pointer bg-transparent"
+                  title="Permanently Delete"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+                <button
+                  onClick={() => setSelectedPreview(null)}
+                  className="h-9 px-4 rounded-lg border border-border hover:bg-surface text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

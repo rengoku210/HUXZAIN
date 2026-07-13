@@ -59,7 +59,7 @@ function Page() {
   const [submitting, setSubmitting] = useState(false);
 
   async function loadDisputes() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const data = await fetchUserDisputes(user.id);
@@ -112,7 +112,7 @@ function Page() {
 
   useEffect(() => {
     void loadDisputes();
-  }, [user]);
+  }, [user?.id]);
 
   async function handleResponseSubmit(e: React.FormEvent) {
     e.preventDefault();

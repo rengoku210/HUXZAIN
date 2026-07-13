@@ -20,7 +20,7 @@ function Page() {
   const [loading, setLoading] = useState(true);
 
   async function loadCoupons() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const supabase = getSupabase();
@@ -41,10 +41,10 @@ function Page() {
 
   useEffect(() => {
     loadCoupons();
-  }, [user]);
+  }, [user?.id]);
 
   async function handleApply() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     if (!code.trim()) {
       toast.error("Please enter a coupon code");
       return;

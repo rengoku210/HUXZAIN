@@ -38,7 +38,7 @@ function Page() {
 
 
   async function loadTickets() {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       setLoading(true);
       const supabase = getSupabase();
@@ -106,7 +106,7 @@ function Page() {
 
   useEffect(() => {
     loadTickets();
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (activeTicket) {
@@ -134,7 +134,7 @@ function Page() {
   }
 
   async function handleCreateTicket(bypassNotice = false) {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     if (!title.trim()) {
       toast.error("Please provide a subject title for the support ticket");
       return;
