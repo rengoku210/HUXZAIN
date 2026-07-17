@@ -1007,7 +1007,6 @@ const mockTopRatedSellers: SellerProfile[] = [
 
 function TopRatedSellers() {
   const [sellers, setSellers] = useState<SellerProfile[]>([]);
-  const [startIndex, setStartIndex] = useState(0);
 
   useEffect(() => {
     async function loadSellers() {
@@ -1022,7 +1021,7 @@ function TopRatedSellers() {
           .select("id, username, display_name, avatar_url, rating_avg, rating_count, is_seller")
           .eq("is_seller", true)
           .order("rating_avg", { ascending: false }) // Sort by rating_avg desc
-          .limit(8);
+          .limit(4);
 
         if (error || !profiles || profiles.length === 0) {
           setSellers([]);
@@ -1052,14 +1051,6 @@ function TopRatedSellers() {
     void loadSellers();
   }, []);
 
-  const nextSlide = () => {
-    setStartIndex((prev) => (prev + 1 > sellers.length - 4 ? 0 : prev + 1));
-  };
-
-  const prevSlide = () => {
-    setStartIndex((prev) => (prev - 1 < 0 ? sellers.length - 4 : prev - 1));
-  };
-
   if (sellers.length === 0) return null;
 
   return (
@@ -1082,22 +1073,9 @@ function TopRatedSellers() {
         </div>
       </div>
 
-      <div className="relative group/carousel">
-        <button 
-          onClick={prevSlide}
-          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 size-9 rounded-full border border-gold/30 bg-background/90 text-gold flex items-center justify-center hover:bg-gold hover:text-primary-foreground hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,160,23,0.15)] cursor-pointer border-none"
-        >
-          ‹
-        </button>
-        <button 
-          onClick={nextSlide}
-          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 size-9 rounded-full border border-gold/30 bg-background/90 text-gold flex items-center justify-center hover:bg-gold hover:text-primary-foreground hover:scale-110 transition-all shadow-[0_0_15px_rgba(212,160,23,0.15)] cursor-pointer border-none"
-        >
-          ›
-        </button>
-
+      <div className="relative">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 py-2">
-          {sellers.slice(startIndex, startIndex + 4).map((s, idx) => (
+          {sellers.map((s, idx) => (
             <div 
               key={idx}
               className="relative bg-[#101114] border border-white/5 rounded-2xl p-6 pt-8 flex flex-col items-center justify-between text-center transition-all hover:border-gold/40 hover:shadow-[0_0_20px_rgba(212,175,55,0.05)] min-h-[350px] overflow-hidden"
@@ -1168,19 +1146,6 @@ function TopRatedSellers() {
                 ★ {s.tier === "Top Seller" ? "Top Seller" : "Rising Star"}
               </span>
             </div>
-          ))}
-        </div>
-
-        {/* Carousel Pagination Dots */}
-        <div className="flex justify-center gap-2 mt-6">
-          {Array.from({ length: Math.max(1, sellers.length - 3) }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setStartIndex(i)}
-              className={`size-2 rounded-full transition-all cursor-pointer border-none ${
-                startIndex === i ? "bg-gold w-6" : "bg-white/20 hover:bg-white/40"
-              }`}
-            />
           ))}
         </div>
       </div>
