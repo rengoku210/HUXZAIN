@@ -1532,8 +1532,8 @@ function TrendingListings() {
           .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
           .eq("status", "active")
           .or("expiry_date.is.null,expiry_date.gt." + new Date().toISOString())
-          .or("view_count.gt.0,order_count.gt.0")
-          .order("view_count", { ascending: false })
+          .gt("trending_score", 0)
+          .order("trending_score", { ascending: false })
           .limit(5);
         if (error) throw error;
         
