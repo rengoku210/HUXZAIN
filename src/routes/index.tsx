@@ -1250,7 +1250,7 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
         if (activeSearch) {
           query = query.ilike("title", `%${activeSearch}%`).order("boost_score", { ascending: false }).order("created_at", { ascending: false });
         } else {
-          query = query.order("boost_score", { ascending: false }).order("created_at", { ascending: false }).limit(8);
+          query = query.eq("is_homepage_featured", true).order("boost_score", { ascending: false }).order("created_at", { ascending: false }).limit(8);
         }
 
         const { data, error } = await query;
@@ -1297,6 +1297,10 @@ function FeaturedSection({ activeSearch, onClearSearch }: { activeSearch: string
 
     void loadListings();
   }, [activeSearch]);
+
+  if (!activeSearch && (!liveListings || liveListings.length === 0) && spotlightListings.length === 0 && !loadingListings) {
+    return null;
+  }
 
   return (
     <section className="container-page py-14">
@@ -1528,6 +1532,7 @@ function TrendingListings() {
           .select("*, profiles(id, display_name, username, subscription_tier, is_verified)")
           .eq("status", "active")
           .or("expiry_date.is.null,expiry_date.gt." + new Date().toISOString())
+          .or("view_count.gt.0,order_count.gt.0")
           .order("view_count", { ascending: false })
           .limit(5);
         if (error) throw error;
