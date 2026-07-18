@@ -30,7 +30,7 @@ export function onOrderCreated(orderId: string, buyerId: string) {
 export function onPaymentSubmitted(orderId: string, buyerId: string) {
   return Promise.all([
     fire("order.payment_submitted", { userIds: [buyerId], entity: { type: "order", id: orderId } }),
-    fire("staff.payment_verification", { roles: ["payment", "admin", "super_admin"] }),
+    fire("staff.payment_verification", { roles: ["owner", "payment", "admin", "super_admin"] }),
   ]);
 }
 
@@ -70,7 +70,7 @@ export function onDisputeCreated(orderId: string, disputeId: string, buyerId: st
   return Promise.all([
     fire("dispute.created_buyer", { userIds: [buyerId], entity: { type: "order", id: orderId }, data: { disputeId } }),
     fire("dispute.created_seller", { userIds: [sellerId], entity: { type: "dispute", id: disputeId } }),
-    fire("staff.dispute_review", { roles: ["moderator", "admin", "super_admin"], entity: { type: "dispute", id: disputeId } }),
+    fire("staff.dispute_review", { roles: ["owner", "moderator", "admin", "super_admin"], entity: { type: "dispute", id: disputeId } }),
   ]);
 }
 
@@ -88,7 +88,7 @@ export function onDisputeResolved(orderId: string, disputeId: string, buyerId: s
 export function onWithdrawRequested(withdrawalId: string, sellerId: string) {
   return Promise.all([
     fire("finance.withdrawal_submitted", { userIds: [sellerId], data: { withdrawalId } }),
-    fire("staff.withdrawal_request", { roles: ["finance", "admin", "super_admin"] }),
+    fire("staff.withdrawal_request", { roles: ["owner", "finance", "admin", "super_admin"] }),
   ]);
 }
 
@@ -108,8 +108,18 @@ export function onWithdrawalCompleted(withdrawalId: string, sellerId: string) {
 export function onListingSubmitted(listingId: string, sellerId: string) {
   return Promise.all([
     fire("listing.submitted", { userIds: [sellerId], entity: { type: "listing", id: listingId } }),
-    fire("staff.listing_review", { roles: ["moderator", "admin", "super_admin"] }),
+    fire("staff.listing_review", { roles: ["owner", "moderator", "admin", "super_admin"] }),
   ]);
+}
+
+// ---- Support Tickets ----
+
+/** Support ticket opened: user + operations team + owner. */
+export function onTicketCreated(ticketId: string, userEmail: string, title: string) {
+  return fire("staff.support_ticket", {
+    roles: ["owner", "super_admin", "admin", "manager", "moderator", "staff"],
+    data: { ticketId, userEmail, title }
+  });
 }
 
 /** Listing approved by a moderator. */

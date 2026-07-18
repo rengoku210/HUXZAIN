@@ -342,6 +342,51 @@ export async function notify(eventKey: string, ctx: NotifyContext = {}): Promise
         status: "sent",
       });
 
+      // 4b) Mirror in internal_notifications if the recipient is a staff member or owner
+      try {
+        const { data: userRoles } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
+        const isStaffOrOwner = userRoles?.some((r: any) =>
+          ["moderator", "staff", "admin", "super_admin", "owner"].includes(r.role)
+        );
+
+        if (isStaffOrOwner || eventKey.startsWith("staff.") || eventKey.startsWith("owner.")) {
+          let typeVal: "info" | "warning" | "task" | "alert" = "info";
+          if (ev.priority === "high") typeVal = "warning";
+          if (ev.priority === "critical") typeVal = "alert";
+          if (
+            eventKey.includes("assign") ||
+            eventKey.includes("review") ||
+            eventKey.includes("verification")
+          ) {
+            typeVal = "task";
+          }
+
+          let intCategory: "disputes" | "payments" | "tickets" | "orders" | "general" = "general";
+          if (ev.category === "orders") intCategory = "orders";
+          if (ev.category === "finance") intCategory = "payments";
+          if (eventKey.includes("payment") || eventKey.includes("withdraw")) intCategory = "payments";
+          if (eventKey.includes("dispute")) intCategory = "disputes";
+          if (eventKey.includes("ticket")) intCategory = "tickets";
+
+          await admin
+            .from("internal_notifications")
+            .insert({
+              user_id: userId,
+              title,
+              body,
+              type: typeVal,
+              category: intCategory,
+              link,
+              read_at: null,
+            });
+        }
+      } catch (mirrorErr: any) {
+        console.error("[notify] Failed to mirror internal notification:", mirrorErr.message);
+      }
+
       // 5) Email (best-effort; never blocks).
       if (wantsEmail) {
         await sendEmail(admin, ev, userId, title, body, link);

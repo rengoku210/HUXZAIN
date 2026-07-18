@@ -84,9 +84,10 @@ export const createStaffTask = createServerFn({ method: "POST" })
     await supabase.from("internal_notifications").insert({
       user_id: assigned_to,
       title: "New Task Assigned",
-      message: `You have been assigned a new task: "${title}"`,
-      type: "task_assignment",
-      reference_id: task.id,
+      body: `You have been assigned a new task: "${title}"`,
+      type: "task",
+      category: "general",
+      link: "/admin/tasks",
     });
 
     return { success: true, task };

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -74,6 +74,7 @@ function TaskManagement() {
   const [perfStats, setPerfStats] = useState<any[]>([]);
   const [rolesPermissions, setRolesPermissions] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [selectedNotifCategory, setSelectedNotifCategory] = useState("all");
 
   // Create Task form states
   const [taskTitle, setTaskTitle] = useState("");
@@ -651,38 +652,79 @@ function TaskManagement() {
                 <Bell size={16} className="text-gold" /> Unread Work Alerts
               </h3>
 
-              <div className="space-y-3">
-                {notifications.length === 0 ? (
-                  <div className="text-center py-10 text-xs text-muted-foreground">
-                    Your mailbox is clear. No new notifications.
-                  </div>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all ${
-                        !n.read_at ? "bg-gold/5 border-gold/25" : "bg-surface/10 border-border/80 opacity-70"
+              {/* Category Filter Tabs */}
+              <div className="flex flex-wrap gap-2 border-b border-border/40 pb-3">
+                {["all", "disputes", "payments", "tickets", "orders", "general"].map((cat) => {
+                  const count = notifications.filter((n) => {
+                    if (cat === "all") return true;
+                    return (n.category || "general").toLowerCase() === cat;
+                  }).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedNotifCategory(cat)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                        selectedNotifCategory === cat
+                          ? "bg-gold text-black border-gold"
+                          : "bg-surface/20 border-border text-muted-foreground hover:text-white"
                       }`}
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-foreground">{n.title}</span>
-                          <span className="text-[9px] text-muted-foreground font-mono">
-                            {new Date(n.created_at).toLocaleString()}
-                          </span>
+                      {cat} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-3">
+                {notifications.filter((n) => {
+                  if (selectedNotifCategory === "all") return true;
+                  return (n.category || "general").toLowerCase() === selectedNotifCategory;
+                }).length === 0 ? (
+                  <div className="text-center py-10 text-xs text-muted-foreground">
+                    No notifications in this category.
+                  </div>
+                ) : (
+                  notifications
+                    .filter((n) => {
+                      if (selectedNotifCategory === "all") return true;
+                      return (n.category || "general").toLowerCase() === selectedNotifCategory;
+                    })
+                    .map((n) => (
+                      <div
+                        key={n.id}
+                        className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all ${
+                          !n.read_at ? "bg-gold/5 border-gold/25" : "bg-surface/10 border-border/80 opacity-70"
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-foreground">{n.title}</span>
+                            <span className="text-[9px] text-muted-foreground font-mono">
+                              {new Date(n.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{n.body || n.message}</p>
+                          {n.link && (
+                            <div className="mt-1">
+                              <Link
+                                to={n.link}
+                                className="inline-flex items-center text-[10px] text-gold hover:underline"
+                              >
+                                View details &rarr;
+                              </Link>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground">{n.message}</p>
+                        {!n.read_at && (
+                          <button
+                            onClick={() => handleMarkNotifRead(n.id)}
+                            className="px-2 py-1 rounded-lg border border-border text-[9px] uppercase font-bold tracking-wider hover:text-gold hover:border-gold/30 active:scale-95 transition-all cursor-pointer bg-surface/20 shrink-0"
+                          >
+                            Dismiss
+                          </button>
+                        )}
                       </div>
-                      {!n.read_at && (
-                        <button
-                          onClick={() => handleMarkNotifRead(n.id)}
-                          className="px-2 py-1 rounded-lg border border-border text-[9px] uppercase font-bold tracking-wider hover:text-gold hover:border-gold/30 active:scale-95 transition-all cursor-pointer bg-surface/20 shrink-0"
-                        >
-                          Dismiss
-                        </button>
-                      )}
-                    </div>
-                  ))
+                    ))
                 )}
               </div>
             </div>

@@ -276,8 +276,31 @@ export const assignTicket = createServerFn({ method: "POST" })
         title: "New Ticket Assigned",
         body: `Support ticket #${ticket_id.slice(0, 8)} has been assigned to you.`,
         type: "task",
+        category: "tickets",
         link: `/admin/tickets`,
       });
+
+      // Insert internal notification for owner(s)
+      try {
+        const { data: owners } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "owner");
+        if (owners && owners.length > 0) {
+          const ownerRows = owners.map((o: any) => ({
+            user_id: o.user_id,
+            title: "Support Ticket Assigned",
+            body: `Support ticket #${ticket_id.slice(0, 8)} has been assigned to employee ${name}.`,
+            type: "info",
+            category: "tickets",
+            link: `/admin/tickets`,
+            read_at: null,
+          }));
+          await supabase.from("internal_notifications").insert(ownerRows);
+        }
+      } catch (err: any) {
+        console.error("[Tickets] Failed to notify owner on assignment:", err.message);
+      }
     } else if (department) {
       systemMsg = `Ticket routed to ${department.toUpperCase()} department`;
     }

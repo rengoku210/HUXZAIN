@@ -5,6 +5,7 @@ import { LifeBuoy, Plus, Inbox, Send, RefreshCw, QrCode, Upload, ArrowLeft } fro
 import { useAuth } from "@/lib/auth/auth-context";
 import { getSupabase } from "@/lib/supabase-client";
 import { triggerNotification, triggerRoleNotification } from "@/lib/notifications.functions";
+import { onTicketCreated } from "@/lib/notifications/hooks";
 import { toast } from "sonner";
 import { BeforeContactSupport } from "@/components/ui/HuxzainNotices";
 
@@ -214,25 +215,8 @@ function Page() {
           },
         });
 
-        // Staff-level notification
-        await triggerRoleNotification({
-          data: {
-            roles: ["super_admin", "admin", "manager", "moderator", "staff"],
-            kind: "ticket.created",
-            title: "New support ticket",
-            body: `${finalTitle} — from ${user.email ?? user.id} (ticket ${ticket.id})`,
-          },
-        });
-
-        // Owner notification (categorized so Owner can filter without being spammed)
-        await triggerRoleNotification({
-          data: {
-            roles: ["owner"],
-            kind: "owner.support.ticket_created",
-            title: "Support: New ticket",
-            body: `${finalTitle} — from ${user.email ?? user.id} (ticket ${ticket.id})`,
-          },
-        });
+        // Trigger staff + owner notifications using central notify hook
+        await onTicketCreated(ticket.id, user.email || user.id, finalTitle);
       } catch (e) {
         // Don't block UX on notifications
         console.warn("Ticket notifications failed:", e);
