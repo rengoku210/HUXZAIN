@@ -92,7 +92,7 @@ function InvoiceModal({ order, onClose }: { order: SellerOrder; onClose: () => v
           <hr className="border-gray-200" />
 
           {/* Addresses */}
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
             <div>
               <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Billed To (Buyer)</div>
               <div className="font-semibold text-gray-800">{order.profiles?.display_name || 'Valued Customer'}</div>
@@ -129,7 +129,7 @@ function InvoiceModal({ order, onClose }: { order: SellerOrder; onClose: () => v
 
           {/* Totals */}
           <div className="flex justify-end">
-            <div className="w-80 space-y-3">
+            <div className="w-full max-w-xs space-y-3">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Subtotal</span>
                 <span>₹{basePrice.toFixed(2)}</span>

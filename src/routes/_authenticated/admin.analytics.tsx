@@ -133,7 +133,7 @@ function AnalyticsPage() {
       </div>
 
       {/* Tabs Selector */}
-      <div className="flex border-b border-border/80 text-xs">
+      <div className="flex overflow-x-auto scrollbar-none flex-nowrap border-b border-border/80 text-xs">
         <button
           onClick={() => setActiveTab("users")}
           className={`px-6 py-3 font-semibold border-b-2 transition-all flex items-center gap-2 ${

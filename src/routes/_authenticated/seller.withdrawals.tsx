@@ -327,7 +327,7 @@ function Page() {
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Left side: Orders list divided by payout state */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex border-b border-border gap-2">
+              <div className="flex border-b border-border gap-2 overflow-x-auto">
                 <button
                   onClick={() => setPayoutTab("eligible")}
                   className={`pb-2.5 px-3 text-xs font-semibold relative transition-all border-none bg-transparent cursor-pointer ${

@@ -378,7 +378,7 @@ function Page() {
 
           <div className="grid lg:grid-cols-[1fr_260px] gap-6">
             {/* Messages Chat Room */}
-            <div className="rounded-2xl border border-border bg-surface/30 p-4 h-[450px] flex flex-col justify-between">
+            <div className="rounded-2xl border border-border bg-surface/30 p-4 h-[55vh] min-h-[320px] max-h-[500px] flex flex-col justify-between">
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {loadingMessages ? (
                   <div className="text-center text-xs text-muted-foreground py-12 animate-pulse">

@@ -86,7 +86,7 @@ function BlogPage() {
         </div>
 
         {/* Category Filter */}
-        <div className="mb-10 flex flex-wrap gap-2">
+        <div className="mb-10 flex flex-wrap gap-2 overflow-x-auto scrollbar-none">
           {categories.map((cat, i) => (
             <button
               key={cat}
@@ -179,7 +179,7 @@ function BlogPage() {
               Subscribe to the HUXZAIN newsletter for exclusive insights, seller tips, and platform
               announcements delivered to your inbox.
             </p>
-            <form className="flex gap-2 max-w-md mx-auto">
+            <form className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
               <input
                 type="email"
                 placeholder="your@email.com"

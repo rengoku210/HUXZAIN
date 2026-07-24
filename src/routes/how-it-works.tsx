@@ -90,7 +90,7 @@ function HowItWorksPage() {
             {STEPS.map((s, i) => (
               <div
                 key={s.step}
-                className={`rounded-2xl border p-6 md:p-8 ${s.color} flex gap-6 items-start`}
+                className={`rounded-2xl border p-6 md:p-8 ${s.color} flex flex-col sm:flex-row gap-4 sm:gap-6 items-start`}
               >
                 <div
                   className={`size-14 rounded-2xl border flex items-center justify-center shrink-0 ${s.iconColor}`}

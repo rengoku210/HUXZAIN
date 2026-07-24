@@ -94,7 +94,7 @@ function LoginPage() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 container-page py-16 flex justify-center">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-surface/40 p-8">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-surface/40 p-5 sm:p-8">
           <h1 className="font-display text-2xl font-bold">Sign in to HUXZAIN</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Welcome back. Continue to your dashboard.
@@ -152,13 +152,13 @@ function LoginPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => oauth("google")}
-              className="h-10 rounded-lg border border-border text-sm hover:border-gold/40"
+              className="h-11 rounded-lg border border-border text-sm hover:border-gold/40"
             >
               Google
             </button>
             <button
               onClick={() => oauth("apple")}
-              className="h-10 rounded-lg border border-border text-sm hover:border-gold/40"
+              className="h-11 rounded-lg border border-border text-sm hover:border-gold/40"
             >
               Apple
             </button>

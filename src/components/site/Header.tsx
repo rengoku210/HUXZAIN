@@ -571,12 +571,12 @@ export function Header({ transparent }: { transparent?: boolean }) {
     <>
       <header className={`${transparent ? "absolute top-0 left-0 right-0 z-50 border-b-0 border-transparent bg-transparent backdrop-blur-none" : "sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl"} w-full max-w-full overflow-x-clip md:overflow-x-visible`}>
         {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div className="container-page flex h-24 items-center gap-4">
+        <div className="container-page flex h-16 md:h-24 items-center gap-2 sm:gap-4">
           <Link to="/" className="flex items-center shrink-0 bg-transparent border-none outline-none shadow-none p-0 hover:opacity-90 transition-opacity">
             <img 
               src={logo} 
               alt="HUXZAIN" 
-              className="h-20 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
+              className="h-10 sm:h-14 md:h-20 w-auto bg-transparent select-none pointer-events-none object-contain animate-fade-in" 
             />
           </Link>
 
@@ -626,7 +626,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
                   setNotifOpen(false);
                   setAccountOpen(false);
                 }}
-                className="inline-flex items-center justify-center size-9 rounded-full hover:bg-surface text-muted-foreground hover:text-foreground transition-colors relative"
+                className="inline-flex items-center justify-center size-10 rounded-full hover:bg-surface text-muted-foreground hover:text-foreground transition-colors relative"
                 aria-label="Cart"
               >
                 <ShoppingCart className="size-4" />
@@ -711,7 +711,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
                   setCartOpen(false);
                   setAccountOpen(false);
                 }}
-                className="hidden sm:inline-flex items-center justify-center size-9 rounded-full hover:bg-surface text-muted-foreground hover:text-foreground transition-colors relative border-none bg-transparent cursor-pointer"
+                className="inline-flex items-center justify-center size-10 rounded-full hover:bg-surface text-muted-foreground hover:text-foreground transition-colors relative border-none bg-transparent cursor-pointer"
                 aria-label="Notifications"
               >
                 <Bell className="size-4" />
@@ -967,7 +967,7 @@ export function Header({ transparent }: { transparent?: boolean }) {
             )}
 
             <button
-              className="md:hidden inline-flex items-center justify-center size-9 rounded-full hover:bg-surface"
+              className="md:hidden inline-flex items-center justify-center size-10 rounded-full hover:bg-surface"
               onClick={() => setMobileOpen((v) => !v)}
             >
               {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
@@ -1180,6 +1180,33 @@ export function Header({ transparent }: { transparent?: boolean }) {
         {mobileOpen && (
           <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-xl">
             <div className="container-page py-4 space-y-1">
+              {/* Mobile Search Bar */}
+              <div className="pb-3 border-b border-border/60 mb-2">
+                <div className="flex items-center rounded-xl border border-border bg-surface/80 overflow-hidden focus-within:border-gold/60 transition-colors">
+                  <input
+                    value={headerSearch}
+                    onChange={(e) => setHeaderSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setMobileOpen(false);
+                        navigate({ to: "/search", search: { q: headerSearch } });
+                      }
+                    }}
+                    placeholder="Search for digital products, services..."
+                    className="flex-1 bg-transparent outline-none text-sm px-4 placeholder:text-muted-foreground h-11"
+                  />
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false);
+                      navigate({ to: "/search", search: { q: headerSearch } });
+                    }}
+                    className="px-4 h-11 bg-gold text-primary-foreground hover:brightness-110 transition-all flex items-center justify-center cursor-pointer"
+                    aria-label="Search"
+                  >
+                    <Search className="size-4" />
+                  </button>
+                </div>
+              </div>
               {navItems.map((item) => {
                 const linkProps: any = { to: item.to };
                 if ("params" in item && item.params) {

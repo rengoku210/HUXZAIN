@@ -288,7 +288,7 @@ function SeoDesk() {
               <p className="text-xs text-muted-foreground mt-1">Default meta tags will apply until custom settings are added.</p>
             </div>
           ) : (
-            <div className="border border-border rounded-xl bg-surface/20 overflow-hidden">
+            <div className="border border-border rounded-xl bg-surface/20 overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-surface/40 text-muted-foreground font-semibold">

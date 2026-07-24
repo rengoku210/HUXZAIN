@@ -114,7 +114,7 @@ function AboutPage() {
                 honest, secure, and empowering for everyone involved.
               </p>
             </div>
-            <div className="mt-7 flex gap-3">
+            <div className="mt-7 flex flex-col sm:flex-row gap-3">
               <Link
                 to="/how-it-works"
                 className="h-10 px-5 rounded-xl border border-border bg-surface/60 text-sm font-medium hover:border-gold/50 hover:text-gold transition-colors inline-flex items-center gap-2"
@@ -234,7 +234,7 @@ function AboutPage() {
               Join over 50,000 buyers and sellers who trust HUXZAIN for safe, reliable digital
               commerce.
             </p>
-            <div className="flex justify-center gap-3">
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
               <Link
                 to="/signup"
                 className="h-11 px-6 rounded-xl bg-gold text-primary-foreground text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center"

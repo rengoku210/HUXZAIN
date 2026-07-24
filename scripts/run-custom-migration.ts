@@ -39,7 +39,7 @@ async function run() {
   BEGIN
     IF EXISTS (
       SELECT 1 FROM pg_type t 
-      JOIN pg_namespace n ON t.pgnamespace = n.oid 
+      JOIN pg_namespace n ON t.typnamespace = n.oid 
       WHERE t.typname = 'app_role' AND n.nspname = 'public'
     ) THEN
       BEGIN

@@ -333,7 +333,7 @@ function TaskManagement() {
               </div>
 
               {/* Tasks List */}
-              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden">
+              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto overflow-hidden">
                 <table className="w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground">
@@ -563,7 +563,7 @@ function TaskManagement() {
 
           {/* PERFORMANCE LEADERBOARD */}
           {activeTab === "performance" && (
-            <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden">
+            <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto overflow-hidden">
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground">

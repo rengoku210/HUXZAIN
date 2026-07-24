@@ -357,7 +357,7 @@ function TransactionsPage() {
                 className="w-full h-10 pl-10 pr-4 rounded-xl bg-background border border-border focus:border-gold/40 text-xs outline-none"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex items-center gap-1.5 border border-border rounded-xl px-3 bg-background text-xs">
                 <Calendar size={13} className="text-gold" />
                 <select

@@ -332,7 +332,7 @@ function Hero({ counts, onSearch, primaryCats }: { counts: any; onSearch: (q: st
                 <div className="w-full h-px bg-white/10 sm:hidden" />
                 <div className="w-px h-6 bg-white/10 mx-1 shrink-0 hidden sm:block" />
 
-                <div className="relative flex items-center shrink-0 hidden sm:flex">
+                <div className="relative flex items-center shrink-0">
                   <select
                     id="hero-search-category"
                     value={selectedCategory}
@@ -413,7 +413,7 @@ function PromotionBanners() {
         
         {/* GAME BUDDIES CARD */}
         <div 
-          className="relative overflow-hidden rounded-3xl border border-purple-500/10 bg-gradient-to-br from-[#12081c] via-[#09040e] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(157,78,221,0.05)] hover:border-purple-500/25 hover:shadow-[0_0_40px_rgba(157,78,221,0.1)] transition-all duration-500 group"
+          className="relative overflow-hidden rounded-3xl border border-purple-500/10 bg-gradient-to-br from-[#12081c] via-[#09040e] to-black p-5 sm:p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(157,78,221,0.05)] hover:border-purple-500/25 hover:shadow-[0_0_40px_rgba(157,78,221,0.1)] transition-all duration-500 group"
           style={{
             backgroundImage: "linear-gradient(to right, rgba(9, 4, 14, 0.96) 35%, rgba(9, 4, 14, 0) 80%), url('/images/category-banners/Game Buddy.jpg')",
             backgroundSize: "cover",
@@ -484,7 +484,7 @@ function PromotionBanners() {
 
         {/* COACH & EARN CARD */}
         <div 
-          className="relative overflow-hidden rounded-3xl border border-gold/10 bg-gradient-to-br from-[#1c1408] via-[#0e0a04] to-black p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(212,160,23,0.05)] hover:border-gold/25 hover:shadow-[0_0_40px_rgba(212,160,23,0.1)] transition-all duration-500 group"
+          className="relative overflow-hidden rounded-3xl border border-gold/10 bg-gradient-to-br from-[#1c1408] via-[#0e0a04] to-black p-5 sm:p-8 md:p-10 flex flex-col justify-between min-h-[360px] shadow-[0_0_30px_rgba(212,160,23,0.05)] hover:border-gold/25 hover:shadow-[0_0_40px_rgba(212,160,23,0.1)] transition-all duration-500 group"
           style={{
             backgroundImage: "linear-gradient(to right, rgba(14, 10, 4, 0.96) 35%, rgba(14, 10, 4, 0) 80%), url('/images/category-banners/Coach.jpg')",
             backgroundSize: "cover",

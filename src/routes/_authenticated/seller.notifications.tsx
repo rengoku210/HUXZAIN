@@ -123,7 +123,7 @@ function Page() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border gap-6">
+      <div className="flex border-b border-border gap-6 overflow-x-auto">
         {[
           { key: "all", label: `All Alerts` },
           { key: "unread", label: `Unread (${unreadCount})` },

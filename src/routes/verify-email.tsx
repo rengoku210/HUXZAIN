@@ -324,14 +324,14 @@ function VerifyPage() {
 
             {/* OTP Input Block */}
             <div className="mt-10 w-full">
-              <div className="flex justify-center gap-2 md:gap-3">
+              <div className="flex justify-center gap-1.5 sm:gap-2 md:gap-3">
                 {otp.map((char, idx) => (
                   <motion.div
                     key={idx}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="relative size-12 md:size-14"
+                    className="relative size-10 sm:size-12 md:size-14"
                   >
                     <input
                       ref={(el) => { inputRefs.current[idx] = el; }}

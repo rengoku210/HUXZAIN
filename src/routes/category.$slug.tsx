@@ -432,9 +432,9 @@ function CategoryPage() {
         {isParentPage ? (
           <div className="space-y-10">
             {/* Trust Badges */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {getCategoryTrustBadges(category?.slug).map((badge, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-4 rounded-2xl bg-[#0a0b0d]/50 border border-white/5 shadow-sm text-left">
+                <div key={idx} className="flex items-center gap-3 p-3 sm:p-4 rounded-2xl bg-[#0a0b0d]/50 border border-white/5 shadow-sm text-left">
                   <div className={`p-2.5 rounded-xl bg-surface-elevated border border-white/5 ${badge.color}`}>
                     <badge.icon className="size-5" />
                   </div>
@@ -661,7 +661,7 @@ function CategoryPage() {
                                 setShowAllSubs(false);
                                 navigate({ to: "/category/$slug", params: { slug: getUiSlugFromDbSlug(c.slug) } });
                               }}
-                              className="p-2.5 rounded-xl border border-white/5 bg-[#0a0b0d]/50 hover:bg-surface-elevated hover:border-gold/20 transition-all text-xs font-medium text-white hover:text-gold cursor-pointer truncate flex items-center justify-between"
+                              className="p-3.5 min-h-[44px] rounded-xl border border-white/5 bg-[#0a0b0d]/50 hover:bg-surface-elevated hover:border-gold/20 transition-all text-xs font-medium text-white hover:text-gold cursor-pointer truncate flex items-center justify-between"
                             >
                               <span className="truncate">{c.name}</span>
                               <span className="text-[8px] font-mono text-muted-foreground/60 shrink-0 ml-1">

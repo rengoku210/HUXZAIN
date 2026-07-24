@@ -433,7 +433,7 @@ function ListingModal({
 
         {categoryType === "game-accounts" && (
           <div className="space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Login ID / Username <span className="text-red-400">*</span></label>
                 <input
@@ -499,7 +499,7 @@ function ListingModal({
 
         {categoryType === "gift-cards" && (
           <div className="space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Gift Card Code <span className="text-red-400">*</span></label>
                 <input
@@ -621,7 +621,7 @@ function ListingModal({
 
         {categoryType === "subscriptions" && (
           <div className="space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Username / Email <span className="text-red-400">*</span></label>
                 <input
@@ -712,7 +712,7 @@ function ListingModal({
 
         {categoryType === "software-tools" && (
           <div className="space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Product Key <span className="text-red-400">*</span></label>
                 <input
@@ -758,7 +758,7 @@ function ListingModal({
 
         {categoryType === "digital-marketplace" && (
           <div className="space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Download Link <span className="text-red-400">*</span></label>
                 <input
@@ -804,7 +804,7 @@ function ListingModal({
 
         {categoryType === "generic" && (
           <div className="space-y-3 text-left">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-muted-foreground mb-1">Username / Login ID</label>
                 <input
@@ -1418,20 +1418,20 @@ function ListingModal({
         </div>
         
         {/* Stepper (Image 1 Mockup) */}
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider font-display">
-          <div className="flex items-center gap-1.5 text-gold">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider font-display overflow-x-auto">
+          <div className="flex items-center gap-1.5 text-gold shrink-0">
             <span className="size-5 rounded-full bg-gold text-black flex items-center justify-center text-[10px] font-black">1</span>
-            <span>Listing Details</span>
+            <span className="hidden sm:inline">Listing Details</span>
           </div>
-          <div className="w-8 h-px bg-white/10" />
-          <div className="flex items-center gap-1.5 text-muted-foreground">
+          <div className="w-8 h-px bg-white/10 shrink-0" />
+          <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
             <span className="size-5 rounded-full border border-white/10 flex items-center justify-center text-[10px] font-black">2</span>
-            <span>Review Listing</span>
+            <span className="hidden sm:inline">Review Listing</span>
           </div>
-          <div className="w-8 h-px bg-white/10" />
-          <div className="flex items-center gap-1.5 text-muted-foreground">
+          <div className="w-8 h-px bg-white/10 shrink-0" />
+          <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
             <span className="size-5 rounded-full border border-white/10 flex items-center justify-center text-[10px] font-black">3</span>
-            <span>Publish Listing</span>
+            <span className="hidden sm:inline">Publish Listing</span>
           </div>
         </div>
       </div>
@@ -3898,7 +3898,7 @@ function Page() {
                           {l.status === "deleted" ? (
                             <button
                               onClick={() => executeRestore(l.id)}
-                              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold text-xs font-semibold transition-all cursor-pointer border-none"
+                              className="inline-flex items-center gap-1.5 h-9 min-h-[36px] px-3 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold text-xs font-semibold transition-all cursor-pointer border-none"
                               title="Restore"
                             >
                               Restore
@@ -3907,7 +3907,7 @@ function Page() {
                             <>
                               <button
                                 onClick={() => executeRenew(l.id)}
-                                className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold text-xs font-semibold transition-all cursor-pointer border-none"
+                                className="inline-flex items-center gap-1.5 h-9 min-h-[36px] px-3 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold text-xs font-semibold transition-all cursor-pointer border-none"
                                 title="Renew for 30 days"
                               >
                                 <RotateCcw className="size-3.5" /> Renew
@@ -3915,7 +3915,7 @@ function Page() {
                               <button
                                 onClick={() => handleStartDelete(l.id)}
                                 disabled={deleting === l.id || deleting !== null}
-                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                                className="h-9 min-h-[36px] w-9 inline-flex items-center justify-center rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
                                 title="Delete"
                               >
                                 <Trash2 className="size-4" />
@@ -3927,7 +3927,7 @@ function Page() {
                               {/* Promote → Promotion Center (Boost, Glow, Urgent, Featured) */}
                               <a
                                 href={`/seller/boosts?listing=${l.id}`}
-                                className="p-1.5 rounded-lg hover:bg-gold/10 text-muted-foreground hover:text-gold transition-colors"
+                                className="h-9 min-h-[36px] w-9 inline-flex items-center justify-center rounded-lg hover:bg-gold/10 text-muted-foreground hover:text-gold transition-colors"
                                 title="Promote (Boost / Glow / Urgent)"
                               >
                                 <Rocket className="size-4" />
@@ -3936,14 +3936,14 @@ function Page() {
                                 href={`/product/${l.id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-colors"
+                                className="h-9 min-h-[36px] w-9 inline-flex items-center justify-center rounded-lg hover:bg-surface text-muted-foreground hover:text-foreground transition-colors"
                                 title="Preview"
                               >
                                 <Eye className="size-4" />
                               </a>
                               <button
                                 onClick={() => setEditTarget(l)}
-                                className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-gold transition-colors"
+                                className="h-9 min-h-[36px] w-9 inline-flex items-center justify-center rounded-lg hover:bg-surface text-muted-foreground hover:text-gold transition-colors"
                                 title="Edit"
                               >
                                 <Edit className="size-4" />
@@ -3951,7 +3951,7 @@ function Page() {
                               {l.status === "active" && (
                                 <button
                                   onClick={() => executeExpire(l.id)}
-                                  className="p-1.5 rounded-lg hover:bg-surface text-muted-foreground hover:text-red-400 transition-colors"
+                                  className="h-9 min-h-[36px] w-9 inline-flex items-center justify-center rounded-lg hover:bg-surface text-muted-foreground hover:text-red-400 transition-colors"
                                   title="Expire (unpublish)"
                                 >
                                   <Clock className="size-4" />
@@ -3960,7 +3960,7 @@ function Page() {
                               <button
                                 onClick={() => handleStartDelete(l.id)}
                                 disabled={deleting === l.id || deleting !== null}
-                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                                className="h-9 min-h-[36px] w-9 inline-flex items-center justify-center rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
                                 title="Delete"
                               >
                                 {deleting === l.id ? (

@@ -624,17 +624,17 @@ function UnifiedPaymentPage() {
                         <span className="font-mono text-muted-foreground truncate pl-1">UPI ID: {upiId}</span>
                         <button
                           onClick={() => copyToClipboard(upiId, "id")}
-                          className="h-8 px-3 rounded-lg bg-border/60 hover:bg-border text-[11px] font-semibold flex items-center gap-1.5 transition-colors border-none cursor-pointer"
+                          className="h-8 px-3 rounded-lg bg-border/60 hover:bg-border text-[11px] font-semibold flex items-center gap-1.5 transition-colors border-none cursor-pointer shrink-0"
                         >
                           <Copy size={12} /> {copiedId ? "Copied" : "Copy ID"}
                         </button>
                       </div>
 
                       <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-surface/80 border border-border text-xs">
-                        <span className="font-mono text-muted-foreground pl-1">Amount: ₹{paymentAmount}</span>
+                        <span className="font-mono text-muted-foreground pl-1 truncate">Amount: ₹{paymentAmount}</span>
                         <button
                           onClick={() => copyToClipboard(String(paymentAmount), "amount")}
-                          className="h-8 px-3 rounded-lg bg-border/60 hover:bg-border text-[11px] font-semibold flex items-center gap-1.5 transition-colors border-none cursor-pointer"
+                          className="h-8 px-3 rounded-lg bg-border/60 hover:bg-border text-[11px] font-semibold flex items-center gap-1.5 transition-colors border-none cursor-pointer shrink-0"
                         >
                           <Copy size={12} /> {copiedAmount ? "Copied" : "Copy Amount"}
                         </button>

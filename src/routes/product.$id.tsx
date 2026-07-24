@@ -521,7 +521,7 @@ function ProductPage() {
         `}} />
       )}
       <Header />
-      <main className="flex-1 container-page py-8">
+      <main className="flex-1 container-page py-8 pb-24 md:pb-8">
         <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6">
           <Link to="/" className="hover:text-foreground">
             Home
@@ -640,7 +640,7 @@ function ProductPage() {
             {listing.attributes && Object.keys(listing.attributes).length > 0 && listing.attributes.type !== "generic" && (
               <div className="mt-6">
                 <h3 className="text-sm font-semibold mb-3 text-gold">Specifications</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                   {dynamicFields.length > 0 ? (
                     dynamicFields.map((field) => {
                       const value = (listing.attributes as any)?.[field.field_key];
@@ -831,6 +831,30 @@ function ProductPage() {
           </div>
         </div>
 
+        {/* Sticky Mobile Bottom CTA Bar */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-border p-3 flex items-center justify-between gap-3 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Price</span>
+            <span className="text-lg font-bold text-gold font-display truncate">{formatPrice(price)}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleAddToCart}
+              className="size-10 rounded-xl border border-gold/40 text-gold flex items-center justify-center cursor-pointer bg-transparent"
+              aria-label="Add to cart"
+            >
+              <ShoppingCart className="size-4" />
+            </button>
+            <button
+              onClick={() => handleBuyNow()}
+              disabled={!ready || ordering || stockCount === 0}
+              className="h-10 px-5 rounded-xl bg-gold text-primary-foreground text-xs font-bold uppercase tracking-wider hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-1.5 cursor-pointer border-none shadow-md shadow-gold/20"
+            >
+              {ordering ? <Loader2 className="size-3.5 animate-spin" /> : "Buy Now"}
+            </button>
+          </div>
+        </div>
+
         <div className="mt-14 border-b border-border flex gap-6 overflow-x-auto">
           {TABS.map((t, i) => (
             <button
@@ -888,7 +912,7 @@ function ProductPage() {
       {reportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReportOpen(false)} />
-          <div className="relative w-full max-w-md bg-surface border border-border rounded-2xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-md bg-surface border border-border rounded-2xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <h3 className="font-display font-bold text-lg text-white mb-2">Report {reportTargetType === "listing" ? "Listing" : "Seller"}</h3>
             <p className="text-xs text-muted-foreground mb-4">
               Please specify the reason for reporting this {reportTargetType === "listing" ? `listing "${title}"` : `seller "${seller}"`}.

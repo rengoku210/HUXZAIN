@@ -394,7 +394,7 @@ function Page() {
 
                 <div>
                   <span className="text-xs text-muted-foreground">Choose Payment Method</span>
-                  <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1.5">
                     <button
                       type="button"
                       disabled={tokensCount <= 0}

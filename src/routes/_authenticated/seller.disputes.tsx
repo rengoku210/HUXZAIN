@@ -155,7 +155,7 @@ function Page() {
         <button
           onClick={loadDisputes}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border hover:bg-surface text-xs text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[44px] px-3 rounded-lg border border-border hover:bg-surface text-xs text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-50"
         >
           <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
@@ -179,7 +179,7 @@ function Page() {
       ) : (
         <div className="grid lg:grid-cols-[380px_1fr] gap-6">
           {/* List panel */}
-          <div className="space-y-3">
+          <div className="order-2 lg:order-1 space-y-3">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
               Active Cases ({disputes.length})
             </div>
@@ -224,7 +224,7 @@ function Page() {
           </div>
 
           {/* Details & Counter-claim Responder panel */}
-          <div>
+          <div className="order-1 lg:order-2">
             {selectedCase ? (
               <div className="space-y-6">
                 <PanelCard title="Case Review">

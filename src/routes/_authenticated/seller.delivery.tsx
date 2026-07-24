@@ -202,7 +202,7 @@ function Page() {
                         {canDeliver ? (
                           <button
                             onClick={() => void deliverOrder(o.id)}
-                            className="bg-gold text-black font-semibold rounded-lg text-xs px-3 py-1.5 hover:brightness-110 active:brightness-95 transition-all inline-flex items-center gap-1"
+                            className="bg-gold text-black font-semibold rounded-lg text-xs px-3 py-1.5 min-h-[44px] hover:brightness-110 active:brightness-95 transition-all inline-flex items-center gap-1"
                           >
                             <Truck size={12} /> Deliver
                           </button>

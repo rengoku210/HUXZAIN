@@ -277,17 +277,17 @@ export function Footer() {
           </div>
 
           {/* Social Icons */}
-          <div className="flex items-center gap-4">
-            <a href="#" className="text-[#8a8f9d] hover:text-white transition-colors" title="Facebook">
+          <div className="flex items-center gap-2">
+            <a href="#" className="p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-[#8a8f9d] hover:text-white transition-colors rounded-lg hover:bg-white/5" title="Facebook">
               <Facebook className="size-4.5" />
             </a>
-            <a href="#" className="text-[#8a8f9d] hover:text-white transition-colors" title="Twitter">
+            <a href="#" className="p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-[#8a8f9d] hover:text-white transition-colors rounded-lg hover:bg-white/5" title="Twitter">
               <Twitter className="size-4.5" />
             </a>
-            <a href="#" className="text-[#8a8f9d] hover:text-white transition-colors" title="Instagram">
+            <a href="#" className="p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-[#8a8f9d] hover:text-white transition-colors rounded-lg hover:bg-white/5" title="Instagram">
               <Instagram className="size-4.5" />
             </a>
-            <a href="#" className="text-[#8a8f9d] hover:text-white transition-colors" title="YouTube">
+            <a href="#" className="p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-[#8a8f9d] hover:text-white transition-colors rounded-lg hover:bg-white/5" title="YouTube">
               <Youtube className="size-4.5" />
             </a>
           </div>

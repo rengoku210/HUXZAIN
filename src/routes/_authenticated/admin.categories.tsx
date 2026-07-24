@@ -115,7 +115,7 @@ function CategoryModal({
               className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Sort Order</label>
               <input
@@ -148,7 +148,7 @@ function CategoryModal({
                   className="w-full h-10 px-4 rounded-lg bg-surface/60 border border-border focus:border-gold/50 outline-none text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Banner Title</label>
                   <input

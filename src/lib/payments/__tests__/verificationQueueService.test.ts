@@ -88,8 +88,7 @@ describe("verificationQueueService", () => {
         uploadResult,
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(uploadResult.signedUrl);
-      expect(runOcr).toHaveBeenCalled();
+      expect(runOcr).toHaveBeenCalledWith(uploadResult.signedUrl);
       expect(calculateFraudScore).toHaveBeenCalledWith({
         userId: "user-1",
         orderId: "order-1",

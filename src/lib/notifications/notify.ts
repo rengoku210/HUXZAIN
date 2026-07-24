@@ -150,18 +150,47 @@ async function sendEmail(
   }
 
   const actionBtn = link
-    ? `<div style="margin:28px 0;text-align:center;"><a href="${siteUrl}${link}" style="display:inline-block;padding:12px 24px;background:#D4AF37;color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px;">View Details</a></div>`
+    ? `<div style="margin:25px 0;text-align:center;"><a href="${siteUrl}${link}" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg, #D4AF37, #F3E5AB);color:#000000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;box-shadow:0 4px 12px rgba(212,175,55,0.25);">View details</a></div>`
     : "";
   const html = `
-    <div style="background:#0A0A0C;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;border:1px solid #1A1A22;border-radius:16px;">
-      <div style="text-align:center;margin-bottom:30px;border-bottom:1px solid #1A1A22;padding-bottom:20px;">
-        <h1 style="color:#D4AF37;font-size:28px;font-weight:800;letter-spacing:2px;margin:0;text-transform:uppercase;">HUXZAIN</h1>
+    <div style="background-color: #0A0A0C; color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; border: 1px solid #1A1A22; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <!-- Top Accent Bar -->
+      <div style="height: 4px; background: linear-gradient(90deg, #D4AF37, #F3E5AB, #D4AF37); border-radius: 4px 4px 0 0; margin: -40px -20px 30px -20px;"></div>
+      
+      <!-- Header Logo -->
+      <div style="text-align: center; margin-bottom: 30px; border-bottom: 1px solid #1A1A22; padding-bottom: 20px;">
+        <h1 style="color: #D4AF37; font-size: 28px; font-weight: 900; letter-spacing: 3px; margin: 0; text-transform: uppercase;">HUXZAIN</h1>
+        <p style="color: #8F8F9A; font-size: 10px; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 2px; font-weight: 500;">Secure Digital Products & Escrow Escort</p>
       </div>
-      <h2 style="color:#fff;font-size:18px;font-weight:700;border-left:3px solid #D4AF37;padding-left:12px;">${title}</h2>
-      <div style="color:#C0C0C6;font-size:14px;line-height:1.6;">${body}</div>
-      ${actionBtn}
-      <div style="text-align:center;border-top:1px solid #1A1A22;padding-top:25px;margin-top:30px;color:#60606A;font-size:11px;">
-        <p style="margin:0;">© 2026 HUXZAIN. All rights reserved.</p>
+      
+      <!-- Main Card -->
+      <div style="background-color: #121216; border: 1px solid #1D1D26; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+        <h2 style="color: #FFFFFF; font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 16px; border-left: 3px solid #D4AF37; padding-left: 12px;">
+          ${title}
+        </h2>
+        <div style="color: #C0C0C6; font-size: 14px; line-height: 1.6; font-weight: 400;">
+          ${body}
+        </div>
+        ${actionBtn}
+      </div>
+      
+      <!-- Support Footer Notice -->
+      <div style="background-color: rgba(212,175,55,0.03); border: 1px solid rgba(212,175,55,0.1); border-radius: 8px; padding: 12px 15px; margin-bottom: 30px; text-align: center;">
+        <span style="color: #D4AF37; font-size: 11px; font-weight: 600;">🛡️ HUXZAIN Protection Active:</span>
+        <span style="color: #8F8F9A; font-size: 11px; margin-left: 4px;">Never share your password, API keys, or OTP code with anyone.</span>
+      </div>
+      
+      <!-- Footer Links & Info -->
+      <div style="text-align: center; border-top: 1px solid #1A1A22; padding-top: 25px; color: #60606A; font-size: 11px; line-height: 1.6;">
+        <p style="margin: 0 0 8px 0;">This email is sent automatically by the HUXZAIN secure operations dispatch network.</p>
+        <p style="margin: 0 0 15px 0;">© 2026 HUXZAIN Operations. All rights reserved.</p>
+        <div>
+          <a href="${siteUrl}" style="color: #D4AF37; text-decoration: none; font-weight: 600;">Marketplace Portal</a>
+          <span style="color: #33333C; margin: 0 10px;">•</span>
+          <a href="${siteUrl}/privacy" style="color: #D4AF37; text-decoration: none; font-weight: 600;">Privacy Network</a>
+          <span style="color: #33333C; margin: 0 10px;">•</span>
+          <a href="${siteUrl}/account?tab=support" style="color: #D4AF37; text-decoration: none; font-weight: 600;">24/7 Assistance Desk</a>
+        </div>
       </div>
     </div>`;
 
@@ -299,7 +328,7 @@ export async function notify(eventKey: string, ctx: NotifyContext = {}): Promise
           channels,
           link,
           entity_type: ctx.entity?.type ?? null,
-          entity_id: ctx.entity?.id ?? null,
+          entity_id: ctx.entity && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ctx.entity.id) ? ctx.entity.id : null,
           dedupe_key: dedupeKey,
           read_at: null,
         })

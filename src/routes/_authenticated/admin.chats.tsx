@@ -455,7 +455,7 @@ function AntiFraudAndChatMonitor() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border/60 flex flex-wrap gap-1.5">
+      <div className="border-b border-border/60 flex overflow-x-auto scrollbar-none gap-1.5">
         {tabs.map((t) => {
           const ActiveIcon = t.icon;
           return (

@@ -340,7 +340,7 @@ function AdminOrdersCenter() {
       {/* DETAIL MODAL OVERLAY */}
       {selectedOrderId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-5xl h-[85vh] bg-[#0A0A0A] border border-border/80 rounded-2xl flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-5xl max-h-[90vh] h-auto overflow-y-auto bg-[#0A0A0A] border border-border/80 rounded-2xl flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="p-4 border-b border-border/60 flex justify-between items-center bg-surface/20 shrink-0">
               <div className="flex items-center gap-3">
@@ -445,7 +445,7 @@ function AdminOrdersCenter() {
                           <div className="font-bold text-foreground mt-0.5 font-mono uppercase text-[10px]">{details.delivery_type || "manual"}</div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 border-t border-border/30 pt-3 text-xs font-mono">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-border/30 pt-3 text-xs font-mono">
                         <div>
                           <span className="text-[10px] text-muted-foreground uppercase">Buyer Paid</span>
                           <div className="font-bold text-emerald-400 text-sm mt-0.5">{formatCurrency(details.order.amount_inr)}</div>

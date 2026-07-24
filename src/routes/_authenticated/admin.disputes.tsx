@@ -539,7 +539,7 @@ function Page() {
   };
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col">
+    <div className="min-h-[60vh] md:h-[calc(100vh-140px)] flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
           <h1 className="font-display text-2xl font-bold flex items-center gap-2">

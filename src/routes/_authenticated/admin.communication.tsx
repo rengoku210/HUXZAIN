@@ -28,6 +28,7 @@ import {
   getEmergencyAlerts,
   createEmergencyAlert,
   toggleEmergencyAlert,
+  sendCampaignBroadcast,
 } from "@/lib/admin/communication.functions";
 import { getDomainStatus, updateSMTPConfig } from "@/lib/admin/tickets.functions";
 
@@ -49,6 +50,7 @@ function CommunicationCenter() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [emergencyAlerts, setEmergencyAlerts] = useState<any[]>([]);
+  const [dispatchingId, setDispatchingId] = useState<string | null>(null);
 
   // Form states
   const [showCampaignForm, setShowCampaignForm] = useState(false);
@@ -190,6 +192,22 @@ function CommunicationCenter() {
       toast.error(err.message || "Failed to create campaign");
     } finally {
       setCampaignSubmitBusy(false);
+    }
+  };
+
+  const handleSendCampaign = async (campaignId: string) => {
+    if (!confirm("Are you sure you want to broadcast this campaign now? This will dispatch notifications/emails to all users in the target segment.")) {
+      return;
+    }
+    setDispatchingId(campaignId);
+    try {
+      const res = await sendCampaignBroadcast({ data: { id: campaignId } });
+      toast.success(`Campaign broadcast completed! Delivered: ${res.delivered}, Failed: ${res.failed}`);
+      loadAllData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send campaign");
+    } finally {
+      setDispatchingId(null);
     }
   };
 
@@ -439,7 +457,7 @@ function CommunicationCenter() {
                   <h3 className="font-display font-semibold text-lg flex items-center gap-2 text-gold">
                     <Sparkles size={16} /> Broadcast New Campaign
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Campaign Name</label>
                       <input
@@ -466,7 +484,7 @@ function CommunicationCenter() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Target Audience CRM Segment</label>
                       <select
@@ -561,9 +579,7 @@ function CommunicationCenter() {
                     {campaignSubmitBusy ? "Scheduling..." : campaignScheduled ? "Schedule Broadcast" : "Send Broadcast Now"}
                   </button>
                 </form>
-              )}
-
-              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden">
+              )}               <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto">
                 <table className="w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground">
@@ -573,12 +589,13 @@ function CommunicationCenter() {
                       <th className="p-4 font-bold">Status</th>
                       <th className="p-4 font-bold">Scheduled / Sent At</th>
                       <th className="p-4 font-bold">Performance</th>
+                      <th className="p-4 font-bold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {campaigns.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-xs text-muted-foreground">
+                        <td colSpan={7} className="p-8 text-center text-xs text-muted-foreground">
                           No campaigns created yet. Click "Create Campaign" to trigger your first broadcast.
                         </td>
                       </tr>
@@ -616,6 +633,19 @@ function CommunicationCenter() {
                                 <span>Failed: <strong className="text-red-400">{c.stats?.failed || 0}</strong></span>
                               </div>
                             </td>
+                            <td className="p-4">
+                              {c.status !== "sent" && c.status !== "sending" ? (
+                                <button
+                                  onClick={() => handleSendCampaign(c.id)}
+                                  disabled={dispatchingId === c.id}
+                                  className="px-3 py-1.5 rounded-lg bg-gold text-primary-foreground font-semibold text-[10px] uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all cursor-pointer border-none disabled:opacity-50"
+                                >
+                                  {dispatchingId === c.id ? "Sending..." : "Send Now"}
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic font-medium">Broadcasted</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })
@@ -637,7 +667,7 @@ function CommunicationCenter() {
                   <h3 className="font-display font-semibold text-lg flex items-center gap-2 text-gold">
                     <Sparkles size={16} /> {editTemplateId ? "Edit Template" : "Create New Email Template"}
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Template Name</label>
                       <input
@@ -691,7 +721,7 @@ function CommunicationCenter() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Dynamic Variables (Comma separated)</label>
                       <input
@@ -823,7 +853,7 @@ function CommunicationCenter() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Alert Type</label>
                       <select
@@ -862,7 +892,7 @@ function CommunicationCenter() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Starts At</label>
                       <input
@@ -907,7 +937,7 @@ function CommunicationCenter() {
                 </form>
               )}
 
-              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-hidden">
+              <div className="rounded-2xl border border-border bg-surface/40 backdrop-blur-md overflow-x-auto">
                 <table className="w-full border-collapse text-left">
                   <thead>
                     <tr className="border-b border-border/80 bg-surface/30 text-xs uppercase tracking-wider text-muted-foreground">
@@ -1156,7 +1186,7 @@ function CommunicationCenter() {
                   Configure the outbound communication domains, SPF/DKIM verification indicators, and SMTP dispatch service provider for marketing & newsletters.
                 </p>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Service Provider</label>
                     <select
@@ -1199,8 +1229,8 @@ function CommunicationCenter() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-1 col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-1 sm:col-span-2">
                         <label className="text-xs text-muted-foreground">SMTP Host Server</label>
                         <input
                           type="text"
@@ -1221,7 +1251,7 @@ function CommunicationCenter() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">SMTP Username</label>
                         <input
@@ -1246,7 +1276,7 @@ function CommunicationCenter() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Reply-To Email (Optional)</label>
                     <input
